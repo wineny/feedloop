@@ -5,6 +5,7 @@
 // Mirrors the script's ordering rule exactly: the three undated files first, in the order
 // production applied them, then every dated file in byte order.
 
+import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import path from 'path';
 
