@@ -12,7 +12,11 @@
     "test:watch": "vitest",
     "test:db:handoff": "tsx scripts/test-db-handoff.ts",
     "test:db:recovery": "tsx scripts/test-db-recovery.ts",
-    "test:db:lifecycle": "tsx scripts/test-db-lifecycle.ts"
+    "test:db:lifecycle": "tsx scripts/test-db-lifecycle.ts",
+    "db:schema": "scripts/build-schema.sh",
+    "db:dry-run": "scripts/schema-dry-run.sh supabase/tests/guardrail_refund.sql",
+    "db:seed-demo": "tsx scripts/seed-demo.ts",
+    "paypal:smoke": "tsx scripts/paypal-smoke.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.52",
@@ -23,6 +27,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@octokit/auth-app": "8.3.1",
     "@octokit/rest": "^22.0.1",
+    "@paypal/agent-toolkit": "^1.11.0",
     "@supabase/supabase-js": "^2.100.1",
     "@tailwindcss/typography": "^0.5.19",
     "ai": "7.0.97",

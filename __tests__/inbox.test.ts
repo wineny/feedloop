@@ -68,7 +68,8 @@ vi.mock('@/lib/supabase', () => ({
 
 // 라우트 테스트는 인가를 여기서 끊는다 — next-auth 세션을 끌고 들어오지 않게.
 const { resolveOwnedBots } = vi.hoisted(() => ({ resolveOwnedBots: vi.fn() }));
-vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots }));
+// inbox routes use resolveAccessibleBots (owner or approver) since 20261019_01; one stub serves both names
+vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots, resolveAccessibleBots: resolveOwnedBots }));
 
 type Mod = typeof import('@/lib/bot/conversations');
 

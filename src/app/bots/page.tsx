@@ -17,6 +17,8 @@ import { DEFAULT_LIMITS, PLATFORM_MODEL_LABEL } from '@/lib/llm/limits';
 import { cn } from '@/lib/utils';
 import { sourceLabel } from '@/lib/channel/labels';
 import { ScopedBotRow, ScopedBotsSummary, ScopedWidgetSnippet } from '@/components/bots/ScopedBots';
+import { listAccessibleBotIds } from '@/lib/auth/ownership';
+import { TryDemoBotButton } from './TryDemoBotButton';
 
 // 「챗봇 설정」 — 등록 단위는 봇이 아니라 피드백을 받을 서비스다.
 // 이름은 2026-09-20 에 「연결 서비스」에서 옮겼다. 이 화면이 실제로 하는 일이 «그 서비스에 붙인
@@ -41,10 +43,12 @@ import { ScopedBotRow, ScopedBotsSummary, ScopedWidgetSnippet } from '@/componen
  * 한 줄 리터럴이어야 supabase 타입 추론이 된다.
  */
 const BOT_COLUMNS =
-  'id, service_name, service_url, service_description, status, pr_mode, github_repo_url, widget_connected_at, last_active_at, channel_connected_at, display_name, greeting, operator_display_name, knowledge_text, knowledge_faq, llm_provider, llm_model, llm_key_last4, llm_key_failed_at, daily_reply_limit, github_token_last4, github_token_failed_at, github_token_broad, github_installation_id, github_installation_login, github_installation_lost_at, created_at';
+  'id, service_name, service_url, service_description, status, pr_mode, github_repo_url, widget_connected_at, last_active_at, channel_connected_at, display_name, greeting, operator_display_name, knowledge_text, knowledge_faq, llm_provider, llm_model, llm_key_last4, llm_key_failed_at, daily_reply_limit, github_token_last4, github_token_failed_at, github_token_broad, github_installation_id, github_installation_login, github_installation_lost_at, created_at, user_id';
 
 interface BotRow {
   id: string;
+  /** owner. Rows this user merely approves for (bot_members) have someone else's id here */
+  user_id: string;
   service_name: string;
   service_url: string | null;
   service_description: string | null;
@@ -473,22 +477,35 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
   // 설치 콜백이 «어느 봇인지 못 정한 채» 돌아오면 여기로 온다. 이 값을 안 읽으면 운영자는 아무 안내도 못 받는다(코드 리뷰 HIGH)
   const { app } = await searchParams;
   const session = await getServerSession(authOptions);
-  const isDemo = !session?.user?.id;
+  const userId = session?.user?.id ?? null;
+  const isDemo = !userId;
 
-  // 사용자 소유의 봇 목록 가져오기
+  // 사용자 소유의 봇 + 승인자로 참여한 봇(bot_members — PayPal 해커톤 데모 봇) 목록
   let bots: BotView[] = demoBots;
-  if (!isDemo) {
+  // listed bots this user does not own: they can operate these (inbox, approvals) but not delete them
+  const foreignIds = new Set<string>();
+  // a demo bot exists on this deployment and this user is not in it yet → offer "Try the demo bot"
+  let canJoinDemo = false;
+  if (userId) {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase
-      .from('bots')
-      .select(BOT_COLUMNS)
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
+    const ids = await listAccessibleBotIds(userId);
+    bots = [];
+    if (ids.length > 0) {
+      const { data, error } = await supabase
+        .from('bots')
+        .select(BOT_COLUMNS)
+        .in('id', ids)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching bots:', error);
+      if (error) {
+        console.error('Error fetching bots:', error);
+      }
+      const rows = (data ?? []) as unknown as BotRow[];
+      for (const r of rows) if (r.user_id !== userId) foreignIds.add(r.id);
+      bots = rows.map(toView);
     }
-    bots = ((data ?? []) as unknown as BotRow[]).map(toView);
+    const { data: demoRow } = await supabase.from('bots').select('id').eq('is_demo', true).maybeSingle();
+    canJoinDemo = Boolean(demoRow && !ids.includes(demoRow.id));
   }
 
   // 위젯 스니펫의 주소 — 연결 화면(/bots/[id]/connect)과 같은 방식으로 만든다.
@@ -508,6 +525,12 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
       <Link href="/bots/new">새 서비스 등록</Link>
     </Button>
   );
+  const heroActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {canJoinDemo && <TryDemoBotButton />}
+      {registerButton}
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-10">
@@ -516,7 +539,7 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
         emoji={PAGE_EMOJI.bots}
         title="챗봇 설정"
         description={<ScopedBotsSummary total={bots.length} receiving={receivingCount} />}
-        actions={registerButton}
+        actions={heroActions}
       />
 
       {bots.length === 0 ? (
@@ -527,9 +550,12 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
           <p className="text-sm leading-relaxed text-muted-foreground">
             서비스를 등록하고 스크립트 한 줄을 붙이면 피드백이 들어오기 시작해요
           </p>
-          <Button asChild>
-            <Link href="/bots/new">서비스 등록하기</Link>
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button asChild>
+              <Link href="/bots/new">서비스 등록하기</Link>
+            </Button>
+            {canJoinDemo && <TryDemoBotButton />}
+          </div>
         </div>
       ) : (
         <ul className="flex flex-col gap-5">
@@ -696,7 +722,7 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                     <SettingsLink href={`/bots/${bot.id}/knowledge?tab=key`} disabled={isDemo}>API 키</SettingsLink>
                     <SettingsLink href={`/bots/${bot.id}/knowledge?tab=github`} disabled={isDemo}>GitHub 연결</SettingsLink>
                     <div className="ml-auto flex min-w-0 basis-full justify-end sm:basis-auto">
-                      <DeleteBotButton botId={bot.id} serviceName={bot.service_name} disabled={isDemo} />
+                      <DeleteBotButton botId={bot.id} serviceName={bot.service_name} disabled={isDemo || foreignIds.has(bot.id)} />
                     </div>
                   </div>
                 </li>

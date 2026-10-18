@@ -5,7 +5,7 @@
 // 운영자가 직접 닫을 수 있는 길을 둔다. 채널톡 전용은 아니다 — 어느 채널이든 닫을 수 있다.
 
 import { NextResponse } from 'next/server';
-import { resolveOwnedBots } from '@/lib/auth/ownership';
+import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getConversationOwner } from '@/lib/bot/conversations';
 import { getServiceRoleClient } from '@/lib/supabase';
 
@@ -20,7 +20,7 @@ export async function POST(
     return NextResponse.json({ error: '대화를 찾을 수 없습니다' }, { status: 404 });
   }
 
-  const auth = await resolveOwnedBots(conversation.bot_id);
+  const auth = await resolveAccessibleBots(conversation.bot_id);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

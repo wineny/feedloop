@@ -5,7 +5,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase';
-import { resolveOwnedBots } from '@/lib/auth/ownership';
+import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { messageDelivery } from '@/lib/dashboard/feedback-delivery';
 import {
   EMPTY_LOOP_TIME,
@@ -109,7 +109,7 @@ const CONVERSATION_CHUNK = 200;
 // `?botId=` 로 한 서비스만 본다(I-27). 없으면 종전대로 유저의 봇 전체.
 // req 가 선택인 이유: 테스트가 인자 없이 부른다 — Next 는 늘 넘긴다.
 export async function GET(req?: NextRequest) {
-  const auth = await resolveOwnedBots(req?.nextUrl.searchParams.get('botId') ?? null);
+  const auth = await resolveAccessibleBots(req?.nextUrl.searchParams.get('botId') ?? null);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

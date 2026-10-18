@@ -6,7 +6,7 @@
 // 채널톡은 답장 창구가 데스크 하나뿐이다 — 여기서는 받지 않고 그쪽 링크를 돌려준다.
 
 import { NextResponse } from 'next/server';
-import { resolveOwnedBots } from '@/lib/auth/ownership';
+import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getChannelDeskUrl } from '@/lib/bot/channel-registration';
 import {
   clearConversationEscalated,
@@ -28,7 +28,7 @@ export async function POST(
     return NextResponse.json({ error: '대화를 찾을 수 없습니다' }, { status: 404 });
   }
 
-  const auth = await resolveOwnedBots(conversation.bot_id);
+  const auth = await resolveAccessibleBots(conversation.bot_id);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

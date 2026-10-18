@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { from, resolveOwnedBots, results, calls } = vi.hoisted(() => ({ from: vi.fn(), resolveOwnedBots: vi.fn(), results: [] as unknown[], calls: [] as { table: string; methods: [string, ...unknown[]][] }[] }));
 vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from }) }));
-vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots }));
+vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots, resolveAccessibleBots: resolveOwnedBots }));
 import { GET } from '@/app/api/dashboard/route';
 beforeEach(() => {
  vi.clearAllMocks(); results.length = 0; calls.length = 0;
