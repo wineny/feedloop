@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/check-merged",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/auto-pr",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

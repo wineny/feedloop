@@ -1,0 +1,15 @@
+-- 즉답 LLM 호출이 실패한 «사유» 를 담는 전용 컬럼 (계획 §B-6).
+--
+-- 왜 status_message 를 안 쓰나: 그 컬럼은 «연결 상태» 전용이다.
+-- lib/bot/db.ts 의 markBotConnected() 가 status_message = NULL 을 쓰고,
+-- api/kakao/webhook/[botId]/route.ts 가 카카오 메시지마다 after() 로 그걸 부른다.
+-- 거기에 키 실패 문구를 넣으면 (1) 다음 발화에 지워지고
+-- (2) /api/bots/[id]/status 를 읽는 연결 화면에 «연결 문제»처럼 뜬다.
+-- markBotConnected 를 고치는 건 기존 동작 변경이라 하지 않는다 — 컬럼을 하나 늘린다.
+--
+-- 값은 lib/llm/key.ts 의 failureMessage() 가 만든 4분류 «고정 문자열» 만 들어간다.
+-- provider 에러 원문은 절대 넣지 않는다 — 키 조각이나 내부 정보가 섞일 수 있다.
+-- 배지 판정은 llm_key_failed_at 이 하고, 이 컬럼은 문구만 담당한다.
+-- 초기화 시점은 «키 교체·모델 변경 저장» 이다. 호출이 성공할 때마다 쓰면
+-- 메시지당 DB 왕복이 하나 는다(위젯 POST 는 메시지마다 이 경로를 탄다).
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS llm_key_failed_reason TEXT;

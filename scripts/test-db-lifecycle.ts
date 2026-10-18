@@ -1,0 +1,71 @@
+/** Real local PostgreSQL lifecycle proofs. Only UUID-owned fixtures are removed. */
+import postgres from 'postgres';
+import {randomUUID} from 'node:crypto';
+import assert from 'node:assert/strict';
+async function main(){
+const url=process.env.PIPELINE_TEST_DATABASE_URL ?? 'postgres://postgres:feedloop-local-qa-only@127.0.0.1:55439/feedloop_qa';
+const target=new URL(url);
+if(!['127.0.0.1','localhost'].includes(target.hostname)||target.pathname!='/feedloop_qa')throw new Error('Disposable localhost feedloop_qa only');
+const sql=postgres(url,{max:8});const user=randomUUID(),bot=randomUUID(),group=randomUUID();
+const passed:string[]=[];const pass=(s:string)=>{passed.push(s);console.log(`PASS ${s}`);};
+try{
+ await sql`insert into users(id,name) values(${user},'lifecycle-local-QA')`;
+ await sql`insert into bots(id,user_id,bot_token_encrypted,service_name) values(${bot},${user},'test-only','QA lifecycle')`;
+ await sql`insert into insight_groups(id,bot_id,title,summary,category,status) values(${group},${bot},'test bug','test bug','bug','open')`;
+ const make=async()=> (await sql`select create_pipeline_run(${bot}::uuid,${group}::uuid,null::uuid) id`)[0].id;
+ const runs=await Promise.all(Array.from({length:8},make));
+ assert.equal(new Set(runs).size,1);const run=runs[0];pass('eight concurrent requests create one run');
+ const claims=await Promise.all(Array.from({length:8},async()=>(await sql`select claim_pipeline_run(${run}::uuid) yes`)[0].yes));
+ assert.equal(claims.filter(Boolean).length,1);pass('eight execution contenders have one lease');
+ const oldToken=claims.find(Boolean);
+ assert.equal((await sql`select assert_pipeline_run_lease(${run}::uuid,${oldToken}::uuid) yes`)[0].yes,true);
+ await sql`update auto_dev_runs set lease_until=now()-interval '1 second' where id=${run}`;
+ assert.match((await sql`select claim_pipeline_run(${run}::uuid) yes`)[0].yes,/^[a-f0-9-]{36}$/);
+ assert.equal((await sql`update auto_dev_runs set error_message='stale worker' where id=${run} and lease_token=${oldToken}::uuid returning id`).length,0);pass('expired lease rotates token and fences stale persistence');
+ assert.equal((await sql`select assert_pipeline_run_lease(${run}::uuid,${oldToken}::uuid) yes`)[0].yes,false);
+ await assert.rejects(sql`select save_pipeline_run(${run}::uuid,${oldToken}::uuid,'{"status":"failed"}')`,/execution_lease_lost/);
+ await assert.rejects(sql`select record_pipeline_attempt(${run}::uuid,${oldToken}::uuid,'{}')`,/execution_lease_lost/);
+ pass('captured stale claim cannot borrow replacement token or write attempts');
+ await sql`update auto_dev_runs set status='unverifiable',publication_status='pending',publication_intent='{"branch":"stable-identity"}',generation_budget='{"calls":4}' where id=${run}`;
+ assert.equal(await make(),run);assert.match((await sql`select claim_pipeline_run(${run}::uuid) yes`)[0].yes,/^[a-f0-9-]{36}$/);
+ assert.equal((await sql`select generation_budget from auto_dev_runs where id=${run}`)[0].generation_budget.calls,4);pass('partial publication reuses run and retains cumulative budget');
+ const token=(await sql`select lease_token from auto_dev_runs where id=${run}`)[0].lease_token;
+ const evidence={status:'validated',runId:run,attempt:1,baseSha:'a'.repeat(40),patchDigest:'b'.repeat(64),profileDigest:'c'.repeat(64)};
+ await sql`select record_pipeline_attempt(${run}::uuid,${token}::uuid,${sql.json(evidence)})`;
+ await sql`select record_pipeline_attempt(${run}::uuid,${token}::uuid,${sql.json(evidence)})`;
+ assert.equal((await sql`select count(*)::int n from auto_dev_attempts where run_id=${run}`)[0].n,2);pass('resumed attempt counters append evidence without overwriting history');
+ const pr={pr_url:'https://github.com/qa/repo/pull/1',pr_number:1,files_changed:[],explanation:{problem:'fixture problem',change:'fixture change',effect:'expected fixture behavior',unverified:[],source:'model'}};
+ await assert.rejects(sql`select complete_pipeline_run(${run}::uuid,${token}::uuid,${sql.json(pr)},1)`,/publication_evidence_mismatch/);
+ assert.equal((await sql`select status from auto_dev_runs where id=${run}`)[0].status,'in_progress');pass('mismatched publication receipt rolls back completion');
+ await sql`update auto_dev_runs set publication_intent=${sql.json(evidence)} where id=${run}`;
+ assert.equal((await sql`select complete_pipeline_run(${run}::uuid,${token}::uuid,${sql.json(pr)},1) yes`)[0].yes,true);
+ assert.equal((await sql`select status from insight_groups where id=${group}`)[0].status,'pr_created');
+ assert.equal((await sql`select status from auto_dev_runs where id=${run}`)[0].status,'completed');
+ assert.deepEqual((await sql`select explanation from auto_dev_runs where id=${run}`)[0].explanation,pr.explanation);pass('validated completion atomically persists PR and group status');
+ await sql`update insight_groups set status='merged',follow_up_pending=true where id=${group}`;
+ await assert.rejects(make,/group_follow_up_hold/);pass('merged unresolved issue holds new PR');
+ const conversation=randomUUID(),response=randomUUID();
+ await sql`insert into conversations(id,bot_id,source,external_user_id) values(${conversation},${bot},'web',${randomUUID()})`;
+ await sql`insert into responses(id,bot_id,conversation_id,response_type,response_body,auto_dev_run_id) values(${response},${bot},${conversation},'loop_closed','PR merged; deployment unknown',${run})`;
+ await assert.rejects(sql`insert into responses(bot_id,conversation_id,response_type,response_body,auto_dev_run_id) values(${bot},${conversation},'loop_closed','duplicate',${run})`,/duplicate key/);pass('notification record unique per run and conversation');
+ const claimEmail=async()=> (await sql`select claim_response_email(${response}::uuid,${bot}::uuid,${conversation}::uuid) yes`)[0].yes;
+ const emails=await Promise.all(Array.from({length:8},claimEmail));assert.equal(emails.filter(Boolean).length,1);pass('email dispatch claimed once across concurrent senders');
+ await sql`update responses set email_attempted_at=now()-interval '2 minutes' where id=${response}`;
+ assert.equal(await claimEmail(),false);assert.equal((await sql`select email_delivery_status from responses where id=${response}`)[0].email_delivery_status,'delivery_unknown');pass('dead worker becomes delivery unknown without resend');
+ await sql`update responses set email_delivery_status='failed' where id=${response}`;
+ assert.equal(await claimEmail(),true);pass('definitive provider rejection can retry');
+ await sql`update responses set email_delivery_status='delivery_unknown',email_message_id='provider-accepted-test' where id=${response}`;
+ assert.equal(await claimEmail(),false);assert.equal((await sql`select email_message_id from responses where id=${response}`)[0].email_message_id,'provider-accepted-test');pass('uncertain provider acceptance retains ID and blocks retry');
+ const second=randomUUID();
+ await sql`insert into insight_groups(id,bot_id,title,summary,category,status) values(${second},${bot},'later group','later group','bug','open')`;
+ const message=(await sql`insert into messages(bot_id,source,author_name,body,detected_at) values(${bot},'web','QA','legacy issue',now()) returning id`)[0].id;
+ const insight=(await sql`insert into insights(bot_id,message_id,category,summary,sentiment) values(${bot},${message},'bug','legacy issue','negative') returning id`)[0].id;
+ const legacy=(await sql`select create_pipeline_run(${bot}::uuid,null::uuid,${insight}::uuid) id`)[0].id;
+ await sql`update insights set group_id=${second} where id=${insight}`;
+ assert.equal((await sql`select create_pipeline_run(${bot}::uuid,${second}::uuid,null::uuid) id`)[0].id,legacy);
+ assert.equal((await sql`select group_id from auto_dev_runs where id=${legacy}`)[0].group_id,second);pass('later grouping canonicalizes active individual run instead of duplicating PR');
+ console.log(JSON.stringify({suite:'lifecycle-postgres',passed:passed.length,checks:passed}));
+}finally{await sql`delete from users where id=${user}`;await sql.end();}
+
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

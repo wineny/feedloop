@@ -1,0 +1,506 @@
+/* ============================================================================
+   Design System Tokens v0.1.0
+   ============================================================================
+   단일 소스 역할: 디자인 토큰(색상, 간격, 라디우스 등)의 유일한 정의 파일.
+   모든 프로젝트는 이 파일을 CDN으로 import하여 동일한 토큰 값을 사용한다.
+
+   CDN: https://cdn.jsdelivr.net/gh/conewarrior/design-system/tokens.css
+
+   추가/변경 기준:
+   - 새 토큰 추가: 2개 이상의 프로젝트에서 동일 값이 반복될 때
+   - 값 변경: 전체 프로젝트에 즉시 반영됨을 인지하고 변경
+   - 삭제 금지: 기존 토큰은 삭제하지 않고 deprecated 주석 처리
+
+   v0.1.0 변경사항:
+   - spacing: 8px → 4px 기준 단위로 변경 (Breaking Change)
+   - 추가: font-family, shadow, z-index, motion, border-width
+   - 추가: 상태(hover, active, disabled) 토큰
+   ============================================================================ */
+
+:root {
+  /* ==========================================================================
+     Font Family
+     ==========================================================================
+     용도: 텍스트 폰트 지정
+     규칙: 시스템 폰트 스택 포함하여 폴백 보장
+     ========================================================================== */
+  --font-family-sans: 'Inter', 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  --font-family-mono: 'Fira Code', 'JetBrains Mono', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+  /* ==========================================================================
+     Spacing (4px 기준 단위)
+     ==========================================================================
+     용도: padding, margin, gap 등 모든 간격에 사용
+     규칙: 임의의 px 값 대신 토큰 사용 필수
+     스케일: 4px × n (업계 표준)
+     예시: padding: var(--spacing-4); // 16px
+     ========================================================================== */
+  --spacing-0: 0;
+  --spacing-px: 1px;
+  --spacing-0-5: 2px;   /* 0.5 × 4px */
+  --spacing-1: 4px;     /* 1 × 4px - 아이콘과 텍스트 사이 등 미세 간격 */
+  --spacing-1-5: 6px;   /* 1.5 × 4px */
+  --spacing-2: 8px;     /* 2 × 4px - 인라인 요소 간격 */
+  --spacing-2-5: 10px;  /* 2.5 × 4px */
+  --spacing-3: 12px;    /* 3 × 4px - 컴포넌트 내부 패딩 */
+  --spacing-3-5: 14px;  /* 3.5 × 4px */
+  --spacing-4: 16px;    /* 4 × 4px - 기본 패딩 */
+  --spacing-5: 20px;    /* 5 × 4px */
+  --spacing-6: 24px;    /* 6 × 4px - 카드 패딩 */
+  --spacing-7: 28px;    /* 7 × 4px */
+  --spacing-8: 32px;    /* 8 × 4px - 섹션 간격 */
+  --spacing-9: 36px;    /* 9 × 4px */
+  --spacing-10: 40px;   /* 10 × 4px */
+  --spacing-11: 44px;   /* 11 × 4px */
+  --spacing-12: 48px;   /* 12 × 4px - 큰 섹션 간격 */
+  --spacing-14: 56px;   /* 14 × 4px */
+  --spacing-16: 64px;   /* 16 × 4px */
+  --spacing-20: 80px;   /* 20 × 4px */
+  --spacing-24: 96px;   /* 24 × 4px - 페이지 섹션 */
+  --spacing-28: 112px;  /* 28 × 4px */
+  --spacing-32: 128px;  /* 32 × 4px */
+  --spacing-36: 144px;  /* 36 × 4px */
+  --spacing-40: 160px;  /* 40 × 4px */
+  --spacing-44: 176px;  /* 44 × 4px */
+  --spacing-48: 192px;  /* 48 × 4px */
+  --spacing-52: 208px;  /* 52 × 4px */
+  --spacing-56: 224px;  /* 56 × 4px */
+  --spacing-60: 240px;  /* 60 × 4px */
+  --spacing-64: 256px;  /* 64 × 4px */
+  --spacing-72: 288px;  /* 72 × 4px */
+  --spacing-80: 320px;  /* 80 × 4px */
+  --spacing-96: 384px;  /* 96 × 4px */
+
+  /* ==========================================================================
+     Border Radius
+     ==========================================================================
+     용도: 모서리 둥글기
+     규칙: 임의의 px 값 대신 토큰 사용 필수
+     예시: border-radius: var(--radius-md);
+
+     디자인 근거:
+     - globals.css의 --radius(기본 10px)로부터 calc()로 자동 산출
+     - 버튼 8px, 카드 10-14px가 2025-2026 트렌드 기준 자연스러운 라운드
+     - Vercel, Linear, Stripe 등 최신 디자인 시스템의 8-12px 기본값 참조
+     ========================================================================== */
+  --radius-none: 0;
+  --radius-sm: 6px;      /* calc(--radius - 4px): 태그, 뱃지, 인라인 요소 */
+  --radius-md: 8px;      /* calc(--radius - 2px): 버튼, 인풋, 작은 카드 */
+  --radius-lg: 10px;     /* --radius: 카드, 모달, 드롭다운 */
+  --radius-xl: 14px;     /* calc(--radius + 4px): 큰 카드, 다이얼로그 */
+  --radius-2xl: 18px;    /* calc(--radius + 8px): 매우 큰 컨테이너, 히어로 섹션 */
+  --radius-full: 9999px; /* 원형: 아바타, 토글, pill 버튼 */
+
+  /* ==========================================================================
+     Border Width
+     ==========================================================================
+     용도: 테두리 두께
+     규칙: 임의의 px 값 대신 토큰 사용
+     ========================================================================== */
+  --border-width-0: 0;
+  --border-width-1: 1px;
+  --border-width-2: 2px;
+  --border-width-4: 4px;
+  --border-width-8: 8px;
+
+  /* ==========================================================================
+     Shadow
+     ==========================================================================
+     용도: 박스 그림자, 엘리베이션
+     규칙: 컴포넌트 깊이 표현에 사용
+     ========================================================================== */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --shadow-none: 0 0 #0000;
+
+  /* ==========================================================================
+     Z-Index
+     ==========================================================================
+     용도: 레이어 스택 순서
+     규칙: 컴포넌트별 일관된 z-index 사용
+     ========================================================================== */
+  --z-index-hide: -1;
+  --z-index-base: 0;
+  --z-index-dropdown: 100;
+  --z-index-sticky: 200;
+  --z-index-fixed: 300;
+  --z-index-modal-backdrop: 400;
+  --z-index-modal: 500;
+  --z-index-popover: 600;
+  --z-index-tooltip: 700;
+  --z-index-toast: 800;
+
+  /* ==========================================================================
+     Motion / Animation
+     ==========================================================================
+     용도: 트랜지션 및 애니메이션
+     규칙: 일관된 모션 경험 제공
+     ========================================================================== */
+  /* Duration */
+  --duration-fastest: 50ms;
+  --duration-faster: 100ms;
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+  --duration-slowest: 500ms;
+
+  /* Easing */
+  --easing-linear: linear;
+  --easing-in: cubic-bezier(0.4, 0, 1, 1);
+  --easing-out: cubic-bezier(0, 0, 0.2, 1);
+  --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ==========================================================================
+     Colors - Neutral (Gray Scale)
+     ==========================================================================
+     용도: 텍스트, 배경, 보더 등 기본 UI
+     규칙: 의미 기반 토큰(--color-bg-* 등)을 우선 사용하고,
+           직접 사용이 필요한 경우에만 스케일 토큰 사용
+     ========================================================================== */
+  --neutral-50: #fafafa;
+  --neutral-100: #f5f5f5;
+  --neutral-200: #e5e5e5;
+  --neutral-300: #d4d4d4;
+  --neutral-400: #a3a3a3;
+  --neutral-500: #737373;
+  --neutral-600: #525252;
+  --neutral-700: #404040;
+  --neutral-800: #262626;
+  --neutral-900: #171717;
+  --neutral-950: #0a0a0a;
+
+  /* ==========================================================================
+     Colors - Primary (Brand)
+     ==========================================================================
+     용도: 브랜드 아이덴티티, 주요 액션 버튼
+     ========================================================================== */
+  --primary-50: #FDF1F0;
+  --primary-100: #FBE2E2;
+  --primary-200: #F8C5C4;
+  --primary-300: #F6A7A4;
+  --primary-400: #F38782;
+  --primary-500: #F2645C;  /* 기본값 — Warm Coral */
+  --primary-600: #D13A2D;
+  --primary-700: #9E291F;
+  --primary-800: #6E1A13;
+  --primary-900: #410B07;
+  --primary-950: #2C0503;
+
+  /* ==========================================================================
+     Colors - Semantic Status
+     ==========================================================================
+     용도: 상태 표시 (성공, 경고, 에러, 정보)
+     ========================================================================== */
+  /* Success (Green) */
+  --success-50: #f0fdf4;
+  --success-100: #dcfce7;
+  --success-200: #bbf7d0;
+  --success-300: #86efac;
+  --success-400: #4ade80;
+  --success-500: #22c55e;
+  --success-600: #16a34a;
+  --success-700: #15803d;
+  --success-800: #166534;
+  --success-900: #14532d;
+  --success-950: #052e16;
+
+  /* Warning (Amber) */
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-300: #fcd34d;
+  --warning-400: #fbbf24;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+  --warning-800: #92400e;
+  --warning-900: #78350f;
+  --warning-950: #451a03;
+
+  /* Error (Red) */
+  --error-50: #fef2f2;
+  --error-100: #fee2e2;
+  --error-200: #fecaca;
+  --error-300: #fca5a5;
+  --error-400: #f87171;
+  --error-500: #ef4444;
+  --error-600: #dc2626;
+  --error-700: #b91c1c;
+  --error-800: #991b1b;
+  --error-900: #7f1d1d;
+  --error-950: #450a0a;
+
+  /* Info (Blue) */
+  --info-50: #eff6ff;
+  --info-100: #dbeafe;
+  --info-200: #bfdbfe;
+  --info-300: #93c5fd;
+  --info-400: #60a5fa;
+  --info-500: #3b82f6;
+  --info-600: #2563eb;
+  --info-700: #1d4ed8;
+  --info-800: #1e40af;
+  --info-900: #1e3a8a;
+  --info-950: #172554;
+
+  /* ==========================================================================
+     Colors - Semantic Aliases (의미 기반 토큰)
+     ==========================================================================
+     용도: 실제 UI에서 사용할 의미 기반 토큰
+     규칙: 컴포넌트에서는 이 토큰들을 우선 사용
+     ========================================================================== */
+
+  /* Background */
+  --color-bg-default: var(--neutral-50);
+  --color-bg-surface: #ffffff;
+  --color-bg-surface-secondary: var(--neutral-100);
+  --color-bg-surface-tertiary: var(--neutral-200);
+  --color-bg-surface-hover: var(--neutral-100);
+  --color-bg-surface-active: var(--neutral-200);
+  --color-bg-inverse: var(--neutral-900);
+  --color-bg-disabled: var(--neutral-100);
+
+  /* Text */
+  --color-text-default: var(--neutral-900);
+  --color-text-secondary: var(--neutral-600);
+  --color-text-tertiary: var(--neutral-500);
+  --color-text-placeholder: var(--neutral-400);
+  --color-text-inverse: #ffffff;
+  --color-text-disabled: var(--neutral-400);
+
+  /* Border */
+  --color-border-default: var(--neutral-200);
+  --color-border-secondary: var(--neutral-300);
+  --color-border-hover: var(--neutral-400);
+  --color-border-focus: var(--primary-500);
+  --color-border-disabled: var(--neutral-200);
+
+  /* Primary */
+  --color-primary: var(--primary-500);
+  --color-primary-hover: var(--primary-600);
+  --color-primary-active: var(--primary-700);
+  --color-primary-disabled: var(--primary-300);
+  --color-primary-bg: var(--primary-50);
+  --color-primary-bg-hover: var(--primary-100);
+  --color-primary-text: var(--primary-600);
+  --color-on-primary: #ffffff;
+
+  /* Success */
+  --color-success: var(--success-500);
+  --color-success-hover: var(--success-600);
+  --color-success-active: var(--success-700);
+  --color-success-bg: var(--success-50);
+  --color-success-text: var(--success-700);
+  --color-on-success: #ffffff;
+
+  /* Warning */
+  --color-warning: var(--warning-500);
+  --color-warning-hover: var(--warning-600);
+  --color-warning-active: var(--warning-700);
+  --color-warning-bg: var(--warning-50);
+  --color-warning-text: var(--warning-700);
+  --color-on-warning: #ffffff;
+
+  /* Error */
+  --color-error: var(--error-500);
+  --color-error-hover: var(--error-600);
+  --color-error-active: var(--error-700);
+  --color-error-bg: var(--error-50);
+  --color-error-text: var(--error-700);
+  --color-on-error: #ffffff;
+
+  /* Info */
+  --color-info: var(--info-500);
+  --color-info-hover: var(--info-600);
+  --color-info-active: var(--info-700);
+  --color-info-bg: var(--info-50);
+  --color-info-text: var(--info-700);
+  --color-on-info: #ffffff;
+
+  /* Legacy aliases (하위 호환) - deprecated, 향후 제거 예정 */
+  --color-background: var(--color-bg-default);
+  --color-foreground: var(--color-text-default);
+  --color-muted: var(--neutral-500);
+  --color-muted-foreground: var(--neutral-600);
+  --color-border: var(--color-border-default);
+  --color-input: var(--neutral-200);
+  --color-ring: var(--primary-500);
+  --color-primary-foreground: var(--color-on-primary);
+  --color-secondary: var(--neutral-100);
+  --color-secondary-foreground: var(--neutral-900);
+  --color-accent: var(--primary-500);
+  --color-accent-foreground: white;
+  --color-destructive: var(--error-500);
+  --color-destructive-foreground: white;
+
+  /* ==========================================================================
+     Typography
+     ==========================================================================
+     용도: 폰트 사이즈, 라인 높이
+     규칙: 임의의 px 값 대신 토큰 사용
+     ========================================================================== */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-2xs: 0.8125rem; /* 13px - 버튼 sm 등 컴팩트 UI */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+  --font-size-4xl: 2.25rem;   /* 36px */
+  --font-size-5xl: 3rem;      /* 48px */
+  --font-size-6xl: 3.75rem;   /* 60px */
+  --font-size-7xl: 4.5rem;    /* 72px */
+  --font-size-8xl: 6rem;      /* 96px */
+  --font-size-9xl: 8rem;      /* 128px */
+
+  --line-height-none: 1;
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  --font-weight-thin: 100;
+  --font-weight-extralight: 200;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+  --font-weight-black: 900;
+
+  --letter-spacing-tighter: -0.05em;
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.025em;
+  --letter-spacing-wider: 0.05em;
+  --letter-spacing-widest: 0.1em;
+
+  /* ==========================================================================
+     Opacity
+     ==========================================================================
+     용도: 투명도 조절
+     ========================================================================== */
+  --opacity-0: 0;
+  --opacity-5: 0.05;
+  --opacity-10: 0.1;
+  --opacity-20: 0.2;
+  --opacity-25: 0.25;
+  --opacity-30: 0.3;
+  --opacity-40: 0.4;
+  --opacity-50: 0.5;
+  --opacity-60: 0.6;
+  --opacity-70: 0.7;
+  --opacity-75: 0.75;
+  --opacity-80: 0.8;
+  --opacity-90: 0.9;
+  --opacity-95: 0.95;
+  --opacity-100: 1;
+}
+
+/* ============================================================================
+   Dark Mode
+   ============================================================================
+   적용 방법: <html class="dark"> 또는 부모 요소에 .dark 클래스 추가
+   ============================================================================ */
+.dark {
+  /* Background */
+  --color-bg-default: var(--neutral-900);
+  --color-bg-surface: var(--neutral-800);
+  --color-bg-surface-secondary: var(--neutral-700);
+  --color-bg-surface-tertiary: var(--neutral-600);
+  --color-bg-surface-hover: var(--neutral-700);
+  --color-bg-surface-active: var(--neutral-600);
+  --color-bg-inverse: var(--neutral-50);
+  --color-bg-disabled: var(--neutral-800);
+
+  /* Text */
+  --color-text-default: var(--neutral-50);
+  --color-text-secondary: var(--neutral-300);
+  --color-text-tertiary: var(--neutral-400);
+  --color-text-placeholder: var(--neutral-500);
+  --color-text-inverse: var(--neutral-900);
+  --color-text-disabled: var(--neutral-600);
+
+  /* Border */
+  --color-border-default: var(--neutral-700);
+  --color-border-secondary: var(--neutral-600);
+  --color-border-hover: var(--neutral-500);
+  --color-border-focus: var(--primary-400);
+  --color-border-disabled: var(--neutral-700);
+
+  /* Primary */
+  --color-primary: var(--primary-400);
+  --color-primary-hover: var(--primary-300);
+  --color-primary-active: var(--primary-200);
+  --color-primary-disabled: var(--primary-700);
+  --color-primary-bg: var(--primary-950);
+  --color-primary-bg-hover: var(--primary-900);
+  --color-primary-text: var(--primary-400);
+  --color-on-primary: var(--neutral-900);
+
+  /* Success */
+  --color-success: var(--success-400);
+  --color-success-hover: var(--success-300);
+  --color-success-active: var(--success-200);
+  --color-success-bg: var(--success-950);
+  --color-success-text: var(--success-400);
+  --color-on-success: var(--neutral-900);
+
+  /* Warning */
+  --color-warning: var(--warning-400);
+  --color-warning-hover: var(--warning-300);
+  --color-warning-active: var(--warning-200);
+  --color-warning-bg: var(--warning-950);
+  --color-warning-text: var(--warning-400);
+  --color-on-warning: var(--neutral-900);
+
+  /* Error */
+  --color-error: var(--error-400);
+  --color-error-hover: var(--error-300);
+  --color-error-active: var(--error-200);
+  --color-error-bg: var(--error-950);
+  --color-error-text: var(--error-400);
+  --color-on-error: var(--neutral-900);
+
+  /* Info */
+  --color-info: var(--info-400);
+  --color-info-hover: var(--info-300);
+  --color-info-active: var(--info-200);
+  --color-info-bg: var(--info-950);
+  --color-info-text: var(--info-400);
+  --color-on-info: var(--neutral-900);
+
+  /* Shadow - 다크모드에서 더 진한 그림자 */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+
+  /* Legacy aliases (하위 호환) */
+  --color-background: var(--color-bg-default);
+  --color-foreground: var(--color-text-default);
+  --color-muted: var(--neutral-400);
+  --color-muted-foreground: var(--neutral-400);
+  --color-border: var(--color-border-default);
+  --color-input: var(--neutral-800);
+  --color-ring: var(--primary-400);
+  --color-primary-foreground: var(--color-on-primary);
+  --color-secondary: var(--neutral-800);
+  --color-secondary-foreground: var(--neutral-50);
+  --color-accent: var(--primary-400);
+  --color-accent-foreground: var(--neutral-950);
+  --color-destructive: var(--error-400);
+  --color-destructive-foreground: var(--neutral-950);
+}

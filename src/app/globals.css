@@ -1,0 +1,374 @@
+@import "../styles/tokens.css";
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary-tint: var(--primary-tint);
+  --color-primary-tint-hover: var(--primary-tint-hover);
+  --color-primary-tint-edge: var(--primary-tint-edge);
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  /* 널널투어 v2 시스템 — 옅은 글자·굵은 선·브랜드 옅은 바탕·브랜드 진한 글자 */
+  --color-faint: var(--faint);
+  /* v4(2026-09-17) — 페이지 바탕. 흰 카드가 «그림자 없이» 떠오르려면 바탕이 흰색이 아니어야 한다 */
+  --color-canvas: var(--canvas);
+  --color-border-strong: var(--border-strong);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-press: var(--brand-press);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-full: 9999px;
+}
+
+:root {
+  /* 시안 기준: 버튼 12px(rounded-lg) / 카드 16px(rounded-xl) / 칩 999 */
+  --radius: 0.75rem;
+  --primary-tint: rgba(242, 100, 92, 0.06);
+  --primary-tint-hover: rgba(242, 100, 92, 0.12);
+  --primary-tint-edge: rgba(242, 100, 92, 0.22);
+  --background: #ffffff;
+  --foreground: var(--neutral-900);
+  --card: #ffffff;
+  --card-foreground: var(--neutral-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--neutral-900);
+  /* 2026-09-18 — 흰 글자 대비 때문에 500(#F2645C, 3.1:1) → 600(#D13A2D, 4.8:1).
+     코랄 계열은 그대로고 한 단계 깊어질 뿐이다. 장식용 코랄은 .landing 의 --coral 이 따로 쥔다 */
+  --primary: var(--primary-600);
+  --primary-foreground: #ffffff;
+  --secondary: var(--neutral-100);
+  --secondary-foreground: var(--neutral-900);
+  --muted: var(--neutral-100);
+  --muted-foreground: var(--neutral-500);
+  --accent: var(--neutral-100);
+  --accent-foreground: var(--neutral-900);
+  --destructive: var(--error-500);
+  --border: var(--neutral-200);
+  --input: var(--neutral-200);
+  --ring: var(--primary-500);
+
+  /* ── 널널투어 v2 시스템 적용(2026-09-06) ──
+     중립색은 순회색이 아니라 브랜드(코랄) 쪽으로 미세하게 치우친다. 값은 랜딩 v2(.landing)의
+     --ink·--l-muted·--faint·--line·--chip 과 같다 — 내부 페이지와 랜딩이 한 회색을 쓴다.
+     카드 그림자는 쓰지 않고 경계는 헤어라인(--border) 하나로 만든다. */
+  --foreground: #191d1b;
+  --card-foreground: #191d1b;
+  --popover-foreground: #191d1b;
+  --secondary-foreground: #191d1b;
+  --accent-foreground: #191d1b;
+  --muted-foreground: #6e6968;
+  --faint: #a39d9b;
+  --border: #eeeae9;
+  --input: #d9d3d1;
+  --border-strong: #d9d3d1;
+  --muted: #f6f3f2;
+  --secondary: #f6f3f2;
+  --accent: #f6f3f2;
+  --brand-subtle: var(--primary-50);
+  --brand-strong: var(--primary-600);
+  /* --primary 가 600 이 되면서 hover 가 같은 색이 됐다 — 눌리는 느낌을 낼 한 단계 더 */
+  --brand-press: var(--primary-700);
+
+  /* ── 내부 화면 v4(2026-09-17) ──
+     바탕을 흰색에서 2% 덜어내 흰 카드가 그림자 없이 떠오르게 한다. v2 의 「그림자를 안 쓴다」
+     원칙은 유지하되, 경계를 헤어라인 하나에만 의지하던 것을 여기서 푼다.
+     값은 웜 크림이 아니라 이 제품의 회색 계열(--muted #f6f3f2)에서 한 단계 옅게 뽑은 것이다. */
+  --canvas: #faf8f7;
+}
+
+.dark {
+  --faint: var(--neutral-500);
+  --border-strong: var(--neutral-600);
+  --brand-subtle: rgba(243, 135, 130, 0.15);
+  --brand-strong: var(--primary-300);
+  --brand-press: var(--primary-200);
+  --primary-tint: rgba(243, 135, 130, 0.15);
+  --primary-tint-hover: rgba(243, 135, 130, 0.25);
+  --primary-tint-edge: rgba(243, 135, 130, 0.40);
+  --background: var(--neutral-950);
+  --foreground: var(--neutral-50);
+  --card: var(--neutral-900);
+  --card-foreground: var(--neutral-50);
+  --popover: var(--neutral-900);
+  --popover-foreground: var(--neutral-50);
+  --primary: var(--primary-400);
+  --primary-foreground: var(--neutral-900);
+  --secondary: var(--neutral-800);
+  --secondary-foreground: var(--neutral-50);
+  --muted: var(--neutral-800);
+  --muted-foreground: var(--neutral-400);
+  --accent: var(--neutral-800);
+  --accent-foreground: var(--neutral-50);
+  --destructive: var(--error-400);
+  --border: var(--neutral-700);
+  --input: var(--neutral-800);
+  --ring: var(--primary-400);
+  /* 다크에서는 카드(--neutral-900)가 바탕보다 «밝아야» 뜬다 — 밝기 관계가 라이트와 반대다 */
+  --canvas: var(--neutral-950);
+}
+
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── v4 카드 — 이 앱의 «유일한» 상자 ──
+     그림자 0 · radius 한 종류 · 경계는 헤어라인. 바탕(--canvas)과의 밝기 차가 깊이를 만든다.
+     ⚠️ 목록을 묶는 섹션에만 쓴다. 지표·히어로·루프 퍼널은 카드에 넣지 않는다 —
+     전부 카드에 넣으면 그게 「SaaS 카드 키트」다. */
+  .card-surface {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+  }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* ── 대시보드 루프 — 네 단계를 꿰는 화살표 «하나» (ny 시안 2026-09-18) ──
+   네 칸을 잇는 것이 아무것도 없어서 「들어옴 → 분류 → PR → 알림」이 단계가 아니라
+   숫자 넷으로 읽혔다.
+
+   화살표는 하나다. 토막 셋으로 두면 칸마다 따로 노는 장식이 되고, 한 줄로 이어야
+   네 단계가 «한 흐름»이라는 말이 된다. 라벨 글자가 그 위를 지나는데 겹치는 자리는
+   글자 쪽이 바탕색으로 가린다(`LoopStages` 의 라벨 줄) — 화살표가 글자 뒤로 지나가고
+   글자 양옆이 자연스럽게 뚫린 것처럼 보인다.
+
+   모양은 clip-path, 바탕은 왼→오른쪽 그라디언트다. 꼬리가 옅고 머리가 진해서
+   화살촉을 안 봐도 방향이 읽힌다.
+   SVG 를 안 쓴 이유: 폭이 화면마다 달라 늘린 SVG 는 화살촉까지 같이 찌그러진다. */
+.stage-flow {
+  /* ⚠️ `position` 을 여기에 쓰지 말 것. 이 규칙은 Tailwind 유틸리티 레이어 «밖»이라
+     클래스에 붙인 `absolute` 를 이겨버린다 — 그러면 화살표가 흐름 안에 남아 격자를
+     아래로 밀고, 글자 «뒤»가 아니라 «위»에 뜬다(2026-09-18 실측). 자리잡기는 전부
+     `LoopStages` 의 유틸리티 클래스가 한다. ::after 는 그 absolute 를 기준으로 붙는다 */
+  clip-path: polygon(
+    0% 30%,
+    calc(100% - 22px) 30%,
+    calc(100% - 22px) 0%,
+    100% 50%,
+    calc(100% - 22px) 100%,
+    calc(100% - 22px) 70%,
+    0% 70%
+  );
+  background-image: linear-gradient(
+    90deg,
+    var(--primary-200) 0%,
+    var(--primary-300) 38%,
+    var(--primary) 100%
+  );
+}
+
+/* 흐르는 빛 — 왼쪽에서 오른쪽으로 한 줄기가 지나간다.
+   부모의 clip-path 가 자식까지 자르므로 화살표 «모양 안에서만» 흐른다.
+   transform 만 움직여 레이아웃을 건드리지 않는다(리페인트 없음). */
+.stage-flow::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 22%;
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: stage-flow-sheen 3.6s linear infinite;
+}
+
+@keyframes stage-flow-sheen {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(560%);
+  }
+}
+
+/* 대시보드는 오래 띄워두는 화면이다 — 움직임을 끈 사람에게는 빛줄기를 안 그린다.
+   화살표 자체는 남으므로 방향은 그대로 읽힌다 */
+@media (prefers-reduced-motion: reduce) {
+  .stage-flow::after {
+    display: none;
+  }
+}
+
+/* Hero fade-in animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Demo Banner */
+@keyframes demo-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.demo-banner {
+  animation: demo-slide-down 0.4s cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+.demo-banner-shimmer {
+  animation: demo-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes demo-slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ============================================================================
+   Feedloop 랜딩 v2 토큰 — 시안 "Feedloop Landing v2.dc.html" :root 복사 블록.
+   값은 시안 그대로, 스코프만 .landing 으로 한정 (--muted 가 shadcn 전역 토큰과
+   이름이 겹쳐 :root 에 두면 앱 전체 bg-muted 가 깨진다)
+   ============================================================================ */
+.landing {
+  --bg: #ffffff;        --ink: #191d1b;
+  /* 시안의 --muted. shadcn --muted(bg-muted)와 상속 충돌을 피하려고 --l- 접두사 */
+  --l-muted: #6e6968;   --faint: #a39d9b;
+  --line: #eeeae9;      --chip: #f6f3f2;
+  --coral: #F2645C;     --coral-tint: #FDF1F0;  --coral-tint-2: #FBE2E2;
+  /* 작은 글자·작은 채움용. --coral 은 흰 바탕에서 3.1:1 이라 14px 이하에서 AA 미달이다.
+     큰 제목(24px+)·아이콘·오로라는 --coral 그대로 쓴다 */
+  --coral-strong: #D13A2D;
+  /* 데모 상점(데일리마켓) 위젯 색 — 위젯 색은 «고객사»가 정하는 값이라
+     Feedloop 코랄과 일부러 다르게 둔다(라이브 널널투어 봇도 #0e8f63 초록을 쓴다).
+     --demo-strong 은 글자용 — AI 배지가 9.5px 라 --demo 그대로면 대비가 모자란다 */
+  --demo: #0E8F63;      --demo-strong: #0A7350;
+  --demo-tint: #EAF7F1; --demo-tint-2: #C8E9DA;
+  --kakao: #FEE500;     --kakao-ink: #191d1b;
+  --aurora: radial-gradient(ellipse 70% 60% at 28% 0%,
+            #FBDCD9 0%, #FDE9E6 32%, #FDF1F0 58%, #ffffff 100%);
+
+  --font: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+  --fs-hero: 30px;  --fs-h2: 28px;  --fs-h3: 18px;
+  --fs-body: 15px;  --fs-caption: 12px;
+  --lh-body: 1.7;   --ls-tight: -0.025em;
+
+  --space-section: 80px;  --space-title-body: 12px;
+  --space-body-graphic: 32px;  --gutter: 24px;
+  --r-frame: 14px;  --r-btn: 12px;  --r-chip: 999px;
+  --btn-h: 48px;
+
+  --shadow-hero: 0 40px 80px rgba(25,29,27,.22), 0 8px 24px rgba(25,29,27,.12);
+  --ease: cubic-bezier(.2,.7,.2,1);  --dur-in: .6s;  --stagger: .15s;
+  --orbit-dur: 48s;
+}
+@media (min-width: 1024px) {
+  .landing { --fs-hero: 56px; --fs-h2: 40px; --fs-h3: 20px; --fs-body: 16px;
+             --fs-caption: 13px; --space-section: 120px; }
+}
+:root[data-theme="dark"] .landing {
+  --bg: #191514;  --ink: #f3eeec;  --l-muted: #a39a97;  --faint: #6b6461;
+  --line: #2a2422;  --chip: #221d1b;  --coral: #F47A73;
+  --coral-strong: #F47A73;
+  --coral-tint: #2a1f1e;  --coral-tint-2: #3a2826;
+  --demo: #34C08C;      --demo-strong: #34C08C;
+  --demo-tint: #17241f; --demo-tint-2: #23372f;
+  --aurora: radial-gradient(ellipse 70% 60% at 28% 0%,
+            #2a1f1e 0%, #221b1a 40%, #191514 100%);
+}
+
+/* 히어로 「코드」 — 제출 커버(2240×1260)는 이 글자를 속 빈 테두리로 쓴다.
+   랜딩에서는 «안» 쓴다. 커버 헤드라인이 176px 이라 12px 획이 성립하는 것이고,
+   랜딩 히어로는 그 절반이라 같은 처리를 하면 「코」의 ㅗ·「드」의 ㅡ 사이 틈을
+   획이 메워 글자가 덩어리로 뭉갠다(0.057em·0.036em 둘 다 실측으로 확인).
+   되살리려면 아래 주석 블록을 풀고 헤드라인을 110px 이상으로 키워야 한다. */
+.landing .hero-outline { font-style: normal; color: #fff; }
+/*
+@media (min-width: 1024px) {
+  .landing .hero-outline {
+    font-size: 1.16em;
+    color: transparent;
+    -webkit-text-stroke: 0.036em #fff;
+  }
+}
+*/
+
+/* 랜딩 나브 높이의 «단일 출처». 막대 높이·히어로 위 여백·아래 앵커 여백이 전부 여기서
+   파생된다 — 높이를 바꿀 일이 생기면 이 값만 고친다.
+   `scroll-margin` 이 아니라 스크롤 컨테이너의 `scroll-padding` 인 이유: `scroll-margin` 은
+   앵커 이동만 덮는다. Tab·Shift+Tab 으로 옮겨 온 포커스는 브라우저가 «최소한만» 스크롤해
+   요소를 뷰포트 맨 위에 붙이는데, 그 자리가 정확히 고정 막대 밑이라 포커스 링이 가린다.
+   `@media (width >= 64rem)` 는 Tailwind `lg:` 와 «같은» 기준이다 — `1024px` 로 적으면
+   브라우저 기본 글자 크기를 키운 방문자에게서 둘이 어긋난다. */
+:root:has(.landing) {
+  --nav-h: 60px;
+  scroll-padding-top: calc(var(--nav-h) + 16px);
+}
+@media (width >= 64rem) { :root:has(.landing) { --nav-h: 76px; } }
+
+/* 랜딩 모션 — 시안 keyframes 그대로 */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes orbit { to { transform: rotate(360deg); } }
+@keyframes counter { to { transform: rotate(-360deg); } }
+@keyframes breathe { from { transform: translate(0, 0) scale(1); } to { transform: translate(40px, 24px) scale(1.12); } }
+@keyframes dash { to { stroke-dashoffset: -24; } }
+
+/* 랜딩 한정 — 전역에 걸면 대시보드 로딩 스피너까지 멈춘다 */
+@media (prefers-reduced-motion: reduce) {
+  .landing *, .landing *::before, .landing *::after { animation: none !important; transition: none !important; }
+}
+
+/* 가이드 데모가 **팝업으로** 열려 있는 동안 우리 사이트의 Feedloop 위젯(SelfWidget)을 숨긴다.
+   팝업 안 가짜 위젯과 같은 자리(우측 하단)에 겹치고, widget.js 의 z-index 가 2147483000 이라
+   모달(z-100) 위로 올라온다.
+   ⚠️ 랜딩에 **박아 넣은**(inline) 데모에는 이 클래스를 안 붙인다 — 붙이면 랜딩을 보는 내내
+      우리 위젯이 사라진다. 박아 넣은 데모의 가짜 위젯은 무대 안에만 있어서 겹치지 않는다.
+   요소를 찾아 style 을 고치지 않고 규칙으로 거는 이유 — 위젯 스크립트는 afterInteractive 라
+   느린 회선에선 데모를 «연 뒤»에 붙을 수 있다. 규칙이면 나중에 생긴 것도 잡힌다. */
+body.gd-demo-open [data-feedloop-widget] { display: none !important; }

@@ -1,0 +1,44 @@
+\set ON_ERROR_STOP on
+BEGIN;
+DO $$
+DECLARE u uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); other_b uuid:=gen_random_uuid();
+ v uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); g uuid:=gen_random_uuid(); a uuid:=gen_random_uuid(); r uuid:=gen_random_uuid(); first_receipt jsonb; result jsonb;
+BEGIN
+ INSERT INTO users(id,name,email) VALUES(u,'Resolution test',u::text||'@example.invalid');
+ INSERT INTO bots(id,user_id,bot_token_encrypted,service_name,service_description,platform,status) VALUES(b,u,'','Confirmation fixture','local only','web','active'),(other_b,u,'','Other fixture','local only','web','active');
+ INSERT INTO conversations(id,bot_id,source,external_user_id) VALUES(c,b,'web',v::text);
+ INSERT INTO insight_groups(id,bot_id,title,summary,category,status) VALUES(g,b,'fixture','fixture','bug','merged');
+ INSERT INTO auto_dev_runs(id,bot_id,group_id,status,merged_at,deployment_status) VALUES(a,b,g,'completed',now(),'unknown');
+ INSERT INTO responses(id,bot_id,conversation_id,auto_dev_run_id,response_type,response_body,delivered_at) VALUES(r,b,c,a,'loop_closed','fixture',now());
+ IF confirm_widget_resolution(b,gen_random_uuid(),r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'cross visitor accepted'; END IF;
+ IF confirm_widget_resolution(other_b,v,r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'cross bot accepted'; END IF;
+ UPDATE auto_dev_runs SET bot_id=other_b WHERE id=a;
+ IF confirm_widget_resolution(b,v,r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'cross run accepted'; END IF;
+ UPDATE auto_dev_runs SET bot_id=b,merged_at=NULL WHERE id=a;
+ IF confirm_widget_resolution(b,v,r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'unmerged accepted'; END IF;
+ UPDATE auto_dev_runs SET merged_at=now() WHERE id=a;
+ UPDATE responses SET delivered_at=NULL WHERE id=r;
+ IF confirm_widget_resolution(b,v,r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'undelivered accepted'; END IF;
+ UPDATE responses SET delivered_at=now(),response_type='operator' WHERE id=r;
+ IF confirm_widget_resolution(b,v,r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'non-loop response accepted'; END IF;
+ UPDATE responses SET response_type='loop_closed' WHERE id=r;
+ UPDATE conversations SET source='kakao' WHERE id=c;
+ IF confirm_widget_resolution(b,v,r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'non-web accepted'; END IF;
+ UPDATE conversations SET source='web' WHERE id=c;
+ UPDATE bots SET status='paused' WHERE id=b;
+ IF confirm_widget_resolution(b,v,r,'fixed') IS NOT NULL THEN RAISE EXCEPTION 'paused accepted'; END IF;
+ UPDATE bots SET status='active' WHERE id=b;
+ first_receipt:=confirm_widget_resolution(b,v,r,'not_fixed');
+ IF first_receipt->>'confirmation'<>'not_fixed' THEN RAISE EXCEPTION 'not fixed not saved'; END IF;
+ IF NOT (SELECT follow_up_pending FROM insight_groups WHERE id=g) OR (SELECT escalated_at IS NULL FROM conversations WHERE id=c) THEN RAISE EXCEPTION 'followup absent'; END IF;
+ result:=confirm_widget_resolution(b,v,r,'not_fixed');
+ IF result IS DISTINCT FROM first_receipt THEN RAISE EXCEPTION 'duplicate changed receipt'; END IF;
+ IF (SELECT count(*) FROM response_confirmation_history WHERE response_id=r)<>1 THEN RAISE EXCEPTION 'duplicate history'; END IF;
+ result:=confirm_widget_resolution(b,v,r,'fixed');
+ IF result->>'confirmation'<>'fixed' OR (SELECT count(*) FROM response_confirmation_history WHERE response_id=r)<>2 THEN RAISE EXCEPTION 'changed confirmation unaudited'; END IF;
+ IF (SELECT deployment_status FROM auto_dev_runs WHERE id=a)<>'unknown' THEN RAISE EXCEPTION 'visitor statement changed deployment'; END IF;
+ IF (SELECT count(*) FROM auto_dev_runs WHERE bot_id=b)<>1 THEN RAISE EXCEPTION 'new run created'; END IF;
+ IF has_function_privilege('anon','confirm_widget_resolution(uuid,uuid,uuid,text)','EXECUTE') OR has_function_privilege('authenticated','confirm_widget_resolution(uuid,uuid,uuid,text)','EXECUTE') THEN RAISE EXCEPTION 'public mutation permitted'; END IF;
+ RAISE NOTICE 'PASS: ownership, merge/delivery, idempotency, audited changes, followup, deployment independence, no duplicate run, service-only RPC';
+END $$;
+ROLLBACK;
