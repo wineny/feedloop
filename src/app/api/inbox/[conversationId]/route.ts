@@ -1,7 +1,7 @@
 // 대화 하나의 타임라인. 열어보는 행위가 곧 "읽음"이다.
 
 import { NextResponse } from 'next/server';
-import { resolveOwnedBots } from '@/lib/auth/ownership';
+import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getChannelDeskUrl } from '@/lib/bot/channel-registration';
 import { getServiceRoleClient } from '@/lib/supabase';
 import {
@@ -25,7 +25,7 @@ export async function GET(
   }
 
   // 남의 대화를 열 수 없게 봇 소유권으로 막는다.
-  const auth = await resolveOwnedBots(conversation.bot_id);
+  const auth = await resolveAccessibleBots(conversation.bot_id);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

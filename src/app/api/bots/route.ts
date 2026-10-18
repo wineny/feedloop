@@ -5,6 +5,7 @@ import { getServiceRoleClient } from "@/lib/supabase";
 import { KAKAO_TOKEN_PLACEHOLDER } from "@/lib/bot/kakao-placeholder";
 import { validateRegistrationInput } from "@/lib/bot/registration";
 import { MAX_BOTS_PER_USER } from "@/lib/llm/limits";
+import { listAccessibleBotIds } from "@/lib/auth/ownership";
 
 // 계정당 봇 수 상한은 `lib/llm/limits.ts` 로 옮겼다(2026-09-18). 판정은 아래 POST 가 그대로 한다.
 // 옮긴 이유: 랜딩 「확장」 섹션이 같은 숫자를 그려야 하는데, 이 파일에서 가져가면
@@ -17,6 +18,12 @@ export async function GET() {
   }
 
   const supabase = getServiceRoleClient();
+  // Owned bots plus the ones this user approves for (bot_members — the hackathon demo bot).
+  // The header scope selector reads this list, so a judge who joined the demo bot sees it here too.
+  const ids = await listAccessibleBotIds(session.user.id);
+  if (ids.length === 0) {
+    return NextResponse.json({ bots: [] });
+  }
   // 연결 시각 셋(widget/channel_connected_at·last_active_at)은 대시보드 「피드백 채널」이
   // /bots 와 같은 판정을 내리기 위한 값이다(I-35). 타임스탬프뿐이고 암호문 컬럼은 여기 넣지 않는다.
   const { data: bots, error } = await supabase
@@ -24,7 +31,7 @@ export async function GET() {
     .select(
       "id, service_name, bot_username, status, platform, pr_mode, created_at, widget_connected_at, channel_connected_at, last_active_at",
     )
-    .eq("user_id", session.user.id)
+    .in("id", ids)
     .order("created_at", { ascending: false });
 
   if (error) {

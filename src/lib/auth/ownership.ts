@@ -36,3 +36,44 @@ export async function resolveOwnedBots(requestedBotId?: string | null): Promise<
 
   return { ok: true, userId: session.user.id, botIds };
 }
+
+/**
+ * Owner OR approver. `bot_members` (20261019_01) lets people who do not own a bot work its
+ * operator screens — the PayPal hackathon demo bot is the first case: a judge presses
+ * "Try the demo bot", becomes an approver, and from then on sees its inbox, dashboard and
+ * approval cards.
+ *
+ * Use this ONLY for reading/operating routes (inbox, dashboard, groups, payment approvals).
+ * Settings routes (LLM key, knowledge, appearance, channel, delete) keep `resolveOwnedBots`:
+ * an approver must not be able to re-key, re-wire or delete a bot they do not own.
+ */
+export async function resolveAccessibleBots(requestedBotId?: string | null): Promise<OwnedBots> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { ok: false, status: 401, error: 'Unauthorized' };
+  }
+
+  const botIds = await listAccessibleBotIds(session.user.id);
+
+  if (requestedBotId) {
+    if (!botIds.includes(requestedBotId)) {
+      return { ok: false, status: 403, error: '해당 봇에 대한 권한이 없습니다' };
+    }
+    return { ok: true, userId: session.user.id, botIds: [requestedBotId] };
+  }
+
+  return { ok: true, userId: session.user.id, botIds };
+}
+
+/** Bot ids a user owns, followed by the ones they were added to as an approver (deduplicated). */
+export async function listAccessibleBotIds(userId: string): Promise<string[]> {
+  const db = getServiceRoleClient();
+  const [owned, member] = await Promise.all([
+    db.from('bots').select('id').eq('user_id', userId),
+    db.from('bot_members').select('bot_id').eq('user_id', userId),
+  ]);
+  const ids = new Set<string>();
+  for (const b of owned.data ?? []) ids.add(b.id as string);
+  for (const m of member.data ?? []) ids.add(m.bot_id as string);
+  return Array.from(ids);
+}

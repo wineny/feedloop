@@ -4,7 +4,7 @@
 // 인증된 소유자만 닿고 정상 상태에선 읽기 한 번으로 끝나지만, 새로고침·prefetch 가 곧 묶기 실행일 수 있다.
 
 import { NextRequest, NextResponse, after } from 'next/server';
-import { resolveOwnedBots } from '@/lib/auth/ownership';
+import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { catchUpAutoGrouping, readGroupingStatus } from '@/lib/groups/auto-grouping';
 import { groupPriority, compareGroupPriority, type GroupPriority } from '@/lib/groups/priority';
@@ -32,7 +32,7 @@ export interface GroupSummary {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await resolveOwnedBots(req.nextUrl.searchParams.get('botId'));
+  const auth = await resolveAccessibleBots(req.nextUrl.searchParams.get('botId'));
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.botIds.length === 0) return NextResponse.json({ groups: [], grouping: EMPTY_STATUS });
 

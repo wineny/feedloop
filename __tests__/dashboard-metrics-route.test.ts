@@ -13,7 +13,7 @@ const { from, resolveOwnedBots, results, calls } = vi.hoisted(() => ({
   calls: [] as { table: string; methods: [string, ...unknown[]][] }[],
 }));
 vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from }) }));
-vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots }));
+vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots, resolveAccessibleBots: resolveOwnedBots }));
 import { GET } from '@/app/api/dashboard/route';
 
 const BOT = 'owned-bot';

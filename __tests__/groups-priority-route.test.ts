@@ -3,7 +3,11 @@ const state = vi.hoisted(() => ({ many: false, merged: false }));
 import { NextRequest } from 'next/server';
 vi.mock('next/server', async (original) => ({ ...await original<typeof import('next/server')>(), after: vi.fn() }));
 vi.mock('@/lib/bot/handler', () => ({ callLlm: vi.fn() }));
-vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots: async () => ({ ok: true, botIds: ['bot'] }) }));
+vi.mock('@/lib/auth/ownership', () => {
+  // the groups list route now takes approvers too (resolveAccessibleBots); same stub for both
+  const ok = async () => ({ ok: true, botIds: ['bot'] });
+  return { resolveOwnedBots: ok, resolveAccessibleBots: ok };
+});
 vi.mock('@/lib/groups/auto-grouping', () => ({ catchUpAutoGrouping: async () => {}, readGroupingStatus: async () => null }));
 vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from(table: string) {
   const rows: Record<string, unknown[]> = {
