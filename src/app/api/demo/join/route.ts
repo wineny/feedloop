@@ -4,7 +4,8 @@
 // so nobody shares a password and nothing one judge does shows up under another's name. The bot
 // itself keeps a single owner; approvers only get the operator screens (lib/auth/ownership.ts).
 //
-// Idempotent: pressing the button twice is a no-op. The owner gets the same answer without a row.
+// Idempotent: pressing the button twice is a no-op. Every success answers the same shape,
+// { botId, role, alreadyMember }, so the client can tell a repeat press from a first join.
 
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -39,6 +40,21 @@ export async function POST() {
     return NextResponse.json({ botId: demo.id, role: 'owner', alreadyMember: true });
   }
 
+  const { data: existing, error: lookupError } = await db
+    .from('bot_members')
+    .select('bot_id')
+    .eq('bot_id', demo.id)
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    console.error('[demo/join] membership lookup failed:', lookupError.message);
+    return NextResponse.json({ error: 'Could not join the demo bot' }, { status: 500 });
+  }
+  if (existing) {
+    return NextResponse.json({ botId: demo.id, role: 'approver', alreadyMember: true });
+  }
+
   const { error: insertError } = await db
     .from('bot_members')
     .upsert({ bot_id: demo.id, user_id: session.user.id, role: 'approver' }, { onConflict: 'bot_id,user_id', ignoreDuplicates: true });
@@ -48,5 +64,5 @@ export async function POST() {
     return NextResponse.json({ error: 'Could not join the demo bot' }, { status: 500 });
   }
 
-  return NextResponse.json({ botId: demo.id, role: 'approver' });
+  return NextResponse.json({ botId: demo.id, role: 'approver', alreadyMember: false });
 }

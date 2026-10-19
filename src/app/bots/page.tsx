@@ -488,7 +488,12 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
   let canJoinDemo = false;
   if (userId) {
     const supabase = getServiceRoleClient();
-    const ids = await listAccessibleBotIds(userId);
+    let ids: string[] = [];
+    try {
+      ids = await listAccessibleBotIds(userId);
+    } catch (e) {
+      console.error('Error listing accessible bots:', e instanceof Error ? e.message : e);
+    }
     bots = [];
     if (ids.length > 0) {
       const { data, error } = await supabase

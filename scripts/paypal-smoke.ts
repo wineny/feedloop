@@ -1,6 +1,6 @@
 // PayPal sandbox smoke test. Run: npx tsx scripts/paypal-smoke.ts
 // Checks that credentials work and that an order can be created.
-// It deliberately does NOT capture or refund; that belongs to later stages.
+// It deliberately does NOT capture or refund: a smoke test must never move sandbox money.
 
 import * as dotenv from 'dotenv';
 import path from 'path';

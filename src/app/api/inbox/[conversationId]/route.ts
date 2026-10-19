@@ -24,7 +24,7 @@ export async function GET(
     return NextResponse.json({ error: '대화를 찾을 수 없습니다' }, { status: 404 });
   }
 
-  // 남의 대화를 열 수 없게 봇 소유권으로 막는다.
+  // 남의 대화를 열 수 없게 봇 접근권(소유자 또는 승인자)으로 막는다.
   const auth = await resolveAccessibleBots(conversation.bot_id);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

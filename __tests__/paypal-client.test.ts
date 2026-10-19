@@ -124,4 +124,46 @@ describe('PayPalClient', () => {
       expect(out).toEqual({ id: 'O9', status: 'PAYER_ACTION_REQUIRED', approveUrl: 'https://x/approve' });
     }
   });
+
+  it('validates PayPal-Request-Id before any network call', async () => {
+    const { client, calls } = makeClient(() => json({ id: 'R1', status: 'COMPLETED' }));
+    await expect(
+      client.refundCapture('C1', { amountValue: '1.00', currencyCode: 'USD', requestId: '' }),
+    ).rejects.toThrow(/PayPal-Request-Id/);
+    await expect(
+      client.refundCapture('C1', { amountValue: '1.00', currencyCode: 'USD', requestId: 'x'.repeat(109) }),
+    ).rejects.toThrow(/PayPal-Request-Id/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('puts a timeout signal on every fetch, token included', async () => {
+    const { client, calls } = makeClient(() => json({ id: 'O1', status: 'CREATED' }));
+    await client.getOrder('O1');
+    expect(calls).toHaveLength(2);
+    for (const c of calls) expect(c.init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('concurrent first calls share one token request', async () => {
+    const { client, calls } = makeClient(() => json({ id: 'O1', status: 'CREATED' }));
+    await Promise.all([client.getOrder('O1'), client.getOrder('O1'), client.getOrder('O1')]);
+    expect(calls.filter((c) => c.url.endsWith('/v1/oauth2/token'))).toHaveLength(1);
+  });
+
+  it('rejects a token response without access_token instead of caching garbage', async () => {
+    const f = fakeFetch((url) => (url.endsWith('/v1/oauth2/token') ? json({ error: 'nope' }) : json({})));
+    const client = new PayPalClient({ clientId: 'c', clientSecret: 's', fetch: f.fetch });
+    await expect(client.getAccessToken()).rejects.toBeInstanceOf(PayPalApiError);
+  });
+
+  it('turns a non-JSON error body into PayPalApiError with the raw text as details', async () => {
+    const { client } = makeClient(() => new Response('<html>502 Bad Gateway</html>', { status: 502 }));
+    const err = (await client.getOrder('O1').then(
+      () => null,
+      (e: unknown) => e,
+    )) as PayPalApiError;
+    expect(err).toBeInstanceOf(PayPalApiError);
+    expect(err.status).toBe(502);
+    expect(err.details).toEqual({ raw: '<html>502 Bad Gateway</html>' });
+    expect(err.message).not.toContain(SECRET);
+  });
 });

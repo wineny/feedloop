@@ -6,9 +6,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { useBotScope } from '@/lib/scope/BotScopeProvider';
 
 export function TryDemoBotButton({ variant = 'outline' }: { variant?: 'outline' | 'default' }) {
   const router = useRouter();
+  const scope = useBotScope();
   const [state, setState] = useState<'idle' | 'joining' | 'error'>('idle');
 
   async function join() {
@@ -17,9 +19,13 @@ export function TryDemoBotButton({ variant = 'outline' }: { variant?: 'outline' 
       const res = await fetch('/api/demo/join', { method: 'POST' });
       if (!res.ok) throw new Error(String(res.status));
       const { botId } = (await res.json()) as { botId: string };
+      // The inbox reads its bot from the header scope (localStorage), not from the URL, so set the
+      // scope here; the scope list must be reloaded first or the new id resolves to "all bots".
+      await scope.refresh();
+      scope.setBotId(botId);
       // Server pages read the membership on their next render; refresh so /bots lists the new bot too.
       router.refresh();
-      router.push(`/inbox?botId=${encodeURIComponent(botId)}`);
+      router.push('/inbox');
     } catch {
       setState('error');
     }
