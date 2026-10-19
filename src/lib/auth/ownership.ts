@@ -72,6 +72,9 @@ export async function listAccessibleBotIds(userId: string): Promise<string[]> {
     db.from('bots').select('id').eq('user_id', userId),
     db.from('bot_members').select('bot_id').eq('user_id', userId),
   ]);
+  // A failed lookup must not look like "this user has no bots": routes turn this into a 500.
+  if (owned.error) throw new Error(`bots lookup failed: ${owned.error.message}`);
+  if (member.error) throw new Error(`bot_members lookup failed: ${member.error.message}`);
   const ids = new Set<string>();
   for (const b of owned.data ?? []) ids.add(b.id as string);
   for (const m of member.data ?? []) ids.add(m.bot_id as string);

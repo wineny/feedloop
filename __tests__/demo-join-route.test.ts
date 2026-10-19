@@ -57,17 +57,46 @@ describe('POST /api/demo/join', () => {
 
   it('adds the signed-in user as an approver of the demo bot', async () => {
     results.push({ data: { id: DEMO_ID, user_id: 'owner-1', service_name: 'Feedloop' }, error: null });
-    results.push({ error: null });
+    results.push({ data: null, error: null }); // not a member yet
+    results.push({ error: null }); // upsert
     const { status, body } = await post();
     expect(status).toBe(200);
-    expect(body).toEqual({ botId: DEMO_ID, role: 'approver' });
+    expect(body).toEqual({ botId: DEMO_ID, role: 'approver', alreadyMember: false });
     expect(calls[0].table).toBe('bots');
     expect(calls[0].methods).toContainEqual(['eq', 'is_demo', true]);
     expect(calls[1].table).toBe('bot_members');
-    const upsert = calls[1].methods.find(([m]) => m === 'upsert');
+    expect(calls[1].methods).toContainEqual(['eq', 'user_id', 'judge-1']);
+    expect(calls[2].table).toBe('bot_members');
+    const upsert = calls[2].methods.find(([m]) => m === 'upsert');
     expect(upsert?.[1]).toEqual({ bot_id: DEMO_ID, user_id: 'judge-1', role: 'approver' });
     // second press must not fail on the primary key
     expect(upsert?.[2]).toMatchObject({ onConflict: 'bot_id,user_id', ignoreDuplicates: true });
+  });
+
+  it('a repeat press reports alreadyMember and writes nothing', async () => {
+    results.push({ data: { id: DEMO_ID, user_id: 'owner-1', service_name: 'Feedloop' }, error: null });
+    results.push({ data: { bot_id: DEMO_ID }, error: null });
+    const { status, body } = await post();
+    expect(status).toBe(200);
+    expect(body).toEqual({ botId: DEMO_ID, role: 'approver', alreadyMember: true });
+    expect(calls.map((c) => c.table)).toEqual(['bots', 'bot_members']);
+    expect(calls[1].methods.some(([m]) => m === 'upsert')).toBe(false);
+  });
+
+  it('turns a failed demo lookup into a 500 without leaking the database message', async () => {
+    results.push({ data: null, error: { message: 'relation "bots" does not exist at pg://secret-host' } });
+    const { status, body } = await post();
+    expect(status).toBe(500);
+    expect(JSON.stringify(body)).not.toContain('secret-host');
+  });
+
+  it('turns a failed membership write into a 500 without leaking the database message', async () => {
+    results.push({ data: { id: DEMO_ID, user_id: 'owner-1', service_name: 'Feedloop' }, error: null });
+    results.push({ data: null, error: null });
+    results.push({ error: { message: 'duplicate key value violates pg://secret-host' } });
+    const { status, body } = await post();
+    expect(status).toBe(500);
+    expect(JSON.stringify(body)).not.toContain('secret-host');
   });
 
   it('is a no-op for the owner — no membership row for the account that already owns it', async () => {

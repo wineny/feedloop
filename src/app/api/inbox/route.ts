@@ -1,4 +1,4 @@
-// 받은편지함 목록 — 운영자용 (세션 + 봇 소유권).
+// 받은편지함 목록 — 운영자용 (세션 + 봇 접근권: 소유자 또는 승인자, bot_members).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAccessibleBots } from '@/lib/auth/ownership';

@@ -1,7 +1,7 @@
 // 묶음 목록 — 대시보드의 "묶음" 섹션이 읽는다.
 //
 // ⚠️ 부작용이 있는 GET 이다(I-10): 밀린 자동 묶기가 있으면 after() 에서 잠금을 잡고 모델을 부른다.
-// 인증된 소유자만 닿고 정상 상태에선 읽기 한 번으로 끝나지만, 새로고침·prefetch 가 곧 묶기 실행일 수 있다.
+// 인증된 소유자·승인자만 닿고 정상 상태에선 읽기 한 번으로 끝나지만, 새로고침·prefetch 가 곧 묶기 실행일 수 있다.
 
 import { NextRequest, NextResponse, after } from 'next/server';
 import { resolveAccessibleBots } from '@/lib/auth/ownership';

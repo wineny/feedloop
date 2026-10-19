@@ -38,6 +38,8 @@ export interface PayPalClientOptions {
   fetch?: FetchLike;
   /** Injected in tests. Defaults to Date.now. */
   now?: () => number;
+  /** Per-request deadline. A hung PayPal call must not outlive the chat request that made it. */
+  timeoutMs?: number;
 }
 
 export interface RequestOptions {
@@ -93,6 +95,10 @@ export interface RefundInput {
 
 // Refresh this long before expiry so a token never dies mid-request.
 const TOKEN_SKEW_MS = 60_000;
+// PayPal answers in well under a second; 15s is generous and still far below the function limit.
+const DEFAULT_TIMEOUT_MS = 15_000;
+// PayPal-Request-Id limit (Orders/Payments v2 docs). An empty id would silently disable idempotency.
+const REQUEST_ID_MAX = 108;
 
 export class PayPalClient {
   private readonly clientId: string;
@@ -100,7 +106,10 @@ export class PayPalClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: FetchLike;
   private readonly now: () => number;
+  private readonly timeoutMs: number;
   private token: { value: string; expiresAt: number; scope: string } | null = null;
+  // Concurrent first calls share one token request instead of each hitting /oauth2/token.
+  private tokenInFlight: Promise<{ accessToken: string; scope: string }> | null = null;
 
   constructor(opts: PayPalClientOptions) {
     this.clientId = opts.clientId;
@@ -108,6 +117,11 @@ export class PayPalClient {
     this.baseUrl = opts.baseUrl ?? PAYPAL_SANDBOX_BASE_URL;
     this.fetchImpl = opts.fetch ?? ((...a) => fetch(...a));
     this.now = opts.now ?? Date.now;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  }
+
+  private signal(): AbortSignal {
+    return AbortSignal.timeout(this.timeoutMs);
   }
 
   /** Client-credentials token, cached in memory. Returns the token and its scope string. */
@@ -115,6 +129,14 @@ export class PayPalClient {
     if (this.token && this.now() < this.token.expiresAt) {
       return { accessToken: this.token.value, scope: this.token.scope };
     }
+    if (this.tokenInFlight) return this.tokenInFlight;
+    this.tokenInFlight = this.fetchToken().finally(() => {
+      this.tokenInFlight = null;
+    });
+    return this.tokenInFlight;
+  }
+
+  private async fetchToken(): Promise<{ accessToken: string; scope: string }> {
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
     const res = await this.fetchImpl(`${this.baseUrl}/v1/oauth2/token`, {
       method: 'POST',
@@ -123,10 +145,14 @@ export class PayPalClient {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: 'grant_type=client_credentials',
+      signal: this.signal(),
     });
     const data = await parseBody(res);
     if (!res.ok) throw toApiError(res, data);
-    const obj = data as { access_token: string; expires_in: number; scope?: string };
+    const obj = data as { access_token?: string; expires_in?: number; scope?: string };
+    if (!obj || typeof obj.access_token !== 'string' || typeof obj.expires_in !== 'number') {
+      throw new PayPalApiError({ status: res.status, message: 'PayPal token response had no access_token', details: null });
+    }
     this.token = {
       value: obj.access_token,
       expiresAt: this.now() + obj.expires_in * 1000 - TOKEN_SKEW_MS,
@@ -136,6 +162,12 @@ export class PayPalClient {
   }
 
   async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
+    if (opts.requestId !== undefined) {
+      // Validate before the token call so a bad id never costs a network round trip.
+      if (!opts.requestId || opts.requestId.length > REQUEST_ID_MAX) {
+        throw new Error(`PayPal-Request-Id must be 1-${REQUEST_ID_MAX} characters`);
+      }
+    }
     const { accessToken } = await this.getAccessToken();
     const headers: Record<string, string> = {
       ...opts.headers,
@@ -147,6 +179,7 @@ export class PayPalClient {
       method,
       headers,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+      signal: this.signal(),
     });
     const data = await parseBody(res);
     if (!res.ok) throw toApiError(res, data);

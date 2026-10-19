@@ -5,22 +5,29 @@
 // generateText() sends the model an EMPTY schema and it cannot call them properly
 // (reproduced 2026-10-18). We re-wrap each tool with `tool({ inputSchema })`.
 //
-// The toolkit is for read/explain and low-risk calls. Money-moving calls (capture, refund)
-// go through PayPalClient in ./client.ts, where our guardrails and idempotency live.
+// The toolkit is READ-ONLY here. Every call that moves money or picks an amount (create order,
+// capture, refund) goes through PayPalClient in ./client.ts behind our own server tools, where
+// the guardrail RPC, the price table and PayPal-Request-Id idempotency live. Giving the model the
+// toolkit's own write tools would let a prompt-injected visitor refund or order any amount with
+// no cap and no audit row (review 2026-10-19, five reviewers agreed).
 
 import { tool, type Tool } from 'ai';
 import { PayPalAgentToolkit } from '@paypal/agent-toolkit/ai-sdk';
 import { assertLiveAllowed, readPayPalEnv } from './env';
 
 /**
- * Minimal allowlist. `orders.capture` is deliberately absent (it would add `pay_order`),
- * so the model can create/read orders and refunds but never capture on its own.
+ * Read-only allowlist. No `orders.create` (model-chosen amounts), no `orders.capture`
+ * (`pay_order`), no `payments.createRefund` (bypasses the guardrail RPC and lets the model omit
+ * the amount, which PayPal treats as a full refund). `__tests__/paypal-toolkit.test.ts` pins this.
  */
 export const PAYPAL_TOOL_ALLOWLIST = {
-  orders: { create: true, get: true },
-  payments: { createRefund: true, getRefunds: true },
+  orders: { get: true },
+  payments: { getRefunds: true },
   disputes: { list: true, get: true },
 } as const;
+
+/** Tool names that must never reach the model through this adapter, whatever the allowlist says. */
+export const PAYPAL_WRITE_TOOL_NAMES = ['create_order', 'pay_order', 'create_refund', 'accept_dispute_claim'] as const;
 
 export type PayPalToolAllowlist = Record<string, Record<string, boolean>>;
 
@@ -71,8 +78,12 @@ export function createPayPalTools(opts: CreatePayPalToolsOptions): Record<string
     },
   });
   const raw = toolkit.getTools() as unknown as Record<string, unknown>;
+  // Second line of defence: even a widened `actions` argument cannot hand the model a write tool.
+  const writes = new Set<string>(PAYPAL_WRITE_TOOL_NAMES);
   return Object.fromEntries(
-    Object.entries(raw).map(([name, t]) => [name, adaptToolkitTool(name, t)]),
+    Object.entries(raw)
+      .filter(([name]) => !writes.has(name))
+      .map(([name, t]) => [name, adaptToolkitTool(name, t)]),
   );
 }
 
