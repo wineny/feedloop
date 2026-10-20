@@ -3,14 +3,18 @@
 //  - fakePayPal(): a PayPalClient whose fetch is a tiny in-memory PayPal (orders, captures, idempotency).
 //  - signer(): a test RSA key that signs webhook transmissions the way PayPal does.
 
-import { createSign, generateKeyPairSync } from 'node:crypto';
+import { createSign, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { PayPalClient } from '@/lib/paypal/client';
 import type {
   NewOrderRow,
+  OpenRefundInput,
+  OpenRefundResult,
   OrderRow,
+  PaymentActionRow,
   PaymentsStore,
   ProductRow,
+  VerificationRow,
   WebhookInsertResult,
 } from '@/lib/paypal/store';
 
@@ -33,7 +37,18 @@ export interface MemoryStore extends PaymentsStore {
   orders: OrderRow[];
   events: { event_id: string; event_type: string; processed_at: string | null; error: string | null }[];
   responses: { botId: string; conversationId: string; body: string }[];
+  verifications: VerificationRow[];
+  actions: (PaymentActionRow & { payload?: unknown; result?: unknown })[];
+  /**
+   * The guardrail decision the fake RPC returns for a NEW row. The real decision lives in SQL
+   * (supabase/tests/guardrail_refund.sql); here tests script it. Duplicate detection (one live
+   * action per capture) is emulated for real, since the refund code depends on it.
+   */
+  nextDecision: 'auto' | 'pending';
+  openRefundCalls: OpenRefundInput[];
 }
+
+const LIVE_ACTION = new Set(['pending', 'executing', 'unknown', 'executed']);
 
 export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRow[] } = {}): MemoryStore {
   const productRows = initial.products ?? products();
@@ -41,6 +56,13 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     orders: [...(initial.orders ?? [])],
     events: [],
     responses: [],
+    verifications: [],
+    actions: [],
+    nextDecision: 'auto',
+    openRefundCalls: [],
+    async listActiveProducts(botId) {
+      return productRows.filter((p) => p.bot_id === botId && p.active).sort((a, b) => a.sort_order - b.sort_order);
+    },
     async getProduct(botId, productId) {
       return productRows.find((p) => p.bot_id === botId && p.id === productId) ?? null;
     },
@@ -87,6 +109,62 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     async insertPaymentResponse(input) {
       store.responses.push(input);
     },
+    async upsertVerification(row) {
+      const i = store.verifications.findIndex((v) => v.conversation_id === row.conversation_id && v.order_id === row.order_id);
+      const next: VerificationRow = { ...row, verified_at: new Date().toISOString() };
+      if (i >= 0) store.verifications[i] = next;
+      else store.verifications.push(next);
+    },
+    async latestVerification(conversationId) {
+      const mine = store.verifications.filter((v) => v.conversation_id === conversationId);
+      return mine.length ? { ...mine[mine.length - 1] } : null;
+    },
+    async openRefund(input): Promise<OpenRefundResult> {
+      store.openRefundCalls.push(input);
+      const existing = store.actions.find(
+        (a) => a.bot_id === input.botId && a.kind === 'refund' && a.target_id === input.captureId && LIVE_ACTION.has(a.status),
+      );
+      if (existing) return { created: false, auto: existing.origin === 'auto', action: { ...existing } };
+      const auto = store.nextDecision === 'auto';
+      const action: PaymentActionRow = {
+        id: randomUUID(),
+        bot_id: input.botId,
+        conversation_id: input.conversationId,
+        kind: 'refund',
+        target_id: input.captureId,
+        amount_cents: input.amountCents,
+        currency: input.currency.toUpperCase(),
+        customer_key: input.customerKey ? input.customerKey.toLowerCase() : null,
+        origin: auto ? 'auto' : 'approval',
+        status: auto ? 'executing' : 'pending',
+        reason: input.reason,
+        guardrail: { scripted: auto },
+        paypal_ref: null,
+        error: null,
+        created_at: new Date().toISOString(),
+      };
+      store.actions.push(action);
+      return { created: true, auto, action: { ...action }, checks: { scripted: auto } };
+    },
+    async settleAction(actionId, outcome) {
+      const a = store.actions.find((r) => r.id === actionId && r.status === 'executing');
+      if (!a) return false;
+      a.status = outcome.status;
+      a.payload = outcome.payload;
+      if (outcome.status === 'executed') {
+        a.paypal_ref = outcome.paypalRef;
+        a.result = outcome.result;
+      } else {
+        a.error = outcome.error;
+        a.result = outcome.result ?? null;
+        if (outcome.paypalRef) a.paypal_ref = outcome.paypalRef;
+      }
+      return true;
+    },
+    async latestRefundAction(botId, captureId) {
+      const mine = store.actions.filter((a) => a.bot_id === botId && a.kind === 'refund' && a.target_id === captureId);
+      return mine.length ? { ...mine[mine.length - 1] } : null;
+    },
   };
   return store;
 }
@@ -121,9 +199,19 @@ interface FakeOrder {
   captureId: string | null;
   captureStatus: string;
   captureRequestId: string | null;
+  captureTime?: string;
+  payerEmail?: string;
 }
 
-type Call = { method: string; path: string; requestId: string | null; body: unknown };
+interface FakeRefund {
+  id: string;
+  captureId: string;
+  requestId: string | null;
+  value: string;
+  currency: string;
+}
+
+export type Call = { method: string; path: string; requestId: string | null; body: unknown };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -133,16 +221,32 @@ function unprocessable(issue: string) {
   return json({ name: 'UNPROCESSABLE_ENTITY', message: issue, details: [{ issue }] }, 422);
 }
 
+export const BUYER_EMAIL = 'buyer@example.com';
+
 export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } = {}) {
-  const flags = { captureThenFail: false, nextCaptureStatus: 'COMPLETED' };
+  const flags = {
+    captureThenFail: false,
+    nextCaptureStatus: 'COMPLETED',
+    failRefund: false,
+    rejectRefund: false,
+    refundThenFail: false,
+    nextRefundStatus: 'COMPLETED',
+    malformedRefund: false,
+    failDisputes: false,
+    failCaptureRead: false,
+    captureReadDelayMs: 0,
+  };
   const orders = new Map<string, FakeOrder>();
+  const refunds: FakeRefund[] = [];
+  const disputes: { dispute_id: string; captureId: string; status: string }[] = [];
   const calls: Call[] = [];
   let seq = 0;
+  let refundSeq = 0;
 
   const orderBody = (o: FakeOrder) => ({
     id: o.id,
     status: o.captureId ? 'COMPLETED' : o.approved ? 'APPROVED' : 'CREATED',
-    payer: o.approved ? { email_address: 'buyer@example.com', payer_id: 'PAYER123' } : undefined,
+    payer: o.approved ? { email_address: o.payerEmail ?? BUYER_EMAIL, payer_id: 'PAYER123' } : undefined,
     purchase_units: [
       {
         payments: o.captureId
@@ -200,9 +304,62 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
       return o ? json(orderBody(o)) : json({ name: 'RESOURCE_NOT_FOUND', message: 'no order' }, 404);
     }
     if ((m = url.pathname.match(/^\/v2\/payments\/captures\/([^/]+)$/)) && method === 'GET') {
+      if (flags.failCaptureRead) return json({ name: 'INTERNAL_SERVER_ERROR', message: 'boom' }, 500);
+      // A slow read that ignores the caller's signal, like a real server that answers late.
+      if (flags.captureReadDelayMs > 0) await new Promise((r) => setTimeout(r, flags.captureReadDelayMs));
       const o = [...orders.values()].find((x) => x.captureId === m![1]);
       if (!o) return json({ name: 'RESOURCE_NOT_FOUND', message: 'no capture' }, 404);
-      return json({ id: o.captureId, status: o.captureStatus, supplementary_data: { related_ids: { order_id: o.id } } });
+      return json({
+        id: o.captureId,
+        status: o.captureStatus,
+        amount: { value: o.value, currency_code: o.currency },
+        create_time: o.captureTime ?? '2026-10-19T00:00:00Z',
+        supplementary_data: { related_ids: { order_id: o.id } },
+      });
+    }
+    if ((m = url.pathname.match(/^\/v2\/payments\/captures\/([^/]+)\/refund$/)) && method === 'POST') {
+      const o = [...orders.values()].find((x) => x.captureId === m![1]);
+      if (!o) return json({ name: 'RESOURCE_NOT_FOUND', message: 'no capture' }, 404);
+      const requestId = headers['PayPal-Request-Id'] ?? null;
+      const prior = requestId ? refunds.find((r) => r.requestId === requestId) : undefined;
+      if (prior) return json({ id: prior.id, status: 'COMPLETED', amount: { value: prior.value, currency_code: prior.currency } }, 201);
+      if (flags.failRefund) {
+        flags.failRefund = false;
+        return json({ name: 'INTERNAL_SERVER_ERROR', message: 'refund boom' }, 500);
+      }
+      if (flags.rejectRefund) {
+        flags.rejectRefund = false;
+        return unprocessable('REFUND_NOT_ALLOWED');
+      }
+      if (!body?.amount?.value) return unprocessable('AMOUNT_REQUIRED_BY_THIS_FAKE');
+      const refund: FakeRefund = {
+        id: `REF${String(++refundSeq).padStart(4, '0')}`,
+        captureId: o.captureId!,
+        requestId,
+        value: body.amount.value,
+        currency: body.amount.currency_code,
+      };
+      const status = flags.nextRefundStatus;
+      flags.nextRefundStatus = 'COMPLETED';
+      if (status === 'COMPLETED' || status === 'PENDING') {
+        refunds.push(refund);
+        o.captureStatus = refund.value === o.value ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+      }
+      if (flags.refundThenFail) {
+        // PayPal refunded, but this caller only sees a 500 (lost response).
+        flags.refundThenFail = false;
+        return json({ name: 'INTERNAL_SERVER_ERROR', message: 'gateway dropped the answer' }, 500);
+      }
+      if (flags.malformedRefund) {
+        flags.malformedRefund = false;
+        return json({ links: [] }, 201);
+      }
+      return json({ id: refund.id, status, amount: { value: refund.value, currency_code: refund.currency } }, 201);
+    }
+    if (url.pathname === '/v1/customer/disputes' && method === 'GET') {
+      if (flags.failDisputes) return json({ name: 'INTERNAL_SERVER_ERROR', message: 'disputes boom' }, 500);
+      const tx = url.searchParams.get('disputed_transaction_id');
+      return json({ items: disputes.filter((d) => d.captureId === tx).map(({ dispute_id, status }) => ({ dispute_id, status })) });
     }
     return json({ name: 'NOT_FOUND', message: `${method} ${url.pathname}` }, 404);
   };
@@ -235,6 +392,58 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
     setCaptureStatus(orderId: string, status: string) {
       const o = orders.get(orderId);
       if (o) o.captureStatus = status;
+    },
+    /** An order PayPal already captured (payer known), as the refund tests need it. */
+    seedCaptured(id: string, value = '29.00', currency = 'USD', extra: { captureTime?: string; payerEmail?: string } = {}) {
+      orders.set(id, {
+        id,
+        value,
+        currency,
+        approved: true,
+        captureId: `CAP${id}`,
+        captureStatus: 'COMPLETED',
+        captureRequestId: id,
+        captureTime: extra.captureTime,
+        payerEmail: extra.payerEmail,
+      });
+      return `CAP${id}`;
+    },
+    refundCalls: () => calls.filter((c) => c.path.endsWith('/refund')),
+    refunds,
+    /** The next refund call answers 500 (PayPal did not refund). */
+    failRefund() {
+      flags.failRefund = true;
+    },
+    /** The next refund call answers 422 (PayPal definitely refused). */
+    rejectRefund() {
+      flags.rejectRefund = true;
+    },
+    /** The next refund succeeds at PayPal but the caller only sees a 500. */
+    refundThenFail() {
+      flags.refundThenFail = true;
+    },
+    /** The next refund resource comes back with this status (PENDING | FAILED | CANCELLED | …). */
+    nextRefundStatus(status: string) {
+      flags.nextRefundStatus = status;
+    },
+    /** The next refund answers 201 with a body that has no id and no status. */
+    malformedRefund() {
+      flags.malformedRefund = true;
+    },
+    /** Capture reads take this long and ignore the caller's signal. */
+    delayCaptureRead(ms: number) {
+      flags.captureReadDelayMs = ms;
+    },
+    /** Every disputes read answers 500 until cleared. */
+    failDisputes(on = true) {
+      flags.failDisputes = on;
+    },
+    /** Every capture read answers 500 until cleared. */
+    failCaptureRead(on = true) {
+      flags.failCaptureRead = on;
+    },
+    addDispute(captureId: string, status = 'OPEN') {
+      disputes.push({ dispute_id: `PP-D-${disputes.length + 1}`, captureId, status });
     },
   };
 }

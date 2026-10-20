@@ -16,7 +16,8 @@ const h = vi.hoisted(() => ({
   runPaymentAgent: vi.fn<(input: { prompt: string; system: string; tools: unknown }) => Promise<unknown>>(
     async () => ({ text: 'Sure — what is your PayPal order id and the email you paid with?', steps: 1, finishReason: 'stop', toolTrace: [] }),
   ),
-  resolvePayPalBot: vi.fn<() => Promise<unknown>>(async () => ({ ok: true, bot: { id: 'b' } })),
+  // `client` is what the route hands to the visitor tools; the agent itself is mocked, so it is never called.
+  resolvePayPalBot: vi.fn<() => Promise<unknown>>(async () => ({ ok: true, bot: { id: 'b', client: {} } })),
   hasOpenPaymentAction: vi.fn<() => Promise<boolean>>(async () => false),
   resolveModel: vi.fn(async () => ({ model: { id: 'mock' }, usingOwnKey: false, provider: 'gemini', modelId: 'm' })),
   recordLlmFailure: vi.fn(async () => {}),
@@ -134,7 +135,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   h.checkWidgetWriteRate.mockResolvedValue({ ok: true });
-  h.resolvePayPalBot.mockResolvedValue({ ok: true, bot: { id: BOT_ID } });
+  h.resolvePayPalBot.mockResolvedValue({ ok: true, bot: { id: BOT_ID, client: {} } });
   h.hasOpenPaymentAction.mockResolvedValue(false);
   h.getRecentTurns.mockResolvedValue([]);
   h.runPaymentAgent.mockResolvedValue({
@@ -167,6 +168,10 @@ describe('payment route', () => {
     const input = h.runPaymentAgent.mock.calls[0][0];
     expect(input.prompt).toContain("Visitor's message:\nI want a refund for my order");
     expect(input.system).toContain('payment assistant for Feedloop');
+    // The four visitor wrappers, nothing from the toolkit, no list_* tool.
+    expect(Object.keys(input.tools as Record<string, unknown>).sort()).toEqual(
+      ['create_checkout', 'find_my_payment', 'get_payment_status', 'request_refund'],
+    );
 
     expect(saved()).toMatchObject({
       responseType: PAYMENT_AGENT_RESPONSE_TYPE,

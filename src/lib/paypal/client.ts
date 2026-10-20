@@ -47,6 +47,12 @@ export interface RequestOptions {
   /** Sent as PayPal-Request-Id so retries cannot double-charge or double-refund. */
   requestId?: string;
   headers?: Record<string, string>;
+  /**
+   * Caller's cancellation (the AI SDK's tool abortSignal, carrying toolMs). Combined with the
+   * client's own per-request deadline; whichever fires first aborts the fetch. A money-moving call
+   * aborted mid-flight is UNCERTAIN, not failed — see refund.ts.
+   */
+  signal?: AbortSignal;
 }
 
 export interface PayPalLink {
@@ -64,8 +70,17 @@ export interface PayPalOrder {
 
 export interface PayPalCapture {
   id: string;
+  /** COMPLETED | PENDING | DECLINED | FAILED | REFUNDED | PARTIALLY_REFUNDED */
   status: string;
   amount?: { value: string; currency_code: string };
+  create_time?: string;
+  [key: string]: unknown;
+}
+
+export interface PayPalDispute {
+  dispute_id: string;
+  status?: string;
+  reason?: string;
   [key: string]: unknown;
 }
 
@@ -88,6 +103,8 @@ export interface CreateOrderInput {
   locale?: string;
   /** NO_SHIPPING for digital goods — the buyer is not asked for an address. */
   shippingPreference?: 'NO_SHIPPING' | 'GET_FROM_FILE' | 'SET_PROVIDED_ADDRESS';
+  /** Caller's cancellation (the agent's tool signal). Absent for the pricing page. */
+  signal?: AbortSignal;
 }
 
 export interface RefundInput {
@@ -95,6 +112,7 @@ export interface RefundInput {
   currencyCode: string;
   noteToPayer?: string;
   requestId: string;
+  signal?: AbortSignal;
 }
 
 // Refresh this long before expiry so a token never dies mid-request.
@@ -124,8 +142,9 @@ export class PayPalClient {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  private signal(): AbortSignal {
-    return AbortSignal.timeout(this.timeoutMs);
+  private signal(external?: AbortSignal): AbortSignal {
+    const deadline = AbortSignal.timeout(this.timeoutMs);
+    return external ? AbortSignal.any([deadline, external]) : deadline;
   }
 
   /** Client-credentials token, cached in memory. Returns the token and its scope string. */
@@ -172,6 +191,9 @@ export class PayPalClient {
         throw new Error(`PayPal-Request-Id must be 1-${REQUEST_ID_MAX} characters`);
       }
     }
+    // Already cancelled: do not even fetch a token. Throwing the signal's reason keeps the
+    // "aborted" classification the callers rely on.
+    if (opts.signal?.aborted) throw abortError(opts.signal);
     const { accessToken } = await this.getAccessToken();
     const headers: Record<string, string> = {
       ...opts.headers,
@@ -183,7 +205,7 @@ export class PayPalClient {
       method,
       headers,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-      signal: this.signal(),
+      signal: this.signal(opts.signal),
     });
     const data = await parseBody(res);
     if (!res.ok) throw toApiError(res, data);
@@ -195,6 +217,7 @@ export class PayPalClient {
   ): Promise<{ id: string; status: string; approveUrl: string | null }> {
     const order = await this.request<PayPalOrder>('POST', '/v2/checkout/orders', {
       requestId: input.requestId,
+      signal: input.signal,
       body: {
         intent: 'CAPTURE',
         purchase_units: [
@@ -220,8 +243,8 @@ export class PayPalClient {
     return { id: order.id, status: order.status, approveUrl: findApproveUrl(order.links) };
   }
 
-  getOrder(id: string): Promise<PayPalOrder> {
-    return this.request('GET', `/v2/checkout/orders/${encodeURIComponent(id)}`);
+  getOrder(id: string, opts: { signal?: AbortSignal } = {}): Promise<PayPalOrder> {
+    return this.request('GET', `/v2/checkout/orders/${encodeURIComponent(id)}`, { signal: opts.signal });
   }
 
   captureOrder(id: string, requestId: string): Promise<PayPalOrder> {
@@ -230,8 +253,8 @@ export class PayPalClient {
     });
   }
 
-  getCapture(captureId: string): Promise<PayPalCapture> {
-    return this.request('GET', `/v2/payments/captures/${encodeURIComponent(captureId)}`);
+  getCapture(captureId: string, opts: { signal?: AbortSignal } = {}): Promise<PayPalCapture> {
+    return this.request('GET', `/v2/payments/captures/${encodeURIComponent(captureId)}`, { signal: opts.signal });
   }
 
   /**
@@ -241,6 +264,7 @@ export class PayPalClient {
   refundCapture(captureId: string, input: RefundInput): Promise<PayPalRefund> {
     return this.request('POST', `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`, {
       requestId: input.requestId,
+      signal: input.signal,
       body: {
         amount: { value: input.amountValue, currency_code: input.currencyCode },
         ...(input.noteToPayer ? { note_to_payer: input.noteToPayer } : {}),
@@ -248,9 +272,42 @@ export class PayPalClient {
     });
   }
 
-  getRefund(id: string): Promise<PayPalRefund> {
-    return this.request('GET', `/v2/payments/refunds/${encodeURIComponent(id)}`);
+  getRefund(id: string, opts: { signal?: AbortSignal } = {}): Promise<PayPalRefund> {
+    return this.request('GET', `/v2/payments/refunds/${encodeURIComponent(id)}`, { signal: opts.signal });
   }
+
+  /**
+   * Disputes opened against one capture (any status). Read-only; the refund guardrail passes
+   * "has a dispute" from this, never from model text. PayPal answers `{ items: [] }` when none.
+   */
+  async listDisputesForCapture(captureId: string, opts: { signal?: AbortSignal } = {}): Promise<PayPalDispute[]> {
+    const res = await this.request<{ items?: PayPalDispute[] }>(
+      'GET',
+      `/v1/customer/disputes?disputed_transaction_id=${encodeURIComponent(captureId)}`,
+      { signal: opts.signal },
+    );
+    return res?.items ?? [];
+  }
+}
+
+function abortError(signal: AbortSignal): Error {
+  const reason = signal.reason;
+  if (reason instanceof Error) return reason;
+  const err = new Error(typeof reason === 'string' ? reason : 'This operation was aborted');
+  err.name = 'AbortError';
+  return err;
+}
+
+/**
+ * True when an error means "the request may or may not have reached PayPal": an abort or timeout
+ * (ours or the caller's), a network failure, or a 5xx. For a money-moving call that is UNCERTAIN —
+ * the caller must not treat it as "nothing happened". A 4xx is a definite answer from PayPal.
+ */
+export function isUncertainPayPalError(err: unknown): boolean {
+  if (err instanceof PayPalApiError) return err.status >= 500;
+  // Everything else never carried a PayPal answer: AbortError / TimeoutError from the signals,
+  // TypeError("fetch failed") from undici, a JSON parse failure. Uncertain by definition.
+  return true;
 }
 
 function findApproveUrl(links?: PayPalLink[]): string | null {

@@ -100,7 +100,29 @@ BEGIN
     RAISE EXCEPTION 'case12 service_role must execute the guardrail RPC';
   END IF;
 
-  RAISE NOTICE 'guardrail scenario: 12 cases OK';
+  -- 13. 'unknown' (PayPal asked, answer lost) keeps its reservation: it blocks a new action for the
+  --     same capture, counts toward the daily cap, and the unique index refuses a direct duplicate.
+  UPDATE bots SET paypal_paused = false WHERE id = '00000000-0000-4000-8000-0000000000b0';
+  r := payment_action_open_refund('00000000-0000-4000-8000-0000000000b0', NULL, 'CAP-13', 1000, 'USD',
+         now() - interval '1 day', false, false, 'judy@example.com', 'first try');
+  IF NOT (r->>'auto')::boolean THEN RAISE EXCEPTION 'case13 expected auto, got %', r; END IF;
+  UPDATE payment_actions SET status = 'unknown' WHERE target_id = 'CAP-13';
+  r := payment_action_open_refund('00000000-0000-4000-8000-0000000000b0', NULL, 'CAP-13', 1000, 'USD',
+         now() - interval '1 day', false, false, 'judy@example.com', 'retry');
+  IF (r->>'created')::boolean THEN RAISE EXCEPTION 'case13 unknown row must block a new action: %', r; END IF;
+  IF r->'action'->>'status' <> 'unknown' THEN RAISE EXCEPTION 'case13 expected the unknown row back: %', r->'action'; END IF;
+  BEGIN
+    INSERT INTO payment_actions (bot_id, kind, target_id, amount_cents, currency, origin, status)
+    VALUES ('00000000-0000-4000-8000-0000000000b0', 'refund', 'CAP-13', 100, 'USD', 'approval', 'pending');
+    RAISE EXCEPTION 'case13 expected unique violation against the unknown row';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  -- daily cap: executing CAP-1 $15 + executed/auto CAP-8 $20 + unknown CAP-13 $10 = $45; $56 more would pass $100
+  r := payment_action_open_refund('00000000-0000-4000-8000-0000000000b0', NULL, 'CAP-14', 5600, 'USD',
+         now() - interval '1 day', false, false, 'kate@example.com', 'over with unknown counted');
+  IF (r->'checks'->>'daily_cap_ok')::boolean THEN RAISE EXCEPTION 'case13 unknown must count toward the daily cap: %', r->'checks'; END IF;
+
+  RAISE NOTICE 'guardrail scenario: 13 cases OK';
 END $$;
 
 -- demo-bot uniqueness: a second is_demo row is impossible

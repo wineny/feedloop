@@ -16,11 +16,15 @@ import { getSystemPrompt } from '@/lib/bot/prompts';
 // 쓰므로 건드리지 않는다 — 갈라지는 자리는 이 라우트 하나다.
 import { resolveModel, type ResolvedModel } from '@/lib/llm/provider';
 import { resolvePayPalBot } from '@/lib/paypal/bot';
+import type { PayPalClient } from '@/lib/paypal/client';
 import { hasOpenPaymentAction } from '@/lib/paypal/actions';
 import { NO_PAYMENT_ROUTE, routePayment } from '@/lib/paypal/router';
 import { paymentAgentPrompt, paymentAgentSystemPrompt, runPaymentAgent } from '@/lib/paypal/agent';
 import { PAYMENT_AGENT_FALLBACK, PAYMENT_NOTICES, type ReplyNotices } from '@/lib/paypal/notices';
 import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
+import { appOrigin } from '@/lib/paypal/checkout';
+import { supabasePaymentsStore } from '@/lib/paypal/store';
+import { createVisitorTools, formatProductList } from '@/lib/paypal/visitor-tools';
 // HOLDING_NOTICE 는 AI 가 답을 못 낸 경우(출력이 깨졌거나, 근거가 없어 스스로 넘겼거나)의
 // 안내다. 문구가 holding.ts 한 곳에서 오는 이유: 프롬프트가 시키는 문장과 서버가 쓰는 문장이
 // 갈라지면 방문자는 같은 상황에서 두 가지 말을 듣는다.
@@ -363,17 +367,30 @@ export async function POST(
    * null 폴백은 한국어 안내(HOLDING_NOTICE)라 결제 화면엔 맞지 않고, escalate 가 받은편지함 배지를
    * 켜 사람이 이어받게 한다. 키 실패 4분류 기록은 callLlm 과 같은 함수(recordLlmFailure)로 남긴다.
    *
-   * 도구는 여기서 넘긴다. 방문자 도구 4개(find_my_payment·request_refund·create_checkout·
-   * get_payment_status)는 다음 작업(2/6)이 이 자리에 등록한다.
+   * 도구는 방문자 도구 4개(lib/paypal/visitor-tools.ts)뿐이다 — 이 (봇, 대화) 에 묶인 래퍼라
+   * 모델이 남의 주문·남의 봇·상품표에 없는 금액을 말할 길이 없다. 툴킷 원형은 주지 않는다.
+   * 상품 목록은 프롬프트에 싣는다(create_checkout 의 product_id 를 모델이 고르게).
    */
-  const replyWithPaymentAgent = async (cfg: BotConfig): Promise<LlmResult> => {
+  const replyWithPaymentAgent = async (cfg: BotConfig, paypalClient: PayPalClient): Promise<LlmResult> => {
     let resolved: ResolvedModel | null = null;
     try {
+      const store = supabasePaymentsStore();
+      // 상품표를 못 읽어도 환불 대화는 되어야 한다 — 빈 목록이면 프롬프트에서 그 블록만 빠진다.
+      const products = await store.listActiveProducts(botId).catch((err) => {
+        console.error(`[widget/${botId}] product list failed:`, err instanceof Error ? err.message : err);
+        return [];
+      });
       resolved = await resolveModel(cfg);
       const outcome = await runPaymentAgent({
         model: resolved.model,
-        tools: {},
-        system: paymentAgentSystemPrompt({ serviceName: bot.service_name }),
+        tools: createVisitorTools({
+          botId,
+          conversationId: conversation.id,
+          store,
+          paypal: paypalClient,
+          origin: appOrigin,
+        }),
+        system: paymentAgentSystemPrompt({ serviceName: bot.service_name, productList: formatProductList(products) }),
         prompt: paymentAgentPrompt({
           text: bodyText,
           recentTurns: timeline,
@@ -410,9 +427,11 @@ export async function POST(
   // `rateHold` 면 LLM 을 아예 부르지 않는다. 일일 예산도 올리지 않는다 —
   // 부르지 않은 호출을 시도로 세면 시간당 상한이 일일 예산을 대신 태운다.
   // 결제 경로도 같은 예산 안이다 — 도구 루프는 메시지당 provider 호출이 최대 4번이라 더 비싸다.
+  // paypalBot.ok 는 paymentRoute.route 의 전제라 여기서 다시 좁히기만 한다(TS 가 둘의 관계를 모른다).
+  const paypalClient = paypalBot?.ok ? paypalBot.bot.client : null;
   const budget = config && !rateHold
     ? await withReplyBudget(botId, config, (): Promise<LlmResult> =>
-        paymentRoute.route ? replyWithPaymentAgent(config) : (async () => {
+        paymentRoute.route && paypalClient ? replyWithPaymentAgent(config, paypalClient) : (async () => {
           // 같은 예산을 SDK 안쪽까지 밀어 넣는다. 아래 Promise.race 는 «기다리기»만
           // 멈출 뿐 provider 요청은 계속 돈다 — 그 요청도 결국 운영자 돈이고,
           // 끝날 때까지 서버리스 함수가 정리되지 못한다.

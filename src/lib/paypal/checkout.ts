@@ -23,6 +23,12 @@ export interface CheckoutInput {
   productId: string;
   quantity: number;
   conversationId?: string | null;
+  /**
+   * Caller's cancellation (the agent's tool signal). Checked after every await and before the
+   * PayPal POST, and forwarded into it: an order opened after the caller stopped waiting is one
+   * nobody shows the buyer. The pricing page passes none.
+   */
+  signal?: AbortSignal;
 }
 
 export interface CheckoutDeps {
@@ -40,7 +46,8 @@ export type CheckoutError =
   | 'unsupported_currency'
   | 'paypal_failed'
   | 'bad_approve_url'
-  | 'store_failed';
+  | 'store_failed'
+  | 'canceled';
 
 export type CheckoutResult =
   | {
@@ -74,10 +81,11 @@ export function appOrigin(): string {
 }
 
 export async function createCheckout(deps: CheckoutDeps, input: CheckoutInput): Promise<CheckoutResult> {
-  const { quantity } = input;
+  const { quantity, signal } = input;
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
     return { ok: false, error: 'bad_quantity' };
   }
+  if (signal?.aborted) return { ok: false, error: 'canceled' };
 
   const product = await deps.store.getProduct(input.botId, input.productId);
   if (!product) return { ok: false, error: 'product_not_found' };
@@ -88,6 +96,9 @@ export async function createCheckout(deps: CheckoutDeps, input: CheckoutInput): 
 
   const amountCents = product.amount_cents * quantity;
   const { returnUrl, cancelUrl } = checkoutUrls(deps.origin, input.botId);
+
+  // Last gate before the POST: the product read may have taken the rest of the caller's budget.
+  if (signal?.aborted) return { ok: false, error: 'canceled' };
 
   let order: { id: string; approveUrl: string | null };
   try {
@@ -102,8 +113,12 @@ export async function createCheckout(deps: CheckoutDeps, input: CheckoutInput): 
       locale: 'en-US',
       shippingPreference: 'NO_SHIPPING',
       requestId: (deps.newRequestId ?? randomUUID)(),
+      signal,
     });
   } catch (err) {
+    // Aborted mid-flight: PayPal may or may not have opened the order. It is harmless either way —
+    // the return route only captures orders in our table, and this one was never inserted.
+    if (signal?.aborted) return { ok: false, error: 'canceled' };
     console.error('[paypal] createOrder failed', describeError(err));
     return { ok: false, error: 'paypal_failed' };
   }
