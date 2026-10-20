@@ -32,6 +32,12 @@ export interface TimelineItem {
    * 두 번 눌러도 사고는 안 나지만, 답한 사람에게 같은 질문을 또 하는 화면은 답을 안 받은 것과 같다.
    */
   confirmation?: ResolutionConfirmation | null;
+  /**
+   * The raw `responses.response_type` of our replies. Only `getRecentTurns` sets it (prompt
+   * context), never `getTimeline` (the widget payload stays as it was). The payment router reads
+   * it to tell a payment-agent reply from an ordinary AI one — both collapse to kind 'ai'.
+   */
+  responseType?: string;
 }
 
 export interface Conversation {
@@ -461,6 +467,7 @@ export async function getRecentTurns(
       kind: responseKind(r.response_type),
       body: r.response_body,
       at: r.sent_at,
+      responseType: r.response_type,
     })),
   ];
 
