@@ -84,6 +84,10 @@ export interface CreateOrderInput {
   returnUrl: string;
   cancelUrl: string;
   requestId: string;
+  /** PayPal page language, e.g. en-US. Without it PayPal guesses from the buyer's IP. */
+  locale?: string;
+  /** NO_SHIPPING for digital goods — the buyer is not asked for an address. */
+  shippingPreference?: 'NO_SHIPPING' | 'GET_FROM_FILE' | 'SET_PROVIDED_ADDRESS';
 }
 
 export interface RefundInput {
@@ -206,6 +210,8 @@ export class PayPalClient {
               return_url: input.returnUrl,
               cancel_url: input.cancelUrl,
               user_action: 'PAY_NOW',
+              ...(input.locale ? { locale: input.locale } : {}),
+              ...(input.shippingPreference ? { shipping_preference: input.shippingPreference } : {}),
             },
           },
         },

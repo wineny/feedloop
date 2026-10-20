@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useDemoContext } from '@/lib/demo/DemoProvider';
+import { isPricingPath } from '@/lib/pricing/paths';
 
 /**
  * 「지금 보는 건 예시 데이터고, 로그인 없이 다 둘러볼 수 있다」 — 심사자가 링크를 열고
@@ -17,7 +18,8 @@ export function DemoBanner() {
   const pathname = usePathname();
   // 랜딩(/)은 풀블리드 히어로 위에 배너가 얹히면 안 되므로 숨긴다
   // 로그인 화면에 「로그인 없이 볼 수 있어요」 배너가 얹히면 말이 안 맞는다
-  if (!isDemo || pathname === '/' || pathname === '/login') return null;
+  // PayPal 데모 가게(/pricing)는 예시 데이터가 아니라 진짜 샌드박스 결제라 이 문장이 틀린다
+  if (!isDemo || pathname === '/' || pathname === '/login' || isPricingPath(pathname)) return null;
 
   return (
     <div className="demo-banner relative overflow-hidden border-b border-[var(--primary-100)]">
