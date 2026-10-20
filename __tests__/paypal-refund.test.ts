@@ -47,6 +47,7 @@ describe('requestRefund — facts the RPC receives', () => {
       hasDispute: false,
       customerKey: 'buyer@example.com',
       reason: 'double charged',
+      captureTotalCents: 2900,
     });
   });
 

@@ -121,11 +121,15 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     },
     async openRefund(input): Promise<OpenRefundResult> {
       store.openRefundCalls.push(input);
+      if (input.amountCents > input.captureTotalCents) throw new Error(`refund amount ${input.amountCents} exceeds the capture total ${input.captureTotalCents}`);
       const existing = store.actions.find(
         (a) => a.bot_id === input.botId && a.kind === 'refund' && a.target_id === input.captureId && LIVE_ACTION.has(a.status),
       );
       if (existing) return { created: false, auto: existing.origin === 'auto', action: { ...existing } };
-      const auto = store.nextDecision === 'auto';
+      // Mirrors the v2 SQL: an unknown customer never auto-passes, whatever the script says.
+      const customerKey = input.customerKey?.trim().toLowerCase() || null;
+      const auto = store.nextDecision === 'auto' && customerKey !== null;
+      const now = new Date().toISOString();
       const action: PaymentActionRow = {
         id: randomUUID(),
         bot_id: input.botId,
@@ -134,23 +138,46 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
         target_id: input.captureId,
         amount_cents: input.amountCents,
         currency: input.currency.toUpperCase(),
-        customer_key: input.customerKey ? input.customerKey.toLowerCase() : null,
+        customer_key: customerKey,
         origin: auto ? 'auto' : 'approval',
         status: auto ? 'executing' : 'pending',
         reason: input.reason,
-        guardrail: { scripted: auto },
+        guardrail: { scripted: auto, customer_known: customerKey !== null },
         paypal_ref: null,
         error: null,
-        created_at: new Date().toISOString(),
+        decided_by: null,
+        decided_at: null,
+        created_at: now,
+        updated_at: now,
+        reconcile_attempts: 0,
+        reconcile_attempted_at: null,
+        sent_at: null,
+        send_attempts: 0,
       };
       store.actions.push(action);
-      return { created: true, auto, action: { ...action }, checks: { scripted: auto } };
+      return { created: true, auto, action: { ...action }, checks: { scripted: auto, customer_known: customerKey !== null } };
     },
-    async settleAction(actionId, outcome) {
-      const a = store.actions.find((r) => r.id === actionId && r.status === 'executing');
+    async markSent(actionId) {
+      const a = store.actions.find((r) => r.id === actionId);
+      if (!a) throw new Error(`action ${actionId} not found`);
+      if (a.status !== 'executing' && a.status !== 'unknown') return { allowed: false, first: false, status: a.status };
+      const first = a.sent_at === null;
+      a.sent_at = a.sent_at ?? new Date().toISOString();
+      a.send_attempts += 1;
+      return { allowed: true, first, status: a.status };
+    },
+    async settleAction(actionId, outcome, from = ['executing'], opts = {}) {
+      const a = store.actions.find(
+        (r) =>
+          r.id === actionId &&
+          from.includes(r.status) &&
+          (!opts.onlyIfNeverSent || r.sent_at === null) &&
+          (!opts.onlyIfFirstAttempt || r.send_attempts === 1),
+      );
       if (!a) return false;
       a.status = outcome.status;
       a.payload = outcome.payload;
+      a.updated_at = new Date().toISOString();
       if (outcome.status === 'executed') {
         a.paypal_ref = outcome.paypalRef;
         a.result = outcome.result;
@@ -164,6 +191,55 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     async latestRefundAction(botId, captureId) {
       const mine = store.actions.filter((a) => a.bot_id === botId && a.kind === 'refund' && a.target_id === captureId);
       return mine.length ? { ...mine[mine.length - 1] } : null;
+    },
+    async getAction(actionId, botId) {
+      const a = store.actions.find((r) => r.id === actionId && r.bot_id === botId);
+      return a ? { ...a } : null;
+    },
+    async listStuckActions({ olderThan, notAttemptedSince, limit }) {
+      return store.actions
+        .filter(
+          (a) =>
+            (a.status === 'executing' || a.status === 'unknown') &&
+            a.updated_at < olderThan &&
+            (a.reconcile_attempted_at === null || a.reconcile_attempted_at < notAttemptedSince),
+        )
+        .sort((x, y) => {
+          // never attempted first, then least recently attempted, then oldest change
+          if (x.reconcile_attempted_at === null && y.reconcile_attempted_at !== null) return -1;
+          if (x.reconcile_attempted_at !== null && y.reconcile_attempted_at === null) return 1;
+          const byAttempt = (x.reconcile_attempted_at ?? '').localeCompare(y.reconcile_attempted_at ?? '');
+          return byAttempt !== 0 ? byAttempt : x.updated_at.localeCompare(y.updated_at);
+        })
+        .slice(0, limit)
+        .map((a) => ({ ...a }));
+    },
+    async markReconcileAttempt(actionId) {
+      const a = store.actions.find((r) => r.id === actionId);
+      if (!a) return;
+      a.reconcile_attempts += 1;
+      a.reconcile_attempted_at = new Date().toISOString();
+    },
+    async expirePendingActions({ olderThan }) {
+      let n = 0;
+      for (const a of store.actions) {
+        if (a.status === 'pending' && a.created_at < olderThan) {
+          a.status = 'expired';
+          a.updated_at = new Date().toISOString();
+          n += 1;
+        }
+      }
+      return n;
+    },
+    async decideAction({ actionId, botId, decision, userId }) {
+      const a = store.actions.find((r) => r.id === actionId && r.bot_id === botId);
+      if (!a) throw new Error(`action ${actionId} not found for bot ${botId}`);
+      if (a.status !== 'pending') return { updated: false, action: { ...a } };
+      a.status = decision === 'approve' ? 'executing' : 'rejected';
+      a.decided_by = userId;
+      a.decided_at = new Date().toISOString();
+      a.updated_at = a.decided_at;
+      return { updated: true, action: { ...a } };
     },
   };
   return store;
@@ -209,6 +285,8 @@ interface FakeRefund {
   requestId: string | null;
   value: string;
   currency: string;
+  /** What GET /v2/payments/refunds/{id} reports now. */
+  status: string;
 }
 
 export type Call = { method: string; path: string; requestId: string | null; body: unknown };
@@ -230,6 +308,7 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
     failRefund: false,
     rejectRefund: false,
     refundThenFail: false,
+    conflictRefund: false,
     nextRefundStatus: 'COMPLETED',
     malformedRefund: false,
     failDisputes: false,
@@ -322,7 +401,7 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
       if (!o) return json({ name: 'RESOURCE_NOT_FOUND', message: 'no capture' }, 404);
       const requestId = headers['PayPal-Request-Id'] ?? null;
       const prior = requestId ? refunds.find((r) => r.requestId === requestId) : undefined;
-      if (prior) return json({ id: prior.id, status: 'COMPLETED', amount: { value: prior.value, currency_code: prior.currency } }, 201);
+      if (prior) return json({ id: prior.id, status: prior.status, amount: { value: prior.value, currency_code: prior.currency } }, 201);
       if (flags.failRefund) {
         flags.failRefund = false;
         return json({ name: 'INTERNAL_SERVER_ERROR', message: 'refund boom' }, 500);
@@ -331,16 +410,22 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
         flags.rejectRefund = false;
         return unprocessable('REFUND_NOT_ALLOWED');
       }
+      if (flags.conflictRefund) {
+        // PayPal: a request with this PayPal-Request-Id is still being processed.
+        flags.conflictRefund = false;
+        return json({ name: 'RESOURCE_CONFLICT', message: 'Previous request in progress', details: [{ issue: 'PREVIOUS_REQUEST_IN_PROGRESS' }] }, 409);
+      }
       if (!body?.amount?.value) return unprocessable('AMOUNT_REQUIRED_BY_THIS_FAKE');
+      const status = flags.nextRefundStatus;
+      flags.nextRefundStatus = 'COMPLETED';
       const refund: FakeRefund = {
         id: `REF${String(++refundSeq).padStart(4, '0')}`,
         captureId: o.captureId!,
         requestId,
         value: body.amount.value,
         currency: body.amount.currency_code,
+        status,
       };
-      const status = flags.nextRefundStatus;
-      flags.nextRefundStatus = 'COMPLETED';
       if (status === 'COMPLETED' || status === 'PENDING') {
         refunds.push(refund);
         o.captureStatus = refund.value === o.value ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
@@ -355,6 +440,11 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
         return json({ links: [] }, 201);
       }
       return json({ id: refund.id, status, amount: { value: refund.value, currency_code: refund.currency } }, 201);
+    }
+    if ((m = url.pathname.match(/^\/v2\/payments\/refunds\/([^/]+)$/)) && method === 'GET') {
+      const r = refunds.find((x) => x.id === m![1]);
+      if (!r) return json({ name: 'RESOURCE_NOT_FOUND', message: 'no refund' }, 404);
+      return json({ id: r.id, status: r.status, amount: { value: r.value, currency_code: r.currency } });
     }
     if (url.pathname === '/v1/customer/disputes' && method === 'GET') {
       if (flags.failDisputes) return json({ name: 'INTERNAL_SERVER_ERROR', message: 'disputes boom' }, 500);
@@ -418,6 +508,10 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
     rejectRefund() {
       flags.rejectRefund = true;
     },
+    /** The next refund call answers 409 PREVIOUS_REQUEST_IN_PROGRESS (another request with that id is running). */
+    conflictRefund() {
+      flags.conflictRefund = true;
+    },
     /** The next refund succeeds at PayPal but the caller only sees a 500. */
     refundThenFail() {
       flags.refundThenFail = true;
@@ -430,6 +524,12 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
     malformedRefund() {
       flags.malformedRefund = true;
     },
+    /** PayPal finishes (or fails) a refund it had reported PENDING. */
+    setRefundStatus(refundId: string, status: string) {
+      const r = refunds.find((x) => x.id === refundId);
+      if (r) r.status = status;
+    },
+    refundReads: () => calls.filter((c) => c.method === 'GET' && c.path.startsWith('/v2/payments/refunds/')),
     /** Capture reads take this long and ignore the caller's signal. */
     delayCaptureRead(ms: number) {
       flags.captureReadDelayMs = ms;

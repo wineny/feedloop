@@ -299,12 +299,15 @@ function abortError(signal: AbortSignal): Error {
 }
 
 /**
- * True when an error means "the request may or may not have reached PayPal": an abort or timeout
- * (ours or the caller's), a network failure, or a 5xx. For a money-moving call that is UNCERTAIN —
- * the caller must not treat it as "nothing happened". A 4xx is a definite answer from PayPal.
+ * True when an error means "the request may or may not have been performed by PayPal": an abort or
+ * timeout (ours or the caller's), a network failure, a 5xx, a 408, a 429, or a 409 — PayPal answers
+ * 409 RESOURCE_CONFLICT / PREVIOUS_REQUEST_IN_PROGRESS to a replay of a PayPal-Request-Id whose
+ * first request is still running (https://developer.paypal.com/api/payments/v2/errors/previous_request_in_progress/):
+ * that other request may well succeed. For a money-moving call all of these are UNCERTAIN — the
+ * caller must not treat them as "nothing happened". Any other 4xx is a definite answer from PayPal.
  */
 export function isUncertainPayPalError(err: unknown): boolean {
-  if (err instanceof PayPalApiError) return err.status >= 500;
+  if (err instanceof PayPalApiError) return err.status >= 500 || err.status === 408 || err.status === 409 || err.status === 429;
   // Everything else never carried a PayPal answer: AbortError / TimeoutError from the signals,
   // TypeError("fetch failed") from undici, a JSON parse failure. Uncertain by definition.
   return true;

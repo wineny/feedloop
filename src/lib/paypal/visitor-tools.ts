@@ -19,8 +19,15 @@ import { ORDER_ID_RE, readCaptureFacts } from './capture';
 import { createCheckout, describeError, MAX_QUANTITY } from './checkout';
 import type { PayPalClient } from './client';
 import { formatMoney } from './money';
-import { requestRefund } from './refund';
-import type { OrderStatus, PaymentsStore, ProductRow, VerificationRow } from './store';
+import { isStuckAction, reconcileAction, requestRefund } from './refund';
+import type { OrderStatus, PaymentActionRow, PaymentsStore, ProductRow, VerificationRow } from './store';
+
+/**
+ * A stuck row (executing/unknown) older than this is reconciled on the spot before the visitor is
+ * answered, so "any news?" gets the real state instead of "processing" until the daily sweep.
+ * Younger rows may still be in flight in another request.
+ */
+export const LAZY_RECONCILE_AFTER_MS = 2 * 60_000;
 
 /**
  * What the AI SDK passes to `execute` as its second argument. `abortSignal` carries the tool budget
@@ -166,7 +173,7 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
       } catch (err) {
         console.error('[paypal] get_payment_status: getCapture failed', { captureId: v.capture_id, ...describeError(err) });
       }
-      const action = await store.latestRefundAction(botId, v.capture_id);
+      const action = await freshenAction(await store.latestRefundAction(botId, v.capture_id), abortSignal);
       return {
         ...base,
         payment_status: paymentStatus,
@@ -251,15 +258,15 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
           return { status: 'refunded' as const, amount: formatMoney(outcome.amountCents, outcome.currency), refund_id: outcome.refundId };
         case 'pending':
           return { status: 'waiting_for_approval' as const, amount: formatMoney(outcome.amountCents, outcome.currency) };
-        case 'already_open':
+        case 'already_open': {
+          const current = (await freshenAction(outcome.action, abortSignal)) ?? outcome.action;
           return {
             status: 'already_requested' as const,
-            current: describeActionStatus(outcome.action.status),
+            current: describeActionStatus(current.status),
             amount:
-              outcome.action.amount_cents !== null && outcome.action.currency
-                ? formatMoney(outcome.action.amount_cents, outcome.action.currency)
-                : null,
+              current.amount_cents !== null && current.currency ? formatMoney(current.amount_cents, current.currency) : null,
           };
+        }
         case 'refused':
           return outcome.reason === 'canceled'
             ? { status: 'canceled' as const }
@@ -273,6 +280,21 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
       }
     },
   });
+
+  /**
+   * Reconciles a stuck action that has been stuck long enough, then returns the row as it is now.
+   * Never throws: a failed reconciliation just leaves the row as it was.
+   */
+  async function freshenAction(action: PaymentActionRow | null, signal?: AbortSignal): Promise<PaymentActionRow | null> {
+    if (!action || !isStuckAction(action)) return action;
+    if (Date.now() - new Date(action.updated_at).getTime() < LAZY_RECONCILE_AFTER_MS) return action;
+    try {
+      await reconcileAction({ store, paypal }, action, { signal });
+    } catch (err) {
+      console.error('[paypal] lazy reconcile failed', { actionId: action.id, ...describeError(err) });
+    }
+    return (await store.getAction(action.id, botId)) ?? action;
+  }
 
   /**
    * A payment verified before it was captured (approved, not yet paid) keeps capture_id NULL. When

@@ -321,12 +321,29 @@ describe('request_refund', () => {
     expect(await run(tools, 'get_payment_status')).toMatchObject({ refund: { status: status === 'PENDING' ? 'processing' : 'failed' } });
   });
 
+  it('a stuck row older than two minutes is reconciled before the visitor is answered', async () => {
+    const { store, pp, tools } = setup();
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    pp.nextRefundStatus('PENDING');
+    expect(await run(tools, 'request_refund', { reason: 'x' })).toEqual({ status: 'processing' });
+    pp.setRefundStatus(pp.refunds[0].id, 'COMPLETED');
+    // too young: still processing, no reconcile
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ refund: { status: 'processing' } });
+    expect(pp.refundReads()).toHaveLength(0);
+    // old enough: reconciled on the spot
+    store.actions[0].updated_at = new Date(Date.now() - 5 * 60_000).toISOString();
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ refund: { status: 'refunded' } });
+    expect(store.actions[0].status).toBe('executed');
+    expect(await run(tools, 'request_refund', { reason: 'again' })).toMatchObject({ status: 'already_requested', current: 'refunded' });
+  });
+
   it('an executing row (PayPal not yet answered) reads as processing, not refunded', async () => {
     const { store, tools } = setup();
     await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
     await store.openRefund({
       botId: BOT, conversationId: CONVERSATION, captureId: `CAP${ORDER}`, amountCents: 2900, currency: 'USD',
       capturedAt: null, captureHasRefund: false, hasDispute: false, customerKey: BUYER_EMAIL, reason: 'in flight',
+      captureTotalCents: 2900,
     });
     expect(store.actions[0].status).toBe('executing');
     expect(await run(tools, 'get_payment_status')).toMatchObject({ refund: { status: 'processing' } });
