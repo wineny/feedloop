@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { BotScopeSelect } from '@/components/layout/BotScopeSelect';
+import { isPricingPath } from '@/lib/pricing/paths';
 
 // 순서가 곧 루프다: 대화(들어옴) → 피드백(분류) → 수정 PR(수정·되돌림).
 // 「알림」 탭은 뺐다 — 가짜 데이터만 있던 화면이고, 되돌림 기록은 수정 PR 상세에서 본다.
@@ -26,7 +27,8 @@ export function Navigation() {
 
   // 랜딩(/)은 자체 나브(LandingNav)를 렌더하므로 전역 나브를 숨긴다
   // 랜딩은 자체 나브(LandingNav)가 있고, 로그인 화면은 워드마크만 보여준다
-  if (pathname === '/' || pathname === '/login') return null;
+  // PayPal 데모 가게(/pricing)는 영어 화면이라 자체 헤더(PricingHeader)를 쓴다
+  if (pathname === '/' || pathname === '/login' || isPricingPath(pathname)) return null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-sm">

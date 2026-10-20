@@ -22,7 +22,7 @@ Feedloop is a drop-in chat widget for small online businesses. Customers type wh
 |---|---|---|---|
 | 1 | Payment issues handled in chat — order id + email check → lookup → refund inside the owner's limits | Orders, Captures, Refunds | schema + guardrail RPC done |
 | 2 | Guardrail + approval card — anything outside the limits waits in the inbox for a one-tap decision | — | schema done |
-| 3 | Checkout mid-conversation — pick from the price table → PayPal link → capture | Orders (create / capture) | client done |
+| 3 | Checkout mid-conversation — pick from the price table → PayPal link → capture | Orders (create / capture), Webhooks | `/pricing` checkout + capture + webhook done; chat tool next |
 | 4 | Group → root-cause PR — the same payment problem from several customers becomes one fix PR | — | reuses the existing pipeline |
 | 5 | Money ledger + four numbers in the owner dashboard (AG Grid Community) | Refunds, Orders, Disputes | planned |
 | 6 | Disputes: webhook → inbox card → accept with approval (stretch) | Disputes, Webhooks | planned |
@@ -50,7 +50,7 @@ npm run db:seed-demo -- --owner you@example.com --url http://localhost:3000
 npm run dev                  # http://localhost:3000
 ```
 
-`supabase/schema.sql` is generated from `supabase/migrations/` by `npm run db:schema` — apply the one file, not the folder (three early migrations have no date prefix and sort in the wrong order). PayPal: create a sandbox app at developer.paypal.com and put its client id / secret in `.env.local`; `npm run paypal:smoke` proves the credentials by creating a USD 1.00 sandbox order (nothing is captured). Judge test accounts will be added here before submission.
+`supabase/schema.sql` is generated from `supabase/migrations/` by `npm run db:schema` — apply the one file, not the folder (three early migrations have no date prefix and sort in the wrong order). PayPal: create a sandbox app at developer.paypal.com and put its client id / secret in `.env.local`; `npm run paypal:smoke` proves the credentials by creating a USD 1.00 sandbox order (nothing is captured). Then open `/pricing` and buy a plan with a sandbox **personal** (buyer) account from the dashboard's Sandbox accounts page — log in on the PayPal page rather than paying as a guest card. For webhooks, `npm run paypal:webhook -- --url https://<your-domain>` registers `/api/paypal/webhook/<demoBotId>` and prints the id for `PAYPAL_WEBHOOK_ID` (PayPal only delivers to https). Judge test accounts will be added here before submission.
 
 ## Tests
 

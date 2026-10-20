@@ -169,7 +169,7 @@ const ipHits = new Map<string, number[]>();
  * `x-vercel-forwarded-for` 와 `x-real-ip` 는 앞단이 채우고 클라이언트가 못 덮는다.
  * 둘 다 없는 로컬 개발에서만 예전처럼 `x-forwarded-for` 로 내려간다.
  */
-function clientIp(req: NextRequest): string {
+export function clientIp(req: NextRequest): string {
   const trusted = req.headers.get('x-vercel-forwarded-for') ?? req.headers.get('x-real-ip');
   if (trusted) return trusted.trim();
   const fwd = req.headers.get('x-forwarded-for');
