@@ -15,6 +15,7 @@ import {
 } from '@/lib/bot/conversations';
 import { describeReplyDelivery, emailResponse } from '@/lib/email/notify';
 import { apiText } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
 
 const MAX_REPLY_CHARS = 2000;
 
@@ -104,6 +105,6 @@ export async function POST(
     delivered: immediate,
     emailed: email.sent,
     // 카카오는 "보냈다"고 말하면 거짓이다. 언제 가는지 화면이 정확히 알려야 한다.
-    notice: describeReplyDelivery(immediate, email),
+    notice: describeReplyDelivery(immediate, email, localeFromRequest(req)),
   });
 }

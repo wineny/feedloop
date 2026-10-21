@@ -61,10 +61,20 @@ describe('템플릿', () => {
     firstMessage: '설치하는 데 정말 5분이면 되나요? 그리고 카카오톡도 붙일 수 있나요?',
     pageUrl: 'https://ai-feedloop.vercel.app/', inboxUrl: 'https://ai-feedloop.vercel.app/inbox?c=conv-1',
     receivedAt: new Date('2026-09-23T00:11:46Z'),
+    locale: 'ko' as const,
   };
   it('제목에 서비스·방문자·첫 메시지 조각(자름)을 싣는다', () => {
     const r = renderNewConversationEmail(vars);
     expect(r.subject).toBe('[Feedloop] 새 대화 · 방문자 #62e8 「설치하는 데 정말 5분이면 되나요? 그리고 카카오톡…」');
+  });
+  it('영어(기본): 제목·본문이 영어이고 한글은 방문자가 쓴 말뿐', () => {
+    const r = renderNewConversationEmail({ ...vars, locale: undefined, visitorLabel: 'Visitor #62e8', firstMessage: 'Is setup quick?' });
+    expect(r.subject).toBe('[Feedloop] New conversation · Visitor #62e8 "Is setup quick?"');
+    expect(r.html).toContain('<html lang="en">');
+    expect(r.html).toContain('You get this mail once, when a conversation opens.');
+    expect(r.text).toContain('[First message]');
+    expect(r.text).toContain('Email: Not left yet');
+    expect(/[가-힣]/.test(r.subject + r.html + r.text)).toBe(false);
   });
   it('본문엔 첫 메시지만 있고 「한 번만」 이 명시된다 — 최근 대화·AI 요약은 없다', () => {
     const r = renderNewConversationEmail(vars);
@@ -98,7 +108,7 @@ describe('발송기', () => {
     expect(h.sendEmail).toHaveBeenCalledTimes(1);
     const sent = (h.sendEmail.mock.calls[0] as unknown[])[0] as { tag: string; subject: string; to: string };
     expect(sent.tag).toBe('new-conversation');
-    expect(sent.subject).toContain('새 대화');
+    expect(sent.subject).toContain('New conversation');
     expect(sent.subject).toContain('설치 5분 맞나요?');
   });
 

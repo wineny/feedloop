@@ -102,6 +102,25 @@ describe('emailResponse — 운영자 답장', () => {
     expect(mark?.patch.email_sent_at).toBeTruthy();
   });
 
+  it('메일 언어는 대화에 저장된 언어(conversations.locale)를 따른다 — 서비스·운영자 이름 폴백도 그 언어', async () => {
+    seedHappyPath();
+    tables.conversations = [{ contact_email: 'visitor@example.com', contact_name: 'Mina', locale: 'en', source: 'web' }];
+    tables.bots = [{ service_name: 'Nulnul Tours', service_url: 'https://nulnul.vercel.app', operator_display_name: null, user_id: 'u1' }];
+    await mod.emailResponse({ ...OPERATOR, body: 'Fixed it' });
+    expect(sent[0]).toMatchObject({ subject: '[Nulnul Tours] You have a reply to your feedback' });
+    expect(String(sent[0].html)).toContain('Nulnul Tours team');
+    expect(String(sent[0].html)).toContain('<html lang="en">');
+  });
+
+  it('locale 이 NULL 이면 카카오·채널톡은 ko, 웹은 본문에 한글이 있을 때만 ko', () => {
+    expect(mod.visitorMailLocale({ locale: 'en', source: 'kakao' })).toBe('en');
+    expect(mod.visitorMailLocale({ locale: null, source: 'kakao' }, 'hello')).toBe('ko');
+    expect(mod.visitorMailLocale({ locale: null, source: 'channel' })).toBe('ko');
+    expect(mod.visitorMailLocale({ locale: null, source: 'web' }, '쿠폰')).toBe('ko');
+    expect(mod.visitorMailLocale({ locale: null, source: 'web' }, 'coupon')).toBe('en');
+    expect(mod.visitorMailLocale({})).toBe('en');
+  });
+
   it('이메일을 안 남긴 대화면 아무것도 보내지 않는다', async () => {
     seedHappyPath();
     tables.conversations = [{ contact_email: null, contact_name: '누리' }];
@@ -178,7 +197,8 @@ describe('emailResponse — 되돌림', () => {
 
 describe('describeReplyDelivery', () => {
   it('웹 + 메일 성공 → 메일 주소를 말한다', () => {
-    expect(mod.describeReplyDelivery(true, { sent: true, to: 'a@b.c' })).toBe('이메일(a@b.c)로도 보냈어요.');
+    expect(mod.describeReplyDelivery(true, { sent: true, to: 'a@b.c' }, 'ko')).toBe('이메일(a@b.c)로도 보냈어요.');
+    expect(mod.describeReplyDelivery(true, { sent: true, to: 'a@b.c' })).toBe('Also sent by email to a@b.c.');
   });
 
   it('웹 + 이메일 없음 → 아무 말도 안 한다(위젯 즉시 전달은 화면의 고정 문구가 말한다)', () => {
@@ -186,19 +206,20 @@ describe('describeReplyDelivery', () => {
   });
 
   it('웹 + 발송 실패 → 위젯에는 갔다고 정확히 말한다', () => {
-    expect(mod.describeReplyDelivery(true, { sent: false, reason: 'send_failed' })).toBe(
+    expect(mod.describeReplyDelivery(true, { sent: false, reason: 'send_failed' }, 'ko')).toBe(
       '위젯에는 전달됐지만 이메일 발송은 실패했어요.',
     );
+    expect(mod.describeReplyDelivery(true, { sent: false, reason: 'send_failed' })).toBe('Delivered to the widget, but sending the email failed.');
   });
 
   it('카카오 + 메일 성공 → 카카오는 대기, 메일은 지금', () => {
-    const s = mod.describeReplyDelivery(false, { sent: true, to: 'a@b.c' });
+    const s = mod.describeReplyDelivery(false, { sent: true, to: 'a@b.c' }, 'ko');
     expect(s).toContain('다음에 메시지를 보낼 때 전달됩니다.');
     expect(s).toContain('이메일(a@b.c)로는 지금 보냈어요.');
   });
 
   it('카카오 + 이메일 없음 → 종전 카카오 안내 그대로', () => {
-    expect(mod.describeReplyDelivery(false, { sent: false, reason: 'no_email' })).toBe(
+    expect(mod.describeReplyDelivery(false, { sent: false, reason: 'no_email' }, 'ko')).toBe(
       '카카오는 먼저 말을 걸 수 없어, 이 답장은 상대가 다음에 메시지를 보낼 때 전달됩니다.',
     );
   });

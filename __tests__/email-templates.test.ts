@@ -33,6 +33,7 @@ describe('renderOperatorReplyEmail', () => {
     replyBody: '확인해 보니 쿠폰 적용 버튼이 iOS 에서만 안 눌렸어요.\n오늘 고쳤습니다.',
     quotedMessage: '쿠폰 적용 버튼이 안 눌려요',
     siteUrl: 'https://nulnul.vercel.app/coupons',
+    locale: 'ko' as const,
   };
 
   it('제목에 서비스 이름, 본문에 답장·원문·이름이 들어간다', () => {
@@ -91,6 +92,7 @@ describe('renderLoopClosedEmail', () => {
       prNumber: 12,
       prUrl: 'https://github.com/o/r/pull/12',
       siteUrl: 'https://nulnul.vercel.app',
+      locale: 'ko',
     });
     expect(r.subject).toBe('[널널투어] 말씀하신 문제를 고쳤어요');
     expect(r.html).toContain('쿠폰 적용 버튼이 눌리지 않음');
@@ -107,6 +109,7 @@ describe('renderLoopClosedEmail', () => {
       prNumber: null,
       prUrl: 'javascript:alert(1)',
       siteUrl: null,
+      locale: 'ko',
     });
     expect(r.html).not.toContain('변경 내역');
     expect(r.html).not.toContain('javascript:');
@@ -160,5 +163,54 @@ describe('메일 껍데기 폭 — 휴대폰에서 줄어든다', () => {
     }
     // 화면 폭에 맞춰 축소되라는 신호가 문서에 있어야 한다(없으면 모바일이 데스크톱 폭으로 렌더한다)
     expect(r.html).toContain('width=device-width');
+  });
+});
+
+describe('메일 언어 — locale 로 사전을 고른다(기본 en)', () => {
+  const reply = {
+    serviceName: 'Nulnul Tours',
+    recipientName: 'Mina',
+    operatorName: 'Nulnul Tours team',
+    replyBody: 'Found it. The coupon button was broken on iOS.',
+    quotedMessage: 'The coupon button does not work',
+    siteUrl: 'https://nulnul.vercel.app/coupons',
+  };
+
+  it('운영자 답장: locale 이 없으면 영어, ko 면 한국어 — 같은 구조', () => {
+    const en = renderOperatorReplyEmail(reply);
+    expect(en.subject).toBe('[Nulnul Tours] You have a reply to your feedback');
+    expect(en.html).toContain('Hi Mina, you have a reply to your feedback.');
+    expect(en.html).toContain('Continue the chat on Nulnul Tours →');
+    expect(en.text).toContain('[Reply from Nulnul Tours team]');
+    expect(en.text).toContain('This reply arrived on ');
+    expect(en.text).toMatch(/on [A-Z][a-z]{2} \d{1,2}, 2026, .* KST\./);
+    expect(/[가-힣]/.test(en.subject + en.html + en.text)).toBe(false);
+
+    const ko = renderOperatorReplyEmail({ ...reply, locale: 'ko' });
+    expect(ko.subject).toBe('[Nulnul Tours] 남기신 피드백에 답장이 왔어요');
+    expect(ko.html).toContain('Mina 님, 남기신 피드백에 답장이 왔어요.');
+  });
+
+  it('되돌림: 영어 본문에 한글이 없고 PR 링크 라벨은 영어', () => {
+    const en = renderLoopClosedEmail({
+      serviceName: 'Nulnul Tours',
+      recipientName: null,
+      title: 'The coupon button does nothing',
+      prNumber: 12,
+      prUrl: 'https://github.com/o/r/pull/12',
+      siteUrl: 'https://nulnul.vercel.app',
+    });
+    expect(en.subject).toBe('[Nulnul Tours] The problem you reported is fixed');
+    expect(en.html).toContain('>The problem you reported is fixed.</h1>');
+    expect(en.html).toContain('See what changed →');
+    expect(en.text).toContain('Changes: https://github.com/o/r/pull/12');
+    expect(/[가-힣]/.test(en.subject + en.html + en.text)).toBe(false);
+  });
+
+  it('값에 든 HTML 은 영어 문구에서도 이스케이프된다', () => {
+    const en = renderOperatorReplyEmail({ ...reply, operatorName: '<i>Boss</i>', recipientName: '<img src=x>' });
+    expect(en.html).not.toContain('<i>Boss</i>');
+    expect(en.html).not.toContain('<img src=x>');
+    expect(en.html).toContain('&lt;i&gt;Boss&lt;/i&gt;');
   });
 });
