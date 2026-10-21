@@ -19,6 +19,9 @@
  * 🔴 널널투어는 우리가 만든 서비스다. 사진 출처 표기는 떠 온 화면에 **그대로 살아 있다.**
  */
 
+import { copy as enCopy } from './script.en';
+import { copy as koCopy } from './script.ko';
+
 // ── 화면 상태 ────────────────────────────────────────────────
 
 /**
@@ -27,13 +30,24 @@
  */
 export type SitePage = 'map' | 'inbox' | 'groups' | 'pr' | 'mail';
 
-export const PAGE_SRC: Record<SitePage, string> = {
-  map: '/demo/nulnul-map/index.html',
-  inbox: '/demo/team-inbox/index.html',
-  groups: '/demo/team-groups/index.html',
-  pr: '/demo/team-pr/index.html',
-  mail: '/demo/mail/index.html',
-};
+/** 각본·화면 사본이 있는 언어. 그 밖의 언어는 영어로 본다 */
+export type DemoLocale = 'en' | 'ko';
+
+export function demoLocale(locale: string): DemoLocale {
+  return locale === 'ko' ? 'ko' : 'en';
+}
+
+/** 떠 온 화면의 주소. 영어판은 `index.html`, 한국어판은 `index.ko.html` 이다 */
+export function pageSrc(locale: DemoLocale): Record<SitePage, string> {
+  const file = locale === 'ko' ? 'index.ko.html' : 'index.html';
+  return {
+    map: `/demo/nulnul-map/${file}`,
+    inbox: `/demo/team-inbox/${file}`,
+    groups: `/demo/team-groups/${file}`,
+    pr: `/demo/team-pr/${file}`,
+    mail: `/demo/mail/${file}`,
+  };
+}
 
 /**
  * 고객 쪽 화면인가 — 화면 위 배지(「고객 화면」/「팀 화면」)가 이걸로 갈린다.
@@ -45,15 +59,6 @@ export const PAGE_SRC: Record<SitePage, string> = {
 export function isCustomerPage(page: SitePage): boolean {
   return page === 'map' || page === 'mail';
 }
-
-/** 화면 위에 적는 주소. 「이건 웹사이트다」를 한눈에 */
-export const PAGE_URL: Record<SitePage, string> = {
-  map: 'nulnul.vercel.app/nationwide',
-  inbox: 'ai-feedloop.vercel.app/inbox',
-  groups: 'ai-feedloop.vercel.app/dashboard',
-  pr: 'ai-feedloop.vercel.app/monitor',
-  mail: 'sujin@example.com 의 메일함',
-};
 
 export interface Msg {
   who: 'me' | 'ai';
@@ -201,212 +206,223 @@ function stream(text: string, msPerChar: number): Frame[] {
 }
 
 // ── 각본에 쓰이는 말 ─────────────────────────────────────────
+//
+// 말(문구)은 언어별 파일 `script.en.ts` · `script.ko.ts` 에 있고, 이 파일은 **구조**(어느 화면에서
+// 무엇을 누르고 무엇을 재생하나)만 갖는다. 구조를 언어마다 따로 두면 한쪽만 고치는 일이 생긴다.
+//
+// 영어판은 한국어판의 직역이 아니다 — 같은 사건(제휴 가게 쿠폰이 안 받아진다)을 영어권 심사위원이
+// 바로 읽도록 새로 썼다. 떠 온 화면(`public/demo/*/index.html`)의 글자와 «한 글자도» 같아야 짚을 자리를 찾는다.
 
-const HELLO = '안녕하세요! 널널투어예요. 쿠폰이나 예약에서 불편한 점 있으면 편하게 남겨주세요.';
+/** 한 단계의 문구 */
+export interface StepCopy {
+  /** 사이드 패널 제목 */
+  title: string;
+  /** 단계 목록에 쓰는 짧은 이름 */
+  short: string;
+  /** 링 옆에 붙는 짧은 지시 */
+  hint: string;
+  /** 누를 것이 없을 때 버튼에 쓸 말 */
+  label?: string;
+  /** 팀 화면 «보는 자리» 말풍선 */
+  say?: string;
+}
 
-/**
- * 제보 한 줄. **ny 가 직접 정한 문장**이다(2026-09-18). 전국 지도에서 제휴 가게 쿠폰을
- * 받으려다 안 되는 상황 — 떠 온 화면에 「쿠폰 받기」 버튼이 실제로 있어서 각본이 성립한다.
- * 팀 화면 3장의 연습용 데이터도 같은 사건으로 맞춰 뒀다(`src/lib/demo/mock-data.ts`).
- */
-export const SAY = '쿠폰 다운로드가 잘 안됩니다';
+export interface ScriptCopy {
+  hello: string;
+  /** 제보 한 줄 */
+  report: string;
+  reply: string;
+  fixed: string;
+  /** 팀 화면 3장에 보이는 묶음 제목. 연습용 데이터와 한 글자도 어긋나면 안 된다 */
+  groupTitle: string;
+  /** 「이 셋이 같은 문제예요」로 짚는 편지함 세 줄. 첫 줄은 `say` */
+  similar: readonly [string, string, string];
+  /** 「화면에서 선택하기」로 집는 버튼의 글자 */
+  couponButton: string;
+  /** 「PR #128」 줄 두 개 */
+  prLines: [string, string];
+  /** 되돌림을 받은 사람 줄 두 개(9단계) */
+  recipients: [string, string];
+  /** 되돌림 목록에서 «전달됨» 에 해당하는 글자 */
+  delivered: string;
+  /** 메일 제목 줄 */
+  mailSubject: string;
+  urls: Record<SitePage, string>;
+  steps: Record<'open' | 'write' | 'tool' | 'point' | 'arrive' | 'similar' | 'group' | 'pr' | 'merge' | 'returned' | 'mail', StepCopy>;
+}
 
-/**
- * AI 즉답. **모르는 것을 지어내지 않는 것**이 이 제품의 주장이라, 각본에서도
- * 원인을 단정하지 않고 「팀에 넘겼다」로 끝낸다. 실제 봇도 그렇게 답한다
- * (`src/lib/bot/holding.ts` 의 정직 중단).
- */
-const REPLY =
-  '불편하셨겠어요. 「쿠폰 받기」가 안 되는 문제로 접수했어요. 원인은 제가 짐작하지 않고 팀에 그대로 넘길게요 — 고쳐지면 이 대화창으로 알려드릴게요.';
+export interface Script {
+  STEPS: Step[];
+  SAY: string;
+  SIMILAR_SAYS: readonly string[];
+  PAGE_SRC: Record<SitePage, string>;
+  PAGE_URL: Record<SitePage, string>;
+  /** 건너뛰어 왔을 때 집은 것으로 채울 이름 */
+  POINT_LABEL: string;
+  /** 각본이 «알아서 재생»하는 시간의 합. 단계 사이에 사람이 버튼을 누르는 시간은 안 들어 있다 */
+  TOTAL_MS: number;
+}
 
-const FIXED = '말씀하신 쿠폰 받기, 고쳐서 올렸어요. 이제 제휴 가게 쿠폰이 바로 받아집니다.';
+function buildSteps(c: ScriptCopy): Step[] {
+  const s = c.steps;
+  return [
+    {
+      key: 'open',
+      page: 'map',
+      title: s.open.title,
+      short: s.open.short,
+      hint: s.open.hint,
+      target: { where: 'widget', id: 'fab' },
+      frames: [
+        { after: 300, patch: { widgetOpen: true } },
+        { after: 500, patch: (sc) => ({ msgs: [...sc.msgs, { who: 'ai', text: '' }] }) },
+        ...stream(c.hello, 16),
+      ],
+    },
+    {
+      key: 'write',
+      page: 'map',
+      title: s.write.title,
+      short: s.write.short,
+      hint: s.write.hint,
+      target: { where: 'widget', id: 'input' },
+      frames: [
+        { after: 400, patch: {} },
+        ...type(c.report, 70),
+        { after: 600, patch: (sc) => ({ draft: '', msgs: [...sc.msgs, { who: 'me', text: c.report }] }) },
+        { after: 600, patch: { thinking: true } },
+        { after: 1500, patch: (sc) => ({ thinking: false, msgs: [...sc.msgs, { who: 'ai', text: '' }] }) },
+        ...stream(c.reply, 18),
+      ],
+    },
+    {
+      key: 'tool',
+      page: 'map',
+      title: s.tool.title,
+      short: s.tool.short,
+      hint: s.tool.hint,
+      target: { where: 'widget', id: 'pick' },
+      frames: [{ after: 300, patch: { picking: true } }],
+    },
+    {
+      key: 'point',
+      page: 'map',
+      title: s.point.title,
+      short: s.point.short,
+      hint: s.point.hint,
+      target: { where: 'frame-pick', text: [c.couponButton] },
+      // 집은 자리(`picked`)는 사람이 누른 결과라 각본이 아니라 `SiteStage` 가 넣는다
+      frames: [{ after: 900, patch: { picking: false, attached: true } }],
+    },
+    {
+      key: 'arrive',
+      page: 'inbox',
+      title: s.arrive.title,
+      short: s.arrive.short,
+      hint: '',
+      target: null,
+      spot: { text: [c.report], say: s.arrive.say ?? '' },
+      label: s.arrive.label,
+      frames: [],
+    },
+    {
+      key: 'similar',
+      page: 'inbox',
+      title: s.similar.title,
+      short: s.similar.short,
+      // 🔴 이 단계가 「묶기」의 전부다. 편지함에서 묶음 화면으로 그냥 갈아 끼우면 「점프처럼 보인다」(ny 2026-09-18).
+      //    묶이는 «근거»를 같은 화면에서 먼저 보여준다.
+      hint: s.similar.hint,
+      target: { where: 'frame-many', text: [...c.similar] },
+      label: s.similar.label,
+      frames: [],
+    },
+    {
+      key: 'group',
+      page: 'groups',
+      title: s.group.title,
+      short: s.group.short,
+      hint: '',
+      target: null,
+      spot: { text: [c.groupTitle], say: s.group.say ?? '' },
+      label: s.group.label,
+      frames: [],
+    },
+    {
+      key: 'pr',
+      page: 'pr',
+      title: s.pr.title,
+      short: s.pr.short,
+      // 사람이 하는 일은 «없다»는 것을 문장에서 분명히 한다(ny 2026-09-18 4차)
+      hint: '',
+      target: null,
+      spot: { text: [...c.prLines], say: s.pr.say ?? '' },
+      label: s.pr.label,
+      frames: [],
+    },
+    {
+      key: 'merge',
+      page: 'pr',
+      title: s.merge.title,
+      short: s.merge.short,
+      hint: '',
+      target: null,
+      // 🔴 두르는 것은 제목이 아니라 **그 아래 «받은 사람 목록»** 이다(ny 2026-09-18 5차). `grow` 는 위로만
+      //    올라가므로 제목에서는 옆 형제인 목록에 닿을 수 없다 — 목록 «안»의 한 줄을 찾아 그 줄의 목록(`ul`)으로 올라간다.
+      // ⚠️ 한 줄로 붙여 쓴다 — 「설명 문단이 되살아났나」 검사가 줄 첫머리의 `say:` 를 본다.
+      spot: { text: [...c.recipients], grow: 'ul', say: s.merge.say ?? '' },
+      label: s.merge.label,
+      // 🔴 되돌림 카드는 **여기서** 만들어야 한다. `frames` 는 그 단계를 «떠날 때» 도는데, 다음 단계의
+      //    `page` 는 그 직후에 적용된다 — 카드를 다음 단계의 frames 에 두면 뜨자마자 메일함에 덮여 안 보인다.
+      frames: [
+        { after: 1300, patch: { page: 'map' } },
+        { after: 900, patch: (sc) => ({ returned: true, msgs: [...sc.msgs, { who: 'ai', text: c.fixed, card: true }] }) },
+      ],
+    },
+    {
+      key: 'returned',
+      page: 'map',
+      title: s.returned.title,
+      short: s.returned.short,
+      hint: s.returned.hint,
+      target: { where: 'widget', id: 'card' },
+      frames: [],
+    },
+    {
+      key: 'mail',
+      page: 'mail',
+      title: s.mail.title,
+      short: s.mail.short,
+      // 🔴 이 화면의 본문은 «프로덕션에서 진짜 메일을 만드는 그 함수»가 만든 것이다
+      //    (`scripts/render-demo-mail.ts` → `renderLoopClosedEmail`). 손으로 그린 화면이 아니다.
+      hint: '',
+      target: null,
+      // 제목 줄을 짚는다 — 「보낸사람 · 받는사람」 머리글이 화면에 같이 남아 「이건 메일이다」가 읽힌다.
+      spot: { text: [c.mailSubject, c.groupTitle], say: s.mail.say ?? '' },
+      label: s.mail.label,
+      frames: [],
+    },
+  ];
+}
 
-/** 팀 화면 3장에 보이는 묶음 제목. 연습용 데이터와 한 글자도 어긋나면 안 된다 */
-const GROUP_TITLE = '「쿠폰 받기」를 눌러도 쿠폰이 발급되지 않음';
+const cache: Partial<Record<DemoLocale, Script>> = {};
 
-/**
- * 「비슷한 제보 묶기」 단계에서 **편지함 목록에서 한꺼번에 짚는 세 줄.**
- *
- * 왜 이 셋인가 — 떠 온 묶음 화면이 「피드백 4건 · 3명이 말했어요」라고 말한다. 그 3명이 이들이고,
- * 세 줄은 `src/lib/demo/mock-data.ts` 의 편지함 대화 `demo-conv-1`·`4`·`5` 와 **한 글자도 같아야**
- * 한다(안 그러면 짚을 자리를 못 찾아 그 단계가 버튼으로 넘어가 버린다). 첫 줄은 방금 사람이
- * 직접 남긴 그 한마디(`SAY`)라 「내가 낸 것도 여기 섞였다」가 읽힌다.
- *
- * ⚠️ 한때 이걸 «날아와 포개지는 카드 3장»으로 그렸다가 걷어냈다 — ny 「스무스하고 직관적이지가
- *    않다」(2026-09-18). 움직이는 카드 대신 **화면에 이미 있는 그 줄들**을 블록으로 짚는다.
- *    보는 사람이 「아, 저것들이 같은 얘기구나」를 자기 눈으로 확인하게 된다.
- */
-export const SIMILAR_SAYS: readonly string[] = [
-  SAY,
-  '쿠폰 받기를 눌러도 아무 반응이 없어요',
-  '제휴 가게 쿠폰이 발급되지 않습니다',
-];
-
-export const STEPS: Step[] = [
-  {
-    key: 'open',
-    page: 'map',
-    title: '오른쪽 아래 챗봇 버튼',
-    short: '챗봇 열기',
-    hint: '이 버튼을 눌러보세요',
-    target: { where: 'widget', id: 'fab' },
-    frames: [
-      { after: 300, patch: { widgetOpen: true } },
-      { after: 500, patch: (s) => ({ msgs: [...s.msgs, { who: 'ai', text: '' }] }) },
-      ...stream(HELLO, 16),
-    ],
-  },
-  {
-    key: 'write',
-    page: 'map',
-    title: '불편한 점을 그대로 씁니다',
-    short: '불편한 점 한마디 남기기',
-    hint: '입력칸을 눌러보세요',
-    target: { where: 'widget', id: 'input' },
-    frames: [
-      { after: 400, patch: {} },
-      ...type(SAY, 70),
-      { after: 600, patch: (s) => ({ draft: '', msgs: [...s.msgs, { who: 'me', text: SAY }] }) },
-      { after: 600, patch: { thinking: true } },
-      { after: 1500, patch: (s) => ({ thinking: false, msgs: [...s.msgs, { who: 'ai', text: '' }] }) },
-      ...stream(REPLY, 18),
-    ],
-  },
-  {
-    key: 'tool',
-    page: 'map',
-    title: '말로 옮기지 않아도 됩니다',
-    short: '화면에서 선택하기 켜기',
-    // ny 가 정한 소개 문장(2026-09-18 4차) — 「문제가 있는 부분을 정확히 선택해서 문의를 남길 수 있어요」.
-    // 말풍선은 한 줄이라 이 문장이 다 안 들어간다. 값어치는 여기서 말하고, 말풍선은 짧게 짚기만 한다.
-    hint: '여기를 눌러보세요',
-    target: { where: 'widget', id: 'pick' },
-    frames: [{ after: 300, patch: { picking: true } }],
-  },
-  {
-    key: 'point',
-    page: 'map',
-    title: '문제가 있는 부분을 그대로 집어요',
-    short: '문제 지점 직접 집기',
-    hint: '안 되는 버튼을 집어보세요',
-    target: { where: 'frame-pick', text: ['쿠폰 받기'] },
-    // 집은 자리(`picked`)는 사람이 누른 결과라 각본이 아니라 `SiteStage` 가 넣는다
-    frames: [{ after: 900, patch: { picking: false, attached: true } }],
-  },
-  {
-    key: 'arrive',
-    page: 'inbox',
-    title: '같은 순간, 팀의 편지함',
-    short: '팀 편지함에 도착·분류',
-    hint: '',
-    target: null,
-    spot: { text: [SAY], say: '사용자가 남긴 피드백' },
-    label: '같은 말을 한 사람이 또 있는지 볼게요',
-    frames: [],
-  },
-  {
-    key: 'similar',
-    page: 'inbox',
-    title: '같은 말을 한 사람이 또 있었습니다',
-    short: '비슷한 제보 찾기',
-    // 🔴 이 단계가 「묶기」의 전부다. 예전엔 편지함에서 묶음 화면으로 그냥 갈아 끼웠는데
-    //    ny 가 「점프처럼 보인다」고 했다(2026-09-18). 묶이는 «근거»를 같은 화면에서 먼저 보여준다.
-    hint: '이 셋이 같은 문제예요',
-    target: { where: 'frame-many', text: [...SIMILAR_SAYS] },
-    label: '이 셋이 어떻게 묶이는지 볼게요',
-    frames: [],
-  },
-  {
-    key: 'group',
-    page: 'groups',
-    title: '한 묶음이 되면 넘기기 어려워집니다',
-    short: '한 묶음으로 묶기',
-    hint: '',
-    target: null,
-    spot: { text: [GROUP_TITLE], say: '하나의 피드백으로 묶입니다' },
-    label: '이 묶음이 코드로 가는 걸 볼게요',
-    frames: [],
-  },
-  {
-    key: 'pr',
-    page: 'pr',
-    title: '고치는 초안까지 AI 가 씁니다',
-    short: 'AI 가 수정안 만들기',
-    // ny 지적(2026-09-18 4차) — 「내가 직접 수정을 하는 것처럼 보이기도 한다」.
-    // 여기서 사람이 하는 일은 «없다»는 것을 문장에서 분명히 한다.
-    hint: '',
-    target: null,
-    spot: { text: ['GitHub 에서 PR #128 보기', 'PR #128 · 47초 · 파일 2개'], say: 'AI가 자동으로 개선해 승인을 요청해요' },
-    label: '사람이 할 일이 뭔지 볼게요',
-    frames: [],
-  },
-  {
-    key: 'merge',
-    page: 'pr',
-    title: '사람이 하는 일은 하나 — 반영 여부',
-    short: '반영은 사람이 결정',
-    hint: '',
-    target: null,
-    // ⚠️ ny 문장은 「피드백 준 유저에게 반영 사실이 자동으로 전달됩니다」였는데, 390px 에서
-    //    말풍선이 넉 줄로 접혀 화면을 덮었다(다른 말풍선의 두 배). 「반영 사실이」를 덜었다 —
-    //    그 말은 짚고 있는 대상과 제목이 이미 하고 있다.
-    //
-    // 🔴 두르는 것은 「반영 알림」 세 글자가 아니라 **그 아래 «받은 사람 목록»** 이다
-    //    (ny 2026-09-18 5차 「빨간 박스는 이 아래쪽 섹션을 둘러싸는 게 더 나을 것 같아, 『반영 알림』 말고」).
-    //    제목만 두르면 「알림이 나갔다」는 말뿐이고, 정작 **누구에게 갔는지**(이수진 · 방문자 둘 ·
-    //    전달됨/대기)가 박스 밖에 남는다. 목록째 두르면 세 줄이 박스 «안»에 들어와 이 단계의
-    //    주장이 화면에서 증명된다.
-    //
-    // ⚠️ 그래서 짚는 «글자»가 제목이 아니라 **목록 안의 한 줄**이다 — `grow` 는 위로만 올라가므로
-    //    제목(`h3`)에서는 옆 형제인 목록(`ul`)에 닿을 수 없다. 한 줄을 찾아 그 줄의 목록으로 올라간다.
-    //    후보를 둘 두는 건 한 줄이 사라져도 같은 목록에 닿게 하기 위해서다.
-    //
-    // 🔴 제목 칸(`section`)째 두르는 것을 먼저 해 봤고 **390px 에서 안 들어갔다** — 그 칸은 좁은
-    //    화면에서 339px 인데 떠 온 화면의 고정 헤더 아래 남는 자리가 330px 라 9px 이 잘렸다.
-    //    목록만이면 어느 폭에서나 194px 라 넉넉히 들어간다(2026-09-18 실측).
-    // ⚠️ 한 줄로 붙여 쓴다 — 「설명 문단(`say:`)이 되살아났나」 검사가 줄 첫머리의 `say:` 를 보는데,
-    //    줄바꿈해서 쓰면 «말풍선» 문구가 그 검사에 걸린다(다른 것을 지키는 검사다).
-    spot: { text: ['이수진', '방문자 #b7c4'], grow: 'ul', say: '피드백 준 유저에게 자동으로 전달돼요' },
-    label: '반영하고, 보낸 사람에게 알릴게요',
-    // 🔴 되돌림 카드는 **여기서** 만들어야 한다. `frames` 는 그 단계를 «떠날 때» 도는데,
-    //    다음 단계의 `page` 는 그 직후에 적용된다 — 카드를 다음 단계의 frames 에 두면
-    //    뜨자마자 그다음 화면(메일함)에 덮여 한 프레임도 안 보인다(2026-09-18 실측).
-    //    그래서 여기서 고객 화면으로 돌아가 카드를 띄우고, 다음 단계는 같은 화면에 서 있는다.
-    frames: [
-      { after: 1300, patch: { page: 'map' } },
-      { after: 900, patch: (s) => ({ returned: true, msgs: [...s.msgs, { who: 'ai', text: FIXED, card: true }] }) },
-    ],
-  },
-  {
-    key: 'returned',
-    page: 'map',
-    title: '보낸 말이 대화창으로 돌아옵니다',
-    short: '대화창에 「반영됐어요」',
-    hint: '반영 내용은 채팅으로도 전달됩니다',
-    target: { where: 'widget', id: 'card' },
-    frames: [],
-  },
-  {
-    key: 'mail',
-    page: 'mail',
-    title: '메일로도 한 번 더 갑니다',
-    short: '메일함에도 도착',
-    // 🔴 이 화면의 본문은 «프로덕션에서 진짜 메일을 만드는 그 함수»가 만든 것이다
-    //    (`scripts/render-demo-mail.ts` → `renderLoopClosedEmail`). 손으로 그린 화면이 아니다.
-    hint: '',
-    target: null,
-    // 제목 줄을 짚는다 — 그래야 「보낸사람 · 받는사람」 머리글이 화면에 같이 남아
-    // 「이건 메일이다」가 한눈에 읽힌다(본문 히어로를 짚으면 머리글이 위로 밀려 나간다).
-    // ⚠️ 제목은 `src/lib/email/templates.ts` 가 정한다 — 거기가 바뀌면 이 줄도 같이 바뀌어야
-    //    하고, 그걸 「짚는 자리가 떠 온 화면에 실제로 있는가」 검사가 잡는다.
-    spot: { text: ['[널널투어] 말씀하신 문제를 고쳤어요', GROUP_TITLE], say: '이메일로도 전달됩니다' },
-    label: '여기까지가 한 바퀴예요',
-    frames: [],
-  },
-];
-
-/**
- * 각본이 «알아서 재생»하는 시간의 합. 단계 사이에 사람이 버튼을 누르는 시간은 안 들어 있다.
- * 팀 화면 단계들이 재생이 아니라 **화면 전환**으로 바뀐 뒤(2026-09-18) 이 합은 줄었다.
- */
-export const TOTAL_MS = STEPS.reduce((sum, a) => sum + a.frames.reduce((n, f) => n + f.after, 0), 0);
+/** 그 언어의 각본. 언어마다 한 번만 만든다 */
+export function getScript(locale: string): Script {
+  const l = demoLocale(locale);
+  const hit = cache[l];
+  if (hit) return hit;
+  const c = l === 'ko' ? koCopy : enCopy;
+  const STEPS = buildSteps(c);
+  const script: Script = {
+    STEPS,
+    SAY: c.report,
+    SIMILAR_SAYS: c.similar,
+    PAGE_SRC: pageSrc(l),
+    PAGE_URL: c.urls,
+    POINT_LABEL: c.couponButton,
+    TOTAL_MS: STEPS.reduce((sum, a) => sum + a.frames.reduce((n, f) => n + f.after, 0), 0),
+  };
+  cache[l] = script;
+  return script;
+}

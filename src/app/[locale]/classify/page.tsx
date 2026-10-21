@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { useLocale } from 'next-intl';
 import { ClassificationTabs } from '@/components/classify/ClassificationTabs';
 import type { GroupRef, Insight } from '@/components/classify/types';
 import { Loader2, Sparkles } from 'lucide-react';
@@ -13,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { PageHero, PAGE_EMOJI } from '@/components/layout/PageHero';
 import { LoadingState, ErrorState } from '@/components/layout/PageState';
 import { useDemoMode } from '@/lib/demo/useDemoMode';
-import { DEMO_DATA } from '@/lib/demo/mock-data';
+import { getDemoData } from '@/lib/demo/mock-data';
 import { GroupingStatusLine } from '@/components/groups/GroupingStatusLine';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
@@ -192,12 +193,13 @@ export default function ClassifyPage() {
   }, [authStatus, demo.isDemo, scope.ready, fetchData]);
 
   // 데모의 묶음은 대시보드 데모와 같은 것을 쓴다 — 두 화면의 「묶음 · PR」 표시가 어긋나지 않게
+  const locale = useLocale();
   const demoGroups = useMemo(() => {
     const map = new Map<string, GroupRef>();
-    const groups = ((DEMO_DATA.dashboard as { groups?: GroupRef[] }).groups ?? []);
+    const groups = ((getDemoData(locale).dashboard as { groups?: GroupRef[] }).groups ?? []);
     for (const g of groups) map.set(g.id, g);
     return map;
-  }, []);
+  }, [locale]);
 
   if (!demo.isDemo && (authStatus === 'loading' || loading)) {
     return <LoadingState />;

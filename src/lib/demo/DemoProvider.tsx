@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, useSyncExternalStore } from 'react';
 import { useSession } from 'next-auth/react';
-import { DEMO_DATA, type DemoPageKey } from './mock-data';
+import { useLocale } from 'next-intl';
+import { getDemoData, type DemoPageKey } from './mock-data';
 
 /** 이 주소로 열린 화면은 로그인 여부와 상관없이 연습용 데이터로 뜬다. 랜딩 「라이브 데모」 팝업이 붙인다. */
 export const DEMO_PARAM = 'demo';
@@ -48,6 +49,7 @@ const serverDemoFlag = () => false;
 
 export function DemoProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
+  const locale = useLocale();
 
   // 랜딩 「라이브 데모」 팝업 안에서는 **로그인해 있어도** 연습용 화면을 보여준다.
   // 운영자가 팝업을 열었을 때 진짜 편지함이 뜨면, 시연이나 촬영 중에 실제 방문자 이름이 화면에 박힌다.
@@ -78,9 +80,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   // 「새로고침하면 처음부터」라는 이 화면의 약속이 깨진다. 그래서 이대로 둔다.
   const [store, setStore] = useState<DemoStore>({});
 
-  const patch = useCallback((key: DemoPageKey, updater: (prev: unknown) => unknown) => {
-    setStore((prev) => ({ ...prev, [key]: updater(prev[key] ?? DEMO_DATA[key]) }));
-  }, []);
+  const patch = useCallback(
+    (key: DemoPageKey, updater: (prev: unknown) => unknown) => {
+      setStore((prev) => ({ ...prev, [key]: updater(prev[key] ?? getDemoData(locale)[key]) }));
+    },
+    [locale],
+  );
 
   const value = useMemo(() => ({ isDemo, store, patch }), [isDemo, store, patch]);
 

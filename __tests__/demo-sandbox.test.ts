@@ -150,9 +150,10 @@ describe('가이드 데모 — 각본은 서버로 나가지 않는다', () => {
   });
 });
 
-describe('가이드 데모 각본 자체', () => {
+describe.each(['en', 'ko'] as const)('가이드 데모 각본 자체 (%s)', (locale) => {
+  const load = async () => (await import('@/components/demo/guided/script')).getScript(locale);
   it('단계마다 제목·화면·재생할 것이 앞뒤가 맞는다', async () => {
-    const { STEPS, PAGE_SRC } = await import('@/components/demo/guided/script');
+    const { STEPS, PAGE_SRC } = await load();
     expect(STEPS.length).toBeGreaterThanOrEqual(5);
     for (const a of STEPS) {
       // 설명 문단이 없어진 뒤로 **제목이 패널의 유일한 말**이다. 비면 그 단계는 아무 말도 안 한다.
@@ -185,7 +186,7 @@ describe('가이드 데모 각본 자체', () => {
     // 만복이는 **널널투어 위젯의 프로필**이다. Feedloop 안내가 「안녕하세요, 만복이예요」라고
     // 말하면 우리 제품의 안내인지 그 사이트의 캐릭터인지 구분이 안 된다(ny 지적 2026-09-18).
     // 위젯 그림 쪽 얼굴은 그대로 두고, **설명하는 말**에서만 뺀다.
-    const { STEPS } = await import('@/components/demo/guided/script');
+    const { STEPS } = await load();
     for (const a of STEPS) {
       // 패널에 남은 말(제목)과 화면 위에 뜨는 말(말풍선) 둘 다 본다
       const words = [a.title, a.hint, a.label ?? '', ...(a.spot?.text ?? []), a.spot?.say ?? ''].join(' ');
@@ -196,7 +197,7 @@ describe('가이드 데모 각본 자체', () => {
   it('짚는 자리는 그 단계가 서 있는 화면에 실제로 있는 «글자»다', async () => {
     // 클래스 이름으로 찾으면 화면을 다시 떠 오는 순간 조용히 빗나간다. 그리고 단계마다
     // **자기 화면**에서 찾아야 한다 — 편지함 글자를 지도 화면에서 찾으면 링이 안 뜬다.
-    const { STEPS, PAGE_SRC } = await import('@/components/demo/guided/script');
+    const { STEPS, PAGE_SRC } = await load();
     const { readFileSync } = await import('node:fs');
     for (const s of STEPS) {
       const page = readFileSync(new URL(`../public${PAGE_SRC[s.page]}`, import.meta.url), 'utf8');
@@ -231,7 +232,7 @@ describe('가이드 데모 각본 자체', () => {
     //         글자만 두르는 예전 모습으로 돌아간다(화면은 멀쩡해 보여서 눈으로는 못 잡는다).
     //      ② 그 칸 안에 **두르려던 것이 같이 들어 있다.** 화면을 다시 떠 왔을 때 받은 사람 줄이
     //         다른 칸으로 빠지면 박스는 떠도 여전히 제목만 두르게 된다.
-    const { STEPS, PAGE_SRC } = await import('@/components/demo/guided/script');
+    const { STEPS, PAGE_SRC } = await load();
     const { readFileSync } = await import('node:fs');
     const grown = STEPS.filter((s) => s.spot?.grow);
     expect(grown.length, '칸째 두르는 단계가 하나도 없다 — 되돌렸다면 이 검사도 같이 지워라').toBeGreaterThan(0);
@@ -262,12 +263,14 @@ describe('가이드 데모 각본 자체', () => {
       .slice(1)
       .map((x) => x.split(`</${merge!.spot!.grow!}>`)[0])
       .find((b) => merge!.spot!.text.some((t) => b.includes(t)));
-    expect(box?.includes('전달됨'), '9단계 박스 안에 「전달됨」 줄이 없다 — 누구에게 갔는지가 박스 밖이다').toBe(true);
+    const delivered = locale === 'ko' ? '전달됨' : 'Delivered';
+    expect(box?.includes(delivered), `9단계 박스 안에 「${delivered}」 줄이 없다 — 누구에게 갔는지가 박스 밖이다`).toBe(true);
   });
 
   it('루프를 끝까지 닫는다 — 되돌림까지 간다', async () => {
     // 데모가 PR 까지만 가고 끝나면 이 제품의 주장(「고쳐서 돌려준다」)이 화면에서 증명되지 않는다.
-    const { STEPS, INITIAL, isCustomerPage } = await import('@/components/demo/guided/script');
+    const { STEPS } = await load();
+    const { INITIAL, isCustomerPage } = await import('@/components/demo/guided/script');
     let scene = { ...INITIAL };
     for (const act of STEPS) {
       scene = { ...scene, page: act.page };
@@ -284,7 +287,8 @@ describe('가이드 데모 각본 자체', () => {
 
   it('팀 화면까지 한 바퀴를 돈다 — 고객 쪽만 보여주고 끝나지 않는다', async () => {
     // 「피드백이 코드가 된다」가 이 제품의 주장이라, 운영자 쪽 화면이 빠지면 데모가 절반이다.
-    const { STEPS, isCustomerPage } = await import('@/components/demo/guided/script');
+    const { STEPS } = await load();
+    const { isCustomerPage } = await import('@/components/demo/guided/script');
     const team = new Set(STEPS.map((s) => s.page).filter((p) => !isCustomerPage(p)));
     expect([...team].sort()).toEqual(['groups', 'inbox', 'pr']);
   });
@@ -293,13 +297,14 @@ describe('가이드 데모 각본 자체', () => {
     // 🔴 이 셋이 「비슷한 제보 묶기」 단계의 전부다. 한 줄이라도 사본과 어긋나면 짚을 자리를
     //    못 찾아 그 단계가 조용히 버튼으로 넘어가 버린다 — 화면에선 아무 일도 안 일어난다.
     //    떠 온 묶음 화면이 「3명이 말했어요」라고 말하니 세 줄이어야 앞뒤가 맞는다.
-    const { SIMILAR_SAYS, SAY } = await import('@/components/demo/guided/script');
+    const { SIMILAR_SAYS, SAY } = await load();
     expect(SIMILAR_SAYS).toHaveLength(3);
     expect(SIMILAR_SAYS[0], '첫 줄은 방금 사람이 직접 남긴 그 한마디여야 한다').toBe(SAY);
     expect(new Set(SIMILAR_SAYS).size, '같은 문구가 두 줄 있다').toBe(3);
-    const inbox = read('public/demo/team-inbox/index.html');
+    const suffix = locale === 'ko' ? 'index.ko.html' : 'index.html';
+    const inbox = read(`public/demo/team-inbox/${suffix}`);
     for (const t of SIMILAR_SAYS) expect(inbox, `편지함 사본에 「${t}」 가 없다`).toContain(t);
-    expect(read('public/demo/team-groups/index.html')).toMatch(/>3<\/b>명이 말했어요/);
+    expect(read(`public/demo/team-groups/${suffix}`)).toMatch(locale === 'ko' ? />3<\/b>명이 말했어요/ : />3<\/b> people raised it/);
   });
 
   it('건너가는 장면이 다 끝나기 «전»에 꺼지지 않는다', async () => {
@@ -390,16 +395,16 @@ describe('가이드 데모 각본 자체', () => {
     expect(render).toMatch(/renderLoopClosedEmail/);
     expect(render).toMatch(/from '\.\.\/src\/lib\/email\/templates'/);
     // 각본이 그 화면에서 짚는 글자가 실제로 떠 온 메일에 있어야 한다
-    const mail = read('public/demo/mail/index.html');
-    expect(mail).toContain('「쿠폰 받기」를 눌러도 쿠폰이 발급되지 않음');
-    expect(mail).toContain('말씀하신 문제를 고쳤어요');
+    const mail = read(locale === 'ko' ? 'public/demo/mail/index.ko.html' : 'public/demo/mail/index.html');
+    expect(mail).toContain(locale === 'ko' ? '「쿠폰 받기」를 눌러도 쿠폰이 발급되지 않음' : "Tapping “Get coupon” doesn't issue a coupon");
+    expect(mail).toContain(locale === 'ko' ? '말씀하신 문제를 고쳤어요' : 'We fixed the problem you reported');
   });
 
   it('알아서 재생되는 길이가 사람이 앉아 있을 만하다', async () => {
     // ⚠️ 하한이 15초였다가 내려왔다. 팀 화면 세 단계가 «재생»에서 «화면 전환»으로 바뀌면서
     //    (2026-09-18) 자동 재생 구간이 고객 쪽 넷으로 줄었기 때문이다. 기준이 느슨해진 게
     //    아니라 재는 대상이 달라졌다 — 팀 쪽은 이제 사람이 버튼을 눌러 넘긴다.
-    const { TOTAL_MS } = await import('@/components/demo/guided/script');
+    const { TOTAL_MS } = await load();
     expect(TOTAL_MS).toBeGreaterThan(8_000);
     expect(TOTAL_MS).toBeLessThan(120_000);
   });
@@ -412,17 +417,16 @@ describe('떠 온 사본 넉 장', () => {
   // 랜딩 데모가 실서비스가 아니라 **우리 주소의 사본**을 띄우는 이유는 `SiteStage.tsx` 머리주석에.
   // 사본이 지켜야 하는 것들을 여기서 막는다.
   // 고객 쪽 사본 — 자기 폴더 안에 자산을 두고 뿌리(`/…`)에서 남의 것을 찾지 않아야 한다
-  const site = ['public/demo/nulnul-map/index.html', 'public/demo/mail/index.html'];
-  const team = [
-    'public/demo/team-inbox/index.html',
-    'public/demo/team-groups/index.html',
-    'public/demo/team-pr/index.html',
-  ];
+  // 사본은 언어마다 한 벌씩이다 — 영어 `index.html`, 한국어 `index.ko.html`. 둘 다 같은 규칙을 지킨다.
+  const both = (dir: string) => [`public/demo/${dir}/index.html`, `public/demo/${dir}/index.ko.html`];
+  const site = [...both('nulnul-map'), ...both('mail')];
+  const team = [...both('team-inbox'), ...both('team-groups'), ...both('team-pr')];
 
   for (const f of [...site, ...team]) {
     const name = f.split('/').at(-2);
+    const label = `${name}/${f.split('/').at(-1)}`;
 
-    it(`${name} — 남의 스크립트가 한 줄도 없다`, () => {
+    it(`${label} — 남의 스크립트가 한 줄도 없다`, () => {
       // 캡처할 때 걷어냈다. 다시 들어오면 심사위원 브라우저에서 코드가 돌고,
       // 하이드레이션이 API 를 부르다 화면이 비워진다.
       const html = read(f);
@@ -434,7 +438,7 @@ describe('떠 온 사본 넉 장', () => {
       expect(html, '사본 안에 또 프레임·객체가 있다').not.toMatch(/<(iframe|object|embed)\b/i);
     });
 
-    it(`${name} — 자기 힘으로 뜬다(바깥을 안 부른다)`, () => {
+    it(`${label} — 자기 힘으로 뜬다(바깥을 안 부른다)`, () => {
       // 널널투어나 우리 앱이 내려가도 데모는 그대로 떠야 한다.
       // 심사 기간 17일 동안 링크가 죽으면 실격이다.
       const html = read(f);
@@ -447,7 +451,7 @@ describe('떠 온 사본 넉 장', () => {
       if (name !== 'mail') expect(html).not.toMatch(/https?:\/\/nulnul\.vercel\.app/);
     });
 
-    it(`${name} — 개발 서버 찌꺼기가 없다`, () => {
+    it(`${label} — 개발 서버 찌꺼기가 없다`, () => {
       // Next 개발 서버는 `/__nextjs_font/…` 폰트를 끼워 넣는다. **프로덕션에 없는 주소**라
       // 배포된 사본에서 404 가 난다. 우리 앱 화면을 떠 오면서 처음 나왔다(2026-09-18).
       expect(read(f)).not.toMatch(/__nextjs_font/);
@@ -455,7 +459,7 @@ describe('떠 온 사본 넉 장', () => {
   }
 
   for (const f of site) {
-    it(`${f.split('/').at(-2)} — 남의 오리진 자산을 뿌리에서 찾지 않는다`, () => {
+    it(`${f.split('/').slice(-2).join('/')} — 남의 오리진 자산을 뿌리에서 찾지 않는다`, () => {
       // 🔴 `<image href="/thumb-….jpg">`(SVG 안 사진) 한 장이 이렇게 남아 404 였다 — 그 주소는
       //    널널투어 것이라 우리 주소에는 없다. 지도에 구멍이 뚫린 채로 심사에 나갈 뻔했다.
       //    (우리 앱을 떠 온 팀 화면은 다르다. `/favicon.ico` 처럼 뿌리에서 찾아도 우리 것이 나온다.)
@@ -464,11 +468,11 @@ describe('떠 온 사본 넉 장', () => {
   }
 
   for (const f of team) {
-    it(`${f.split('/').at(-2)} — 연습용 데이터로 떴다(실방문자 정보 0)`, () => {
+    it(`${f.split('/').slice(-2).join('/')} — 연습용 데이터로 떴다(실방문자 정보 0)`, () => {
       // 🔴 FAQ 「개인정보 포함 금지」. 로그인한 진짜 운영자 화면을 떠 오면 실방문자의 이름과
       //    이메일이 제출물에 박힌다. `?demo=1` 로 떴다는 증거가 화면의 이 배너다 —
       //    배너가 없으면 진짜 데이터일 수 있으니 통과시키지 않는다.
-      expect(read(f)).toMatch(/예시 데이터로 둘러보는 중이에요/);
+      expect(read(f)).toMatch(f.endsWith('.ko.html') ? /예시 데이터로 둘러보는 중이에요/ : /You are browsing sample data/);
     });
   }
 
@@ -495,8 +499,13 @@ describe('떠 온 사본 넉 장', () => {
 
   it('각본이 말하는 묶음 제목이 떠 온 팀 화면에 실제로 있다', () => {
     // 왼쪽 안내와 오른쪽 그림이 갈라지는 것이 이 데모가 세 번 갈아엎힌 이유다.
-    const title = '「쿠폰 받기」를 눌러도 쿠폰이 발급되지 않음';
-    expect(read('public/demo/team-groups/index.html')).toContain(title);
-    expect(read('public/demo/team-pr/index.html')).toContain(title);
+    const titles = {
+      'index.html': "Tapping “Get coupon” doesn't issue a coupon",
+      'index.ko.html': '「쿠폰 받기」를 눌러도 쿠폰이 발급되지 않음',
+    };
+    for (const [file, title] of Object.entries(titles)) {
+      expect(read(`public/demo/team-groups/${file}`)).toContain(title);
+      expect(read(`public/demo/team-pr/${file}`)).toContain(title);
+    }
   });
 });

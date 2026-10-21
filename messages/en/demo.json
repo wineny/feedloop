@@ -1,0 +1,45 @@
+{
+  "guided": {
+    "title": "A quick tour",
+    "badge": "Scripted replay · {count} steps",
+    "close": "Close the tour",
+    "stepsLabel": "Tour steps",
+    "clickToStart": "Click to start",
+    "stepsHint": "Click a step to jump forward or back",
+    "stepsToggle": "Steps",
+    "intro": "From a customer's one-liner to a fix that comes back",
+    "done": "You've been all the way around",
+    "start": "Start the tour",
+    "playing": "Playing · skip",
+    "replay": "Watch again",
+    "skipStep": "Skip this step",
+    "continue": "Continue",
+    "startNote": "{count} steps · we point out where to click",
+    "copyNote": "Everything here is a scripted copy · no requests leave your browser"
+  },
+  "stage": {
+    "customerView": "Customer view",
+    "teamView": "Team view",
+    "siteFrame": "Nulnul Tour (sample copy)",
+    "teamFrame": "Feedloop owner screen (sample copy)",
+    "tapToContinue": "· click to continue",
+    "pickBar": "Click the part to fix",
+    "cancel": "Cancel",
+    "problemHere": "Problem here",
+    "reportOne": "1 report",
+    "pieceFallback": "Screen piece"
+  },
+  "widget": {
+    "siteName": "Nulnul Tour",
+    "replyTime": "Usually replies within a few minutes",
+    "attached": "1 screen piece attached",
+    "picking": "Picking…",
+    "pick": "Pick on screen",
+    "human": "Talk to a person",
+    "placeholder": "Tell us anything",
+    "send": "Send",
+    "fixed": "Fixed",
+    "fixedNote": "Your feedback helped improve the service",
+    "open": "Open Feedloop"
+  }
+}

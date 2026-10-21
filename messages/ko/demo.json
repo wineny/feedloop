@@ -1,0 +1,45 @@
+{
+  "guided": {
+    "title": "한 바퀴 둘러보기",
+    "badge": "시연용 재생 · {count}단계",
+    "close": "둘러보기 닫기",
+    "stepsLabel": "둘러보기 단계",
+    "clickToStart": "눌러서 시작하세요",
+    "stepsHint": "단계를 눌러 앞뒤로 건너뛸 수 있어요",
+    "stepsToggle": "단계",
+    "intro": "고객이 남긴 한마디가 고쳐져서 돌아오기까지",
+    "done": "한 바퀴 다 돌았어요",
+    "start": "둘러보기 시작하기",
+    "playing": "재생 중 · 건너뛰기",
+    "replay": "처음부터 다시 보기",
+    "skipStep": "이 단계 건너뛰기",
+    "continue": "계속 보기",
+    "startNote": "{count}단계 · 눌러야 할 곳마다 알려드려요",
+    "copyNote": "전부 시연용 사본입니다 · 서버로 나가는 요청 없음"
+  },
+  "stage": {
+    "customerView": "고객 화면",
+    "teamView": "팀 화면",
+    "siteFrame": "널널투어 (시연용 사본)",
+    "teamFrame": "Feedloop 운영자 화면 (시연용 사본)",
+    "tapToContinue": "· 눌러서 계속",
+    "pickBar": "고칠 부분을 눌러 주세요",
+    "cancel": "취소",
+    "problemHere": "여기가 문제예요",
+    "reportOne": "제보 1건",
+    "pieceFallback": "화면 조각"
+  },
+  "widget": {
+    "siteName": "널널투어",
+    "replyTime": "보통 몇 분 안에 답해요",
+    "attached": "화면 조각 1장이 붙었어요",
+    "picking": "선택하는 중…",
+    "pick": "화면에서 선택하기",
+    "human": "상담원 연결",
+    "placeholder": "무엇이든 편하게 남겨주세요",
+    "send": "보내기",
+    "fixed": "반영됐어요",
+    "fixedNote": "나의 피드백 덕분에 서비스가 개선되었어요",
+    "open": "Feedloop 열기"
+  }
+}

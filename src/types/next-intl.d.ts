@@ -14,6 +14,7 @@ import type connect from '../../messages/en/connect.json';
 import type llm from '../../messages/en/llm.json';
 import type github from '../../messages/en/github.json';
 import type dashboard from '../../messages/en/dashboard.json';
+import type demo from '../../messages/en/demo.json';
 
 declare module 'next-intl' {
   interface AppConfig {
@@ -32,6 +33,7 @@ declare module 'next-intl' {
       llm: typeof llm;
       github: typeof github;
       dashboard: typeof dashboard;
+      demo: typeof demo;
     };
   }
 }
