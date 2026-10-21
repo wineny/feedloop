@@ -20,6 +20,7 @@ import { SpecDraft } from '@/components/dashboard/SpecDraft';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 import { scopedBody } from '@/lib/scope/scope';
+import { dynamicT } from '@/i18n/dynamic';
 
 export interface GroupSummary {
   id: string;
@@ -49,17 +50,6 @@ interface InsightGroupsProps {
   /** 자동 묶기 상태(I-10). GET /api/groups 의 `grouping`. 못 읽었으면 null. */
   grouping?: GroupingStatus | null;
 }
-
-// 화면(InsightGroups)은 사전 `dashboard.groups.categories` 를 쓴다. 이 표는 분류 화면(classify, 6단계)이 아직 쓰므로 남겨 둔다.
-export const CATEGORY_LABEL: Record<string, string> = {
-  bug: '버그',
-  ux: 'UX',
-  feature_request: '기능 요청',
-  praise: '칭찬',
-  cs: '문의',
-  other: '기타',
-};
-
 
 /**
  * 데모(로그아웃 심사 화면)의 묶기 상태. 자동으로 묶이지는 않으므로 「곧 묶어요」라고 하지 않는다.
@@ -166,7 +156,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
         patchDemo('dashboard', (prev) => {
           const d = prev as { groups: GroupSummary[] };
           if (d.groups.some((g) => g.id === DEMO_NEW_GROUP_ID)) return prev;
-          return { ...d, groups: [demoNewGroup(t), ...d.groups] };
+          return { ...d, groups: [demoNewGroup(dynamicT(t)), ...d.groups] };
         });
         setRunning(false);
         setNotice(t('notices.one'));
@@ -385,7 +375,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                       </span>
                     )}
                     <span className={`${BADGE} bg-muted text-foreground`}>
-                      {t.has(`categories.${g.category}`) ? t(`categories.${g.category}`) : g.category}
+                      {dynamicT(t).has(`categories.${g.category}`) ? dynamicT(t)(`categories.${g.category}`) : g.category}
                     </span>
                     {/* 핵심 흐름이 막힌 묶음만 잉크로 채운다 — 잉크·코랄·회색 세 가지 안에서 가장 진한 칸. */}
                     {g.priority?.core && <span className={`${BADGE} bg-foreground text-background`}>{t('core')}</span>}

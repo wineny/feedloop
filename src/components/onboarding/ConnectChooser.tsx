@@ -20,7 +20,7 @@
 // 카드는 잠기고, 갈아타려면 쓰던 쪽을 먼저 내린다.
 
 import type { ReactNode } from 'react';
-import { useFormatter, useLocale, useTranslations } from 'next-intl';
+import { useFormatter, useLocale, useTimeZone, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RiChat1Line } from 'react-icons/ri';
@@ -142,21 +142,21 @@ function useEntranceName() {
   return (e: Entrance) => t(`entrance.${e}`);
 }
 
-/** 「마지막 피드백」 한 구절. 오늘·어제 판정은 KST 기준이라 시각도 KST 로 보여 준다(영어는 시간대 이름을 붙인다) */
+/** 「마지막 피드백」 한 구절. 오늘·어제 판정과 시각 모두 보는 사람의 시간대 기준이다(영어는 시간대 이름을 붙인다) */
 function useLastFeedbackText() {
   const t = useTranslations('connect.lastFeedback');
   const format = useFormatter();
   const locale = useLocale();
+  const timeZone = useTimeZone();
   return (iso: string | null) => {
-    const p = lastFeedbackParts(iso);
+    const p = lastFeedbackParts(iso, new Date(), timeZone);
     if (p.kind === 'none' || p.kind === 'invalid') return t(p.kind);
     if (p.kind === 'date') {
-      return t('date', { date: format.dateTime(p.at, { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' }) });
+      return t('date', { date: format.dateTime(p.at, { month: 'long', day: 'numeric' }) });
     }
     const time = format.dateTime(p.at, {
       hour: 'numeric',
       minute: '2-digit',
-      timeZone: 'Asia/Seoul',
       ...(locale === 'ko' ? {} : { timeZoneName: 'short' as const }),
     });
     return t(p.kind, { time });

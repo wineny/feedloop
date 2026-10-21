@@ -10,13 +10,14 @@
 // 「피드백 묶음」에서만 만든다 — 랜딩이 말하는 「사람이 하는 일 = 묶음 확인·반영 승인」 그대로.
 
 import Link from 'next/link';
-import { CATEGORY_LABEL } from '@/components/dashboard/InsightGroups';
+import { useTranslations } from 'next-intl';
 import { Check, ChevronRight, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { personLabel, sourceLabel } from '@/lib/channel/labels';
 import type { GroupRef, Insight } from './types';
 import { isGroupable } from '@/lib/classify/taxonomy';
 import { PickedShot } from '@/components/picked/PickedShot';
+import { dynamicT } from '@/i18n/dynamic';
 
 interface InsightRowProps {
   insight: Insight;
@@ -50,6 +51,7 @@ function Sep() {
  * 「이 건이 코드로 이어지나」가 한눈에 안 갈렸다.
  */
 function CategoryBadge({ category }: { category: string }) {
+  const t = useTranslations('dashboard.groups.categories');
   const code = isGroupable(category);
   return (
     <span
@@ -58,7 +60,7 @@ function CategoryBadge({ category }: { category: string }) {
         code ? 'bg-foreground text-background' : 'bg-muted text-foreground',
       )}
     >
-      {CATEGORY_LABEL[category] ?? category}
+      {dynamicT(t).has(category) ? dynamicT(t)(category) : category}
     </span>
   );
 }

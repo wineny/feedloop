@@ -8,6 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import { callbackBanner } from '@/lib/github/app-state-types';
+import { dynamicT } from '@/i18n/dynamic';
 
 const TONE = {
   ok: 'border-emerald-600/30 bg-emerald-50 text-emerald-900',
@@ -23,7 +24,7 @@ export function InstallResultBanner({ app }: { app?: string | string[] }) {
   // 바깥 여백은 부모의 gap 이 준다 — v4 는 radius 한 종류(16)·본문 14
   return (
     <div className={`rounded-2xl border px-5 py-3.5 text-sm leading-relaxed ${TONE[banner.kind]}`} role="status">
-      {t(`callback.${raw}`)}
+      {dynamicT(t)(`callback.${raw}`)}
     </div>
   );
 }

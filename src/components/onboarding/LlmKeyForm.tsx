@@ -29,6 +29,7 @@ import { LlmKeyFields, ModelPicker } from '@/components/onboarding/LlmKeyFields'
 // 「자동」·「직접 입력」을 접는 규칙은 의존성 0 인 원본에서 직접 가져온다 —
 // 컴포넌트 파일을 경유해 재수출하면 값이 어디서 오는지가 한 겹 흐려진다.
 import { CUSTOM_MODEL, draftModelValue } from '@/lib/llm/model-choice';
+import { dynamicT } from '@/i18n/dynamic';
 
 interface LlmKeyFormProps {
   botId: string;
@@ -57,7 +58,7 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
   const t = useTranslations('llm');
   const tc = useTranslations('common');
   const tInbox = useTranslations('inbox');
-  const tRoot = useTranslations();
+  const tRoot = dynamicT(useTranslations());
   const [state, setState] = useState<KeyState | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [mode, setMode] = useState<Mode>('view');

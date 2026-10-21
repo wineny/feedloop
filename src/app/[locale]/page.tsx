@@ -9,6 +9,7 @@ import { PlansSection } from '@/components/landing/Plans';
 import { FaqSection } from '@/components/landing/FaqSection';
 import { FinalCTA } from '@/components/landing/FinalCTA';
 import { LandingFooter } from '@/components/landing/LandingFooter';
+import { PageMessages } from '@/i18n/PageMessages';
 
 export async function generateMetadata({ params }: PageProps<'/[locale]'>): Promise<Metadata> {
   const { locale } = await params;
@@ -21,10 +22,11 @@ export async function generateMetadata({ params }: PageProps<'/[locale]'>): Prom
 }
 
 export default function HomePage() {
+  // 루트 레이아웃 main(max-w-[1120px] px-6 py-7)을 풀블리드로 벗어난다.
+  // ⚠️ `-my-7` 은 그 `py-7` 과 «정확히» 같아야 한다 — 어긋나면 코랄 히어로 위에
+  // 그만큼 흰 띠가 남고, sticky 나브가 붙는 순간 그 폭만큼 튄다(예전엔 4px 튀었다).
   return (
-    // 루트 레이아웃 main(max-w-[1120px] px-6 py-7)을 풀블리드로 벗어난다.
-    // ⚠️ `-my-7` 은 그 `py-7` 과 «정확히» 같아야 한다 — 어긋나면 코랄 히어로 위에
-    // 그만큼 흰 띠가 남고, sticky 나브가 붙는 순간 그 폭만큼 튄다(예전엔 4px 튀었다).
+    <PageMessages page="landing">
     <div
       className="landing -my-7 bg-[var(--bg)] text-[var(--ink)]"
       style={{
@@ -46,5 +48,6 @@ export default function HomePage() {
       <FinalCTA />
       <LandingFooter />
     </div>
+    </PageMessages>
   );
 }

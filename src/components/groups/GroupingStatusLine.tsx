@@ -23,7 +23,11 @@ interface GroupingStatusLineProps {
   refreshMs?: number;
 }
 
-/** 화면용 — 같은 판정을 사전 키(`dashboard.grouping.<key>`)와 인자로 돌려준다. describeGroupingStatus 와 갈라지지 않게 같이 고친다 */
+/**
+ * 상태를 사전 키(`dashboard.grouping.<key>`)와 인자로 돌려준다. 순수 함수 — 테스트한다.
+ * due 가 지났는데 아직 클레임 전이면 대기하던 함수가 막 깨어나는 찰나다(클레임이 due 를 비운다).
+ * 30초 안이면 「곧」으로 두고 계속 다시 읽는다. 그 뒤에도 남아 있으면 그 함수는 죽은 것이다.
+ */
 export function groupingStatusMessage(
   status: GroupingStatus,
   now = Date.now(),
@@ -37,24 +41,6 @@ export function groupingStatusMessage(
   }
   if (Number.isFinite(dueMs) && dueMs > -30_000) return { key: 'soon', vars: { count }, waiting: true };
   return { key: 'idle', vars: { count }, waiting: false };
-}
-
-/** 순수 함수 — 테스트한다. 상태를 한 문장으로. */
-export function describeGroupingStatus(status: GroupingStatus, now = Date.now()): { text: string; waiting: boolean } {
-  if (status.pending === 0) return { text: '안 묶인 피드백이 없어요', waiting: false };
-  if (status.running) return { text: `${status.pending}건을 지금 묶는 중이에요`, waiting: true };
-  const dueMs = status.dueAt ? new Date(status.dueAt).getTime() - now : NaN;
-  if (Number.isFinite(dueMs) && dueMs > 0) {
-    const secs = Math.max(5, Math.round(dueMs / 5000) * 5);
-    return { text: `${status.pending}건 · 약 ${secs}초 뒤 자동으로 묶어요 (보충 제보를 기다리는 중)`, waiting: true };
-  }
-  // due 는 지났는데 아직 클레임 전 — 대기하던 함수가 막 깨어나는 찰나다(클레임이 due 를 비운다).
-  // 30초 안이면 「곧」으로 두고 계속 다시 읽는다. 그 뒤에도 남아 있으면 그 함수는 죽은 것이다.
-  if (Number.isFinite(dueMs) && dueMs > -30_000) {
-    return { text: `${status.pending}건을 곧 묶어요`, waiting: true };
-  }
-  // 예정도 진행도 없는데 안 묶였다 — 화면을 연 것이 catch-up 을 걸었으니 곧 잡히고, 버튼으로 바로도 된다.
-  return { text: `${status.pending}건이 아직 안 묶였어요`, waiting: false };
 }
 
 export function GroupingStatusLine({ status, onRunNow, running, hint = null, onRefresh, refreshMs = 10_000 }: GroupingStatusLineProps) {

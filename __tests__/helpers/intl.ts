@@ -8,6 +8,7 @@ import { NextIntlClientProvider } from 'next-intl';
 const Provider = NextIntlClientProvider as unknown as React.ComponentType<{
   locale: string;
   messages: unknown;
+  timeZone?: string;
   children?: React.ReactNode;
 }>;
 
@@ -28,6 +29,6 @@ export function loadMessages(locale: 'en' | 'ko'): Record<string, unknown> {
 /** 실제 사전을 실은 `NextIntlClientProvider` 안에서 렌더한다. 문구 단언은 기본 영어(en)로 쓴다. */
 export function renderWithIntl(ui: ReactElement, locale: 'en' | 'ko' = 'en'): string {
   return renderToStaticMarkup(
-    React.createElement(Provider, { locale, messages: loadMessages(locale) }, ui),
+    React.createElement(Provider, { locale, messages: loadMessages(locale), timeZone: 'UTC' }, ui),
   );
 }

@@ -26,6 +26,7 @@ import { githubPatPrefillUrl } from '@/lib/github/pat-link';
 // 응답 계약과 콜백 안내 문구는 «서버가 아닌» 모듈에서 가져온다 — 라우트 파일을 가리키면 다음 사람이
 // 값 하나를 같은 경로에서 import 하는 순간 서버 코드가 클라이언트 번들로 딸려온다(코드 리뷰 MEDIUM).
 import { callbackBanner, type GithubAppState } from '@/lib/github/app-state-types';
+import { dynamicT } from '@/i18n/dynamic';
 
 interface GithubTokenFormProps {
   botId: string;
@@ -92,7 +93,7 @@ function useInstallCallbackBanner(): Status {
   // 렌더 때마다 다시 읽으면 주소를 지우는 순간 안내가 같이 사라져 아무도 결과를 못 본다.
   // 종류(ok/error/info)는 lib 의 표가 정하고, 문구는 사전(`github.callback.<코드>`)에서 읽는다
   const [kind] = useState(() => callbackBanner(raw)?.kind ?? null);
-  const banner: Status = kind && raw ? { kind, message: t(`callback.${raw}`) } : null;
+  const banner: Status = kind && raw ? { kind, message: dynamicT(t)(`callback.${raw}`) } : null;
 
   useEffect(() => {
     if (!raw) return;
@@ -194,7 +195,7 @@ function LoadingLine() {
 function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
   const t = useTranslations('github');
   const format = useFormatter();
-  const tRoot = useTranslations();
+  const tRoot = dynamicT(useTranslations());
   const b = (chunks: ReactNode) => <b className="font-semibold text-foreground">{chunks}</b>;
   const [state, setState] = useState<TokenState | null>(null);
   const [loadError, setLoadError] = useState(false);

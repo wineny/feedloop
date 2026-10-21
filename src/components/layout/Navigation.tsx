@@ -10,6 +10,7 @@ import { AuthButton } from '@/components/auth/AuthButton';
 import { BotScopeSelect } from '@/components/layout/BotScopeSelect';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { isPricingPath } from '@/lib/pricing/paths';
+import { dynamicT } from '@/i18n/dynamic';
 
 // 순서가 곧 루프다: 대화(들어옴) → 피드백(분류) → 수정 PR(수정·되돌림).
 // 「알림」 탭은 뺐다 — 가짜 데이터만 있던 화면이고, 되돌림 기록은 수정 PR 상세에서 본다.
@@ -65,7 +66,7 @@ export function Navigation() {
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {t(item.key)}
+                {dynamicT(t)(item.key)}
               </Link>
             );
           })}

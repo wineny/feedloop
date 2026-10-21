@@ -18,5 +18,6 @@ export default getRequestConfig(async ({ locale }) => {
       async (ns) => [ns, (await import(`../../messages/${candidate}/${ns}.json`)).default] as const,
     ),
   );
-  return { locale: candidate, messages: Object.fromEntries(entries) };
+  // 시간대는 서버에서 UTC 로 고정한다(서버·빌드 머신 시간대가 HTML 에 박히지 않게). 브라우저에서는 `BrowserTimeZoneIntl` 이 보는 사람의 시간대로 바꾼다.
+  return { locale: candidate, timeZone: 'UTC', messages: Object.fromEntries(entries) };
 });

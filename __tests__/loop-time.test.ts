@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_LOOP_TIME,
   FAILED_LOOP_TIME,
-  formatLoopDuration,
+  loopDurationParts,
   loopClosedConversationIds,
   loopTimeStats,
   type LoopTimeInsight,
@@ -142,19 +142,19 @@ describe('루프 시간 — 제보에서 반영 알림까지', () => {
 
 describe('루프 시간 표기 — 사람이 읽는 단위 하나', () => {
   it.each([
-    [30_000, '1분 미만'],
-    [37 * 60_000, '37분'],
-    [59.6 * 60_000, '1시간'],
-    [5 * HOUR, '5시간'],
-    [23.6 * HOUR, '1일'],
-    [2.4 * DAY, '2.4일'],
-    [2 * DAY, '2일'],
-  ])('%i ms → %s', (ms, expected) => {
-    expect(formatLoopDuration(ms)).toBe(expected);
+    [30_000, { unit: 'lessThanMinute' }],
+    [37 * 60_000, { unit: 'minutes', value: '37' }],
+    [59.6 * 60_000, { unit: 'hours', value: '1' }],
+    [5 * HOUR, { unit: 'hours', value: '5' }],
+    [23.6 * HOUR, { unit: 'days', value: '1' }],
+    [2.4 * DAY, { unit: 'days', value: '2.4' }],
+    [2 * DAY, { unit: 'days', value: '2' }],
+  ])('%i ms → %j', (ms, expected) => {
+    expect(loopDurationParts(ms)).toEqual(expected);
   });
 
   it('음수·NaN 은 시간을 지어내지 않는다', () => {
-    expect(formatLoopDuration(-1)).toBe('아직 없음');
-    expect(formatLoopDuration(Number.NaN)).toBe('아직 없음');
+    expect(loopDurationParts(-1)).toEqual({ unit: 'none' });
+    expect(loopDurationParts(Number.NaN)).toEqual({ unit: 'none' });
   });
 });

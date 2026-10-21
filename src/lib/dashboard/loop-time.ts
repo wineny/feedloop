@@ -180,17 +180,3 @@ export function loopDurationParts(ms: number): LoopDurationParts {
   const days = Math.round((hours / 24) * 10) / 10;
   return { unit: 'days', value: Number.isInteger(days) ? String(days) : days.toFixed(1) };
 }
-
-export function formatLoopDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return '아직 없음';
-
-  const minutes = ms / 60_000;
-  if (minutes < 1) return '1분 미만';
-  if (Math.round(minutes) < 60) return `${Math.round(minutes)}분`;
-
-  const hours = minutes / 60;
-  if (Math.round(hours) < 24) return `${Math.round(hours)}시간`;
-
-  const days = Math.round((hours / 24) * 10) / 10;
-  return Number.isInteger(days) ? `${days}일` : `${days.toFixed(1)}일`;
-}

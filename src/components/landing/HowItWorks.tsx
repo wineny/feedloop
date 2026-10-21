@@ -19,6 +19,7 @@
  */
 import { useTranslations } from 'next-intl';
 import { SectionHead } from './SectionHead';
+import { dynamicT } from '@/i18n/dynamic';
 
 const steps = [
   {
@@ -82,11 +83,11 @@ export function HowItWorks() {
                   className="font-bold lg:mt-5"
                   style={{ fontSize: 'var(--fs-h3)', letterSpacing: '-0.01em' }}
                 >
-                  {t(`steps.${step.key}.title`)}
+                  {dynamicT(t)(`steps.${step.key}.title`)}
                 </h3>
               </div>
               <p className="mt-3 text-[var(--l-muted)]" style={{ fontSize: 'var(--fs-body)', lineHeight: 1.7, textWrap: 'pretty' }}>
-                {t(`steps.${step.key}.desc`)}
+                {dynamicT(t)(`steps.${step.key}.desc`)}
               </p>
             </div>
           ))}

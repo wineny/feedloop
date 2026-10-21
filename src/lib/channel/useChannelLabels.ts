@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { dynamicT } from '@/i18n/dynamic';
 
 /**
  * `lib/channel/labels.ts` 의 화면용 짝 — 같은 입구 코드(`web`·`kakao`·`channel`)를 현재 언어의 사전에서 읽는다.
@@ -10,7 +11,7 @@ import { useTranslations } from 'next-intl';
 export function useChannelLabels() {
   const t = useTranslations('common.channels');
   return {
-    sourceLabel: (source: string) => (t.has(`source.${source}`) ? t(`source.${source}`) : source),
-    personLabel: (source: string) => (t.has(`person.${source}`) ? t(`person.${source}`) : t('person.default')),
+    sourceLabel: (source: string) => (dynamicT(t).has(`source.${source}`) ? dynamicT(t)(`source.${source}`) : source),
+    personLabel: (source: string) => (dynamicT(t).has(`person.${source}`) ? dynamicT(t)(`person.${source}`) : t('person.default')),
   };
 }

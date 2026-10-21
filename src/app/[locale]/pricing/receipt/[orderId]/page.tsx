@@ -83,7 +83,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ orderI
           <Row label={t('orderId')} value={order.order_id} />
           <Row label={t('transactionId')} value={order.capture_id} />
           <Row label={t('paidWith')} value={maskEmail(order.payer_email)} />
-          <Row label={t('date')} value={`${format.dateTime(new Date(date), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC`} />
+          <Row label={t('date')} value={format.dateTime(new Date(date), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC', timeZoneName: 'short' })} />
         </dl>
 
         {order.status === 'captured' ? (

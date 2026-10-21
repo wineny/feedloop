@@ -33,6 +33,7 @@ import { checkKeyFormat } from '@/lib/llm/key-format';
 // 「자동」·「직접 입력」을 서버 값으로 접는 규칙은 의존성 0 인 모듈 하나가 갖는다 —
 // 폼 스키마(React 없이 도는 곳)도 같은 규칙을 봐야 한다.
 import { CUSTOM_MODEL, draftModelValue } from '@/lib/llm/model-choice';
+import { dynamicT } from '@/i18n/dynamic';
 
 export interface LlmKeyFieldsProps {
   provider: LlmProvider;
@@ -61,7 +62,7 @@ export function LlmKeyFields({
   onApiKeyChange,
 }: LlmKeyFieldsProps) {
   const t = useTranslations('llm');
-  const tv = useTranslations();
+  const tv = dynamicT(useTranslations());
   const modelCheck = validateModelId(draftModelValue(modelChoice, customModel));
   const keyCheck = checkKeyFormat(provider, apiKey);
 
@@ -178,7 +179,7 @@ export function ModelPicker({
           <option key={m.id} value={m.id}>
             {m.label}
             {m.id === RECOMMENDED[provider] ? ` · ${t('fields.recommended')}` : ''}
-            {m.note ? ` — ${t.has(`models.${modelKey(m.id)}`) ? t(`models.${modelKey(m.id)}`) : m.note}` : ''}
+            {m.note ? ` — ${dynamicT(t).has(`models.${modelKey(m.id)}`) ? dynamicT(t)(`models.${modelKey(m.id)}`) : m.note}` : ''}
           </option>
         ))}
         <option value={CUSTOM_MODEL}>{t('fields.custom')}</option>

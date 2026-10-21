@@ -10,6 +10,7 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { PaymentActionView } from '@/lib/paypal/action-view';
+import { dynamicT } from '@/i18n/dynamic';
 
 export type PaymentDecision = 'approve' | 'reject';
 
@@ -69,7 +70,7 @@ export function PaymentActionCard({ action, onDecide, disabled }: PaymentActionC
   const { busy, error, decide } = usePaymentDecision(action.id, onDecide);
   const current = action;
   // 검사 이름은 key 로 사전에서 읽고, 사전에 없는 새 key 는 서버가 준 라벨을 그대로 쓴다.
-  const failed = current.checks.filter((c) => !c.passed).map((c) => (t.has(`checks.${c.key}`) ? t(`checks.${c.key}`) : c.label));
+  const failed = current.checks.filter((c) => !c.passed).map((c) => (dynamicT(t).has(`checks.${c.key}`) ? dynamicT(t)(`checks.${c.key}`) : c.label));
 
   const handleApprove = () => void decide('approve');
   const handleReject = () => void decide('reject');

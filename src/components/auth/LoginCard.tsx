@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { LogoMark } from '@/components/landing/Logo';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { GoogleMark } from './GoogleMark';
+import { dynamicT } from '@/i18n/dynamic';
 
 /**
  * NextAuth 가 돌려주는 error 코드 → 사전 키(`auth.errors.<코드>`). 목록에 없으면 generic.
@@ -22,7 +23,7 @@ interface LoginCardProps {
 
 export function LoginCard({ callbackUrl, error }: LoginCardProps) {
   const t = useTranslations('auth');
-  const errorText = error ? t(`errors.${KNOWN_ERRORS.includes(error) ? error : 'generic'}`) : null;
+  const errorText = error ? dynamicT(t)(`errors.${KNOWN_ERRORS.includes(error) ? error : 'generic'}`) : null;
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
