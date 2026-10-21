@@ -53,15 +53,15 @@ describe('appendSupplements', () => {
     expect(appendSupplements('쿠폰함 확인 안 돼요', [])).toBe('쿠폰함 확인 안 돼요');
   });
 
-  it('보충 턴 본문을 「(보충) …」 줄로 덧붙인다', () => {
+  it('보충 턴 본문을 「(follow-up) …」 줄로 덧붙인다', () => {
     expect(appendSupplements('쿠폰함 확인 안 돼요', ['흰 화면이에요. PC 크롬'])).toBe(
-      '쿠폰함 확인 안 돼요\n(보충) 흰 화면이에요. PC 크롬',
+      '쿠폰함 확인 안 돼요\n(follow-up) 흰 화면이에요. PC 크롬',
     );
   });
 
   it('보충 여러 건은 등장 순서대로 각자 한 줄씩 붙인다', () => {
     expect(appendSupplements('원문', ['보충1', '보충2', '보충3'])).toBe(
-      '원문\n(보충) 보충1\n(보충) 보충2\n(보충) 보충3',
+      '원문\n(follow-up) 보충1\n(follow-up) 보충2\n(follow-up) 보충3',
     );
   });
 });
@@ -119,7 +119,7 @@ describe('loadSupplementBodies', () => {
     expect(out).toEqual([`${'가'.repeat(mod.SUPPLEMENT_CHARS)}…`]);
   });
 
-  it('빈 본문은 버린다 — 「(보충) 」 만 있는 줄이 프롬프트에 남으면 안 된다', async () => {
+  it('빈 본문은 버린다 — 「(follow-up) 」 만 있는 줄이 프롬프트에 남으면 안 된다', async () => {
     rows = [{ body: '   ' }, { body: '진짜 보충' }, {}];
 
     expect(await mod.loadSupplementBodies(['m-2'], 'bot-1')).toEqual(['진짜 보충']);

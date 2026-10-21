@@ -9,7 +9,7 @@
 
 import type { ContextItems } from './verify-context';
 import { collapseWhitespace } from '@/lib/text';
-import { TARGET_KIND, TARGET_KIND_DEFAULT, targetLabel, targetLabelEn, type WidgetTarget } from './pick';
+import { TARGET_KIND, TARGET_KIND_DEFAULT, targetLabelEn, type WidgetTarget } from './pick';
 
 export interface WidgetContext {
   url?: string;
@@ -251,20 +251,15 @@ export function sanitizeWidgetContext(raw: unknown): WidgetContext | null {
  * 경로·html 조각. html 은 코드 펜스 없이 한 줄로 접는다 — 마크다운 안에서 태그가 살아나지 않게
  * 백틱으로 감싼다.
  */
-export function formatTargetLines(t: WidgetTarget, indent = '  ', opts: { html?: boolean; lang?: 'ko' | 'en' } = {}): string[] {
+export function formatTargetLines(t: WidgetTarget, indent = '  ', opts: { html?: boolean } = {}): string[] {
   // 저장된 값은 sanitizeTarget 을 지났지만(한 줄·백틱 없음), 옛 행이나 다른 경로가 있을 수 있어 한 번 더 접는다.
   const one = (s: string) => collapseWhitespace(s).replace(/`/g, "'");
-  // 프롬프트용은 한국어(5단계에서 같이 손본다), GitHub PR 본문용(`lang: 'en'`)은 영어 고정
-  const en = opts.lang === 'en';
-  const L = en
-    ? { page: 'page', selector: 'selector', label: 'nearby label', path: 'position', rect: 'viewport coordinates' }
-    : { page: '페이지', selector: '셀렉터', label: '주변 라벨', path: '위치', rect: '화면 좌표' };
-  const head = en ? targetLabelEn(t, 60) : targetLabel(t, 60);
-  const lines = [`${indent}· ${one(head)} <${one(t.tag)}>${t.url ? ` — ${L.page} ${one(t.url)}` : ''}`];
-  lines.push(`${indent}  ${L.selector}: \`${one(t.selector)}\``);
-  if (t.label && t.label !== t.text) lines.push(`${indent}  ${L.label}: ${one(t.label)}`);
-  if (t.path) lines.push(`${indent}  ${L.path}: ${one(t.path)}`);
-  if (t.rect) lines.push(`${indent}  ${L.rect}: (${t.rect.x}, ${t.rect.y}) ${t.rect.w}×${t.rect.h}px`);
+  // 프롬프트와 GitHub PR 본문 둘 다 영어다(5단계). 둘의 차이는 html 뼈대 줄뿐이다(아래).
+  const lines = [`${indent}· ${one(targetLabelEn(t, 60))} <${one(t.tag)}>${t.url ? ` — page ${one(t.url)}` : ''}`];
+  lines.push(`${indent}  selector: \`${one(t.selector)}\``);
+  if (t.label && t.label !== t.text) lines.push(`${indent}  nearby label: ${one(t.label)}`);
+  if (t.path) lines.push(`${indent}  position: ${one(t.path)}`);
+  if (t.rect) lines.push(`${indent}  viewport coordinates: (${t.rect.x}, ${t.rect.y}) ${t.rect.w}×${t.rect.h}px`);
   // html 뼈대는 프롬프트에만(기본). PR 본문은 GitHub 에 남는 글이라 페이지 조각을 싣지 않는다(보안 리뷰 H2)
   if (t.html && opts.html !== false) lines.push(`${indent}  html: \`${one(t.html)}\``);
   return lines;
@@ -279,22 +274,22 @@ export function formatContextForPrompt(ctx: unknown): string {
   if (!c) return '';
 
   const lines: string[] = [];
-  if (c.url) lines.push(`- 발생 페이지: ${c.url}`);
-  if (c.viewport) lines.push(`- 뷰포트: ${c.viewport}${c.screen ? ` (화면 ${c.screen})` : ''}`);
-  if (c.user_agent) lines.push(`- 브라우저: ${c.user_agent}`);
-  if (c.language) lines.push(`- 언어: ${c.language}`);
+  if (c.url) lines.push(`- Page: ${c.url}`);
+  if (c.viewport) lines.push(`- Viewport: ${c.viewport}${c.screen ? ` (screen ${c.screen})` : ''}`);
+  if (c.user_agent) lines.push(`- Browser: ${c.user_agent}`);
+  if (c.language) lines.push(`- Language: ${c.language}`);
   if (c.errors?.length) {
     // 「참고」라고 못박는다 — 방문자가 말하지 않은 에러 문구가 요약 제목에 박히면
     // 묶기가 그 문자열로 엉뚱한 제보들을 한데 묶는다(I-45).
-    lines.push(`- 콘솔 에러 ${c.errors.length}건 (참고용. 방문자가 깔아 둔 브라우저 확장이 낸 것일 수 있다 — 방문자가 직접 말하지 않은 내용은 요약·제목에 넣지 말 것):`);
+    lines.push(`- Console errors (${c.errors.length}, for reference only. They may come from a browser extension the visitor installed — do not put anything the visitor did not say into a summary or title):`);
     for (const e of c.errors) lines.push(`  · ${e}`);
   }
   if (c.failed_requests?.length) {
-    lines.push(`- 실패한 요청 ${c.failed_requests.length}건:`);
+    lines.push(`- Failed requests (${c.failed_requests.length}):`);
     for (const r of c.failed_requests) lines.push(`  · ${r}`);
   }
   if (c.target) {
-    lines.push('- 제보자가 화면에서 짚은 요소:');
+    lines.push('- Element the reporter picked on screen:');
     lines.push(...formatTargetLines(c.target));
   }
 
@@ -315,25 +310,25 @@ export function mergeContextsForPrompt(raws: unknown[]): string {
 
   const topUrls = top(urls, 3);
   if (topUrls.length) {
-    lines.push('- 발생 페이지:');
+    lines.push('- Pages:');
     for (const u of topUrls) lines.push(`  · ${u}`);
   }
 
   const topErrors = top(errors, MAX_ERRORS);
   if (topErrors.length) {
-    lines.push('- 콘솔 에러:');
+    lines.push('- Console errors:');
     for (const e of topErrors) lines.push(`  · ${e}`);
   }
 
   const topRequests = top(requests, MAX_REQUESTS);
   if (topRequests.length) {
-    lines.push('- 실패한 요청:');
+    lines.push('- Failed requests:');
     for (const r of topRequests) lines.push(`  · ${r}`);
   }
 
   const topTargets = topTargetLines(targets);
   if (topTargets.length) {
-    lines.push('- 제보자들이 화면에서 짚은 요소:');
+    lines.push('- Elements the reporters picked on screen:');
     lines.push(...topTargets);
   }
 
@@ -371,7 +366,7 @@ const top = (map: Map<string, number>, limit: number) =>
   Array.from(map.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
-    .map(([value, count]) => (count > 1 ? `${value} (${count}건)` : value));
+    .map(([value, count]) => (count > 1 ? `${value} (${count} reports)` : value));
 
 /** 같은 셀렉터를 여러 사람이 짚었으면 횟수를 첫 줄에 붙인다. 최대 3개 */
 const MAX_TARGETS = 3;
@@ -380,11 +375,11 @@ function topTargets(targets: Map<string, { t: WidgetTarget; n: number }>): { t: 
     .sort((a, b) => b.n - a.n)
     .slice(0, MAX_TARGETS);
 }
-function topTargetLines(targets: Map<string, { t: WidgetTarget; n: number }>, opts: { html?: boolean; lang?: 'ko' | 'en' } = {}): string[] {
+function topTargetLines(targets: Map<string, { t: WidgetTarget; n: number }>, opts: { html?: boolean } = {}): string[] {
   return topTargets(targets)
     .flatMap(({ t, n }) => {
       const lines = formatTargetLines(t, '  ', opts);
-      if (n > 1) lines[0] += opts.lang === 'en' ? ` (${n} reports)` : ` (${n}건)`;
+      if (n > 1) lines[0] += ` (${n} reports)`;
       return lines;
     });
 }
@@ -408,7 +403,7 @@ export function collectContextItems(raws: unknown[]): ContextItems {
     requests: top(requests, MAX_REQUESTS),
     targets: topTargetLines(targets),
     // PR 본문용 — html 뼈대 없이. 방문자가 짚은 «표의 한 행» 같은 페이지 조각이 고객사 GitHub 에 남으면 안 된다
-    targetsForPrBody: topTargetLines(targets, { html: false, lang: 'en' }),
+    targetsForPrBody: topTargetLines(targets, { html: false }),
     // 원자료 — 엔진이 레포 «원본»과 대조하려면 문자열로는 안 된다(B3 3차). 위 두 줄과 같은 순서·같은 상한
     targetItems: topTargets(targets).map(({ t, n }) => ({ target: t, count: n })),
   };

@@ -39,10 +39,8 @@ export interface ContextClaim {
   /** 프롬프트·PR 본문에 그대로 실릴 문장 */
   value: string;
   status: ClaimStatus;
-  /** `missing` 일 때 무엇을 못 찾았는지 */
+  /** `missing` 일 때 무엇을 못 찾았는지(영어 — 프롬프트·PR 본문 둘 다 싣는다) */
   note?: string;
-  /** PR 본문(영어 고정)용 `note` */
-  noteEn?: string;
 }
 
 export interface VerifiedContext {
@@ -166,10 +164,7 @@ function verifyPath(
   return {
     value: raw,
     status: 'missing',
-    note: wantApi
-      ? '이 경로를 처리하는 라우트 파일이 레포에 없다'
-      : '이 경로에 해당하는 페이지 파일이 레포에 없다',
-    noteEn: wantApi ? 'no route file for this path in the repo' : 'no page file for this path in the repo',
+    note: wantApi ? 'no route file for this path in the repo' : 'no page file for this path in the repo',
   };
 }
 
@@ -189,8 +184,7 @@ function verifyError(raw: string, allPaths: Set<string>): ContextClaim {
   return {
     value: raw,
     status: 'missing',
-    note: `${missing.join(', ')} 이(가) 레포에 없다`,
-    noteEn: `${missing.join(', ')} not found in the repo`,
+    note: `${missing.join(', ')} not found in the repo`,
   };
 }
 
@@ -215,8 +209,8 @@ export function verifyContextItems(
 
 const MARK: Record<ClaimStatus, string> = {
   confirmed: '',
-  missing: '  ⚠️ 레포에서 확인 안 됨',
-  unknown: '  (레포로 확인 불가)',
+  missing: '  ⚠️ not found in the repo',
+  unknown: '  (cannot be checked against the repo)',
 };
 
 function claimLines(label: string, claims: ContextClaim[]): string[] {
@@ -232,9 +226,9 @@ function claimLines(label: string, claims: ContextClaim[]): string[] {
 /** 프롬프트에 실을 본문. 판정을 항목마다 붙인다 */
 export function formatVerifiedForPrompt(v: VerifiedContext): string {
   return [
-    ...claimLines('발생 페이지', v.urls),
-    ...claimLines('콘솔 에러', v.errors),
-    ...claimLines('실패한 요청', v.requests),
+    ...claimLines('Pages', v.urls),
+    ...claimLines('Console errors', v.errors),
+    ...claimLines('Failed requests', v.requests),
     ...targetClaimPromptLines(v),
   ].join('\n');
 }
@@ -248,15 +242,15 @@ export function formatVerifiedForPrompt(v: VerifiedContext): string {
  */
 function targetClaimPromptLines(v: VerifiedContext): string[] {
   if (v.targetClaims.length === 0) {
-    return v.targets.length ? ['- 제보자가 화면에서 짚은 요소 (DOM 값 — 레포 트리로는 대조 불가):', ...v.targets] : [];
+    return v.targets.length ? ['- Element the reporter picked on screen (DOM values — cannot be matched against the repo tree):', ...v.targets] : [];
   }
   const out: string[] = [];
   for (const c of v.targetClaims) {
     if (c.status === 'confirmed') {
       const files = c.files.map((f) => f.path).join(', ');
-      out.push(`- 제보자가 화면에서 짚은 요소 — **레포 원본에서 확인됨, 이 파일이 그린다: ${files}** (근거: ${describeMatches(c)}):`);
+      out.push(`- Element the reporter picked on screen — **confirmed in the repo source, rendered by: ${files}** (evidence: ${describeMatches(c)}):`);
     } else {
-      out.push('- 제보자가 화면에서 짚은 요소 (DOM 값 — 레포 원본에서 확인 못 함, 대조 불가):');
+      out.push('- Element the reporter picked on screen (DOM values — not found in the repo source, cannot be matched):');
     }
     out.push(...c.lines);
   }
@@ -264,7 +258,7 @@ function targetClaimPromptLines(v: VerifiedContext): string[] {
 }
 
 /** 「data-testid 'claim', class 'RegionSelector_pill'」 — 무엇이 맞았는지 한 줄. 값은 이미 한 줄·백틱 없음 */
-function describeMatches(c: TargetClaim, lang: 'ko' | 'en' = 'ko'): string {
+function describeMatches(c: TargetClaim): string {
   const seen = new Set<string>();
   const parts: string[] = [];
   for (const f of c.files) {
@@ -272,7 +266,7 @@ function describeMatches(c: TargetClaim, lang: 'ko' | 'en' = 'ko'): string {
       if (seen.has(m)) continue;
       seen.add(m);
       const id = c.identifiers.find((i) => i.value === m);
-      parts.push(`${(lang === 'en' ? IDENT_KIND_LABEL_EN : IDENT_KIND_LABEL)[id?.kind ?? 'text']} '${m}'`);
+      parts.push(`${IDENT_KIND_LABEL[id?.kind ?? 'text']} '${m}'`);
     }
   }
   return parts.join(', ');
@@ -299,14 +293,14 @@ export function formatVerifiedForPrBody(v: VerifiedContext): string {
     for (const c of confirmedTargets) {
       // 「그린다」이지 「원인」이 아니다. 어떤 문자열이 맞았는지도 적어 리뷰어가 직접 확인할 수 있게 한다
       out.push(
-        `- Picked element: ${c.labelEn} → ${c.files.map((f) => `\`${f.path}\``).join(', ')} renders it (verified in the source: ${describeMatches(c, 'en')})`,
+        `- Picked element: ${c.labelEn} → ${c.files.map((f) => `\`${f.path}\``).join(', ')} renders it (verified in the source: ${describeMatches(c)})`,
       );
     }
   }
   if (bad.length) {
     if (out.length) out.push('');
     out.push('⚠️ **The following were not found in this repository.** The reporter sent these values, but no matching file exists:');
-    for (const c of bad) out.push(`- ${c.kind}: \`${c.value}\`${c.noteEn ? ` — ${c.noteEn}` : ''}`);
+    for (const c of bad) out.push(`- ${c.kind}: \`${c.value}\`${c.note ? ` — ${c.note}` : ''}`);
   }
   const unverifiedLines = v.targetClaims.length
     ? unverifiedTargets.flatMap((c) => c.prBodyLines)
@@ -390,15 +384,6 @@ const MAX_FILES_PER_CLAIM = 3;
 const MAX_TEXT_NEEDLE = 64;
 
 const IDENT_KIND_LABEL: Record<TargetIdentifierKind, string> = {
-  testid: 'data-testid',
-  id: 'id',
-  aria: 'aria-label',
-  module: 'CSS 모듈 클래스',
-  class: 'class',
-  text: '글자',
-};
-
-const IDENT_KIND_LABEL_EN: Record<TargetIdentifierKind, string> = {
   testid: 'data-testid',
   id: 'id',
   aria: 'aria-label',
@@ -509,9 +494,9 @@ export function targetIdentifiers(t: WidgetTarget): TargetIdentifier[] {
 
 function initialTargetClaim(target: WidgetTarget, count: number): TargetClaim {
   const lines = formatTargetLines(target);
-  const prBodyLines = formatTargetLines(target, '  ', { html: false, lang: 'en' });
+  const prBodyLines = formatTargetLines(target, '  ', { html: false });
   if (count > 1) {
-    lines[0] += ` (${count}건)`;
+    lines[0] += ` (${count} reports)`;
     prBodyLines[0] += ` (${count} reports)`;
   }
   return {

@@ -24,7 +24,7 @@ export const SUPPLEMENT_CHARS = 250;
  */
 export function appendSupplements(body: string, supplements: string[]): string {
   if (supplements.length === 0) return body;
-  return [body, ...supplements.map((s) => `(보충) ${s}`)].join('\n');
+  return [body, ...supplements.map((s) => `(follow-up) ${s}`)].join('\n');
 }
 
 /**

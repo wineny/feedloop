@@ -189,7 +189,7 @@ async function loadAutoPrCandidatePage(botId: string, offset: number): Promise<A
   // 나오므로 게이트는 닫히는 쪽으로 틀린다(안전한 방향) — 다만 그때 「왜 오늘도 PR 이 안
   // 열리지」의 답이 이 줄이라, 조용히 넘기지 않고 남긴다.
   if (insights.length >= MAX_INSIGHT_ROWS) {
-    console.warn(`[auto-pr] ${botId}: 인사이트 조회가 상한 ${MAX_INSIGHT_ROWS} 에 닿았다 — 인원 계수가 적게 나올 수 있다`);
+    console.warn(`[auto-pr] ${botId}: insight lookup hit the cap of ${MAX_INSIGHT_ROWS} — the reporter count may be low`);
   }
   const count = new Map<string, number>();
   for (const i of insights) {

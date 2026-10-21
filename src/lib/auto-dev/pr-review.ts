@@ -200,7 +200,7 @@ export function safeExternalUrl(url: string | null | undefined): string | null {
 export function truncatePatch(patch: string | null | undefined): { patch: string | null; truncated: boolean } {
   if (typeof patch !== 'string') return { patch: null, truncated: false };
   if (patch.length <= PATCH_CHARS_MAX) return { patch, truncated: false };
-  return { patch: `${patch.slice(0, PATCH_CHARS_MAX)}\n… (이하 생략)`, truncated: true };
+  return { patch: `${patch.slice(0, PATCH_CHARS_MAX)}\n… (rest omitted)`, truncated: true };
 }
 
 /**

@@ -337,8 +337,11 @@ export async function closeLoopForRun(
   const skipped = byPerson.size - targets.length;
   if (targets.length === 0) return { ...base, merged: true, skipped };
 
-  // 한 묶음의 대화가 여러 언어일 수 있다 — 대화마다 자기 언어로 쓴다. 언어를 모르면(NULL) 제목의 한글 여부로 추정한다.
-  const bodyOf = (c: ConversationMeta) => buildLoopClosedBody(run.title, run.pr_number, run.pr_url, c.locale ?? undefined);
+  // 한 묶음의 대화가 여러 언어일 수 있다 — 대화마다 자기 언어로 쓴다. 언어를 모르면(NULL) 카카오·채널톡은 한국어
+  // 서비스라 ko(메일의 visitorMailLocale 과 같은 규칙), 웹은 제목의 한글 여부로 추정한다.
+  // 카카오·채널톡을 제목으로 추정하지 않는 이유: 묶음 제목은 사업자 언어(OWNER_CONTENT_LOCALE = en)로 생성된다.
+  const bodyOf = (c: ConversationMeta) =>
+    buildLoopClosedBody(run.title, run.pr_number, run.pr_url, c.locale ?? (c.source !== 'web' ? 'ko' : undefined));
   const now = new Date().toISOString();
 
   const rows = targets.map((c) => ({
@@ -538,7 +541,7 @@ export async function checkMergedRuns(
         error: recordError ? `${message}; failure_record_failed: ${recordError.message}` : message,
       });
       // PR 이 지워졌거나 토큰이 막혀도 나머지 run 은 계속 본다.
-      console.error(`[loop-closed] run ${r.id} 확인 실패:`, err instanceof Error ? err.message : err);
+      console.error(`[loop-closed] run ${r.id} check failed:`, err instanceof Error ? err.message : err);
     }
   }
 

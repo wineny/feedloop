@@ -181,7 +181,7 @@ describe('formatContextForPrompt', () => {
       url: 'https://a.com/coupons',
       errors: ['TypeError: x is undefined'],
     });
-    expect(out).toContain('발생 페이지: https://a.com/coupons');
+    expect(out).toContain('Page: https://a.com/coupons');
     expect(out).toContain('TypeError: x is undefined');
   });
 });
@@ -193,7 +193,7 @@ describe('mergeContextsForPrompt — 묶음의 맥락 합치기', () => {
       { url: 'https://a.com/coupons' },
       { url: 'https://a.com/mypage' },
     ]);
-    expect(out).toContain('https://a.com/coupons (2건)');
+    expect(out).toContain('https://a.com/coupons (2 reports)');
     expect(out).toContain('https://a.com/mypage');
   });
 

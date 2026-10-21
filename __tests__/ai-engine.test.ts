@@ -451,13 +451,13 @@ export default function Page() { return null; }
 
     // 2-pass 프롬프트에 참고용 섹션으로 들어갔다 — 수정 대상 섹션이 아니라
     const patchPrompt: string = JSON.parse(mockFetch.mock.calls[1][1].body).messages[0].content;
-    expect(patchPrompt).toContain('참고용 원본');
+    expect(patchPrompt).toContain('Reference sources');
     expect(patchPrompt).toContain(SESSION_SOURCE.trim());
-    const targetSection = patchPrompt.split('## 참고용 원본')[0];
+    const targetSection = patchPrompt.split('## Reference sources')[0];
     expect(targetSection).toContain('app/app/coupons/page.tsx');
     expect(targetSection).not.toContain('app/lib/coupon-session.ts');
     // 참고용에 「고치지 말라」는 규칙이 붙어 있다
-    expect(patchPrompt).toContain('참고용 원본" 섹션의 파일은 files 에 넣지 마세요');
+    expect(patchPrompt).toContain('Do not put files from the "Reference sources" section in files');
 
     // PR 은 안 만들어졌다
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
@@ -517,7 +517,7 @@ export default function Page() { return null; }
     expect(mockFetch).toHaveBeenCalledTimes(3);
     // 재시도 프롬프트에서 coupon-session 은 «수정 대상» 섹션으로 올라갔다
     const retryPrompt: string = JSON.parse(mockFetch.mock.calls[2][1].body).messages[0].content;
-    expect(retryPrompt.split('## 참고용 원본')[0]).toContain('app/lib/coupon-session.ts');
+    expect(retryPrompt.split('## Reference sources')[0]).toContain('app/lib/coupon-session.ts');
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
   });
 
@@ -540,7 +540,7 @@ export default function Page() { return null; }
     });
 
     const patchPrompt: string = JSON.parse(mockFetch.mock.calls[1][1].body).messages[0].content;
-    expect(patchPrompt).toContain('레포에서 확인 안 됨');
+    expect(patchPrompt).toContain('⚠️ not found in the repo');
   });
 
   it('빈 본문으로 오는 이웃(1MB 초과)은 「실제 원본」으로 싣지 않는다', async () => {
@@ -688,7 +688,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
   }
 
   const patchPromptAt = (i: number): string => JSON.parse(mockFetch.mock.calls[i][1].body).messages[0].content;
-  const targetSectionAt = (i: number): string => patchPromptAt(i).split('## 참고용 원본')[0];
+  const targetSectionAt = (i: number): string => patchPromptAt(i).split('## Reference sources')[0];
   const readPaths = () => mockOctokit.repos.getContent.mock.calls.map((c) => c[0].path as string);
 
   beforeEach(async () => {
@@ -737,11 +737,11 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     await prepareCodeFix(options);
 
     const first = patchPromptAt(1);
-    expect(first).toContain('## 레포 파일 목록 (requested_context 전용)');
+    expect(first).toContain('## Repository file list (for requested_context only)');
     // 1-pass 가 안 고른 정답 파일도 목록에 있어 모델이 경로를 지어내지 않아도 된다
-    expect(first.split('## 레포 파일 목록')[1]).toContain('app/lib/board.ts');
+    expect(first.split('## Repository file list')[1]).toContain('app/lib/board.ts');
     expect(first).toContain('"requested_context"');
-    expect(patchPromptAt(2)).not.toContain('## 레포 파일 목록');
+    expect(patchPromptAt(2)).not.toContain('## Repository file list');
   });
 
   it('requested_context 가 트리에 없는 경로뿐이면 root_cause_unknown 으로 멈춘다 (2-pass 재시도 없음)', async () => {
@@ -1117,9 +1117,9 @@ export default function RegionSelector() {
     expect(progress.some((m) => m.startsWith('Checked picked elements against the source: confirmed in 2 files'))).toBe(true);
 
     const selectionPrompt: string = JSON.parse(mockFetch.mock.calls[0][1].body).messages[0].content;
-    expect(selectionPrompt).toContain('레포 원본에서 확인됨, 이 파일이 그린다: app/components/RegionSelector.tsx, app/components/RegionSelector.module.css');
+    expect(selectionPrompt).toContain('confirmed in the repo source, rendered by: app/components/RegionSelector.tsx, app/components/RegionSelector.module.css');
     expect(selectionPrompt).toContain("data-testid 'region-jongno'");
-    expect(selectionPrompt).toContain('그 파일을 첫 후보로');
+    expect(selectionPrompt).toContain('put **that file first** among the candidates');
     expect(selectionPrompt).not.toContain('확인 못 함, 대조 불가):'); // 규칙 문장에도 같은 말이 있으니 판정 라벨(콜론)로 본다
 
     const body = composePrBody(prepared.fix, insight, [{ path: 'app/components/RegionSelector.tsx', action: 'modified' }], prepared.evidence);
@@ -1144,8 +1144,8 @@ export default function RegionSelector() {
     expect(mockOctokit.git.getBlob).toHaveBeenCalled(); // 읽긴 읽었다 — 안 읽어서 unknown 인 게 아니다
     expect(progress.some((m) => /read \d+ candidates, found nothing/.test(m))).toBe(true);
     const selectionPrompt: string = JSON.parse(mockFetch.mock.calls[0][1].body).messages[0].content;
-    expect(selectionPrompt).not.toContain('이 파일이 그린다: '); // 규칙 문장엔 같은 말이 있으니 판정 라벨(콜론)로 본다
-    expect(selectionPrompt).toContain('레포 원본에서 확인 못 함, 대조 불가');
+    expect(selectionPrompt).not.toContain('rendered by: '); // 규칙 문장엔 같은 말이 있으니 판정 라벨(콜론)로 본다
+    expect(selectionPrompt).toContain('not found in the repo source, cannot be matched');
     const body = composePrBody(prepared.fix, insight, [], prepared.evidence);
     expect(body).toContain('was not found in the repository source');
     expect(body).toContain("Picked elements sent by the reporter's browser (unverified input");

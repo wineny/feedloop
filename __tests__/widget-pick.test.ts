@@ -129,14 +129,14 @@ describe('sanitizeTarget — 무인증 값의 모양·크기·비밀', () => {
 describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
   it('formatContextForPrompt 에 「짚은 요소」 절이 생기고 html 은 한 줄', () => {
     const out = formatContextForPrompt({ url: 'https://a.b/c', target: { ...TARGET, html: '<b>\n  x\n</b>' } });
-    expect(out).toContain('- 제보자가 화면에서 짚은 요소:');
-    expect(out).toContain('「쿠폰 받기」 버튼 <button>');
-    expect(out).toContain('셀렉터: `' + TARGET.selector + '`');
+    expect(out).toContain('- Element the reporter picked on screen:');
+    expect(out).toContain('"쿠폰 받기" button <button>');
+    expect(out).toContain('selector: `' + TARGET.selector + '`');
     expect(out).toContain('html: `<b> x </b>`');
   });
 
   it('target 이 없으면 절이 없다(빈 껍데기 금지)', () => {
-    expect(formatContextForPrompt({ url: 'https://a.b/c' })).not.toContain('짚은 요소');
+    expect(formatContextForPrompt({ url: 'https://a.b/c' })).not.toContain('picked on screen');
   });
 
   it('formatTargetLines 는 html 안의 백틱을 무력화한다 — 마크다운 펜스를 못 깬다', () => {
@@ -153,12 +153,12 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
       { target: { ...TARGET, selector: '#four', text: '넷' } },
     ];
     const out = mergeContextsForPrompt(raws);
-    expect(out).toContain('- 제보자들이 화면에서 짚은 요소:');
-    expect(out).toContain('「쿠폰 받기」 버튼 <button> — 페이지 https://nulnul.vercel.app/coupons?tab=today&token=*** (2건)');
+    expect(out).toContain('- Elements the reporters picked on screen:');
+    expect(out).toContain('"쿠폰 받기" button <button> — page https://nulnul.vercel.app/coupons?tab=today&token=*** (2 reports)');
     const items = collectContextItems(raws);
     // 첫 줄(이름 줄)만 세면 3개
     expect(items.targets!.filter((l) => l.startsWith('  · ')).length).toBe(3);
-    expect(items.targets!.join('\n')).not.toContain('「넷」');
+    expect(items.targets!.join('\n')).not.toContain('"넷"');
   });
 
   it('verify — 원본을 읽기 전엔 「확인 못 함, 대조 불가」로 싣는다(트리만으로는 판정 없음)', () => {
@@ -169,8 +169,8 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
     expect(v.targetClaims).toHaveLength(1);
     expect(v.targetClaims[0].status).toBe('unknown');
     const prompt = formatVerifiedForPrompt(v);
-    expect(prompt).toContain('짚은 요소 (DOM 값 — 레포 원본에서 확인 못 함, 대조 불가)');
-    expect(prompt).not.toContain('이 파일이 그린다');
+    expect(prompt).toContain('picked on screen (DOM values — not found in the repo source, cannot be matched)');
+    expect(prompt).not.toContain('rendered by');
     expect(prompt).toContain(TARGET.selector);
     const pr = formatVerifiedForPrBody(v);
     expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
@@ -186,7 +186,7 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
     const v = verifyContextItems(legacy, ['app/coupons/page.tsx']);
     expect(v.targetClaims).toEqual([]);
     const prompt = formatVerifiedForPrompt(v);
-    expect(prompt).toContain('짚은 요소 (DOM 값 — 레포 트리로는 대조 불가)');
+    expect(prompt).toContain('picked on screen (DOM values — cannot be matched against the repo tree)');
     expect(prompt).toContain(TARGET.selector);
     const pr = formatVerifiedForPrBody(v);
     expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
@@ -220,9 +220,9 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
       { owner: 'o', repo: 'r', sourcePaths: ['app/coupons/page.tsx'], truncated: false },
       { prompt: formatVerifiedForPrompt(v), prBody: '', hasMissing: false },
     );
-    expect(prompt).toContain('"화면에서 짚은 요소" 도 단서이지 근거가 아닙니다');
-    expect(prompt).toContain('억지로 맞추지 마세요');
-    expect(prompt).toContain('「쿠폰 받기」 버튼');
+    expect(prompt).toContain('"Element the reporter picked on screen" is also a clue, not evidence');
+    expect(prompt).toContain('do not force a match');
+    expect(prompt).toContain('"쿠폰 받기" button');
   });
 });
 
@@ -347,7 +347,7 @@ describe('I-55 — 큰 영역 라벨 · shot 필드', () => {
   it('프롬프트에 shot id 는 실리지 않는다 — 이미지는 LLM·PR 에 안 간다', () => {
     const shot = 'aaaaaaaa-1111-4111-8111-111111111111';
     const out = formatContextForPrompt({ target: { kind: '영역', tag: 'div', selector: 'main', heading: '쿠폰 목록', shot } });
-    expect(out).toContain('「쿠폰 목록」 구역');
+    expect(out).toContain('"쿠폰 목록" section');
     expect(out).not.toContain(shot);
   });
 });
@@ -713,10 +713,10 @@ describe('confirmTargetClaims — 후보를 읽어 판정을 올린다', () => {
       paths: DEMO_PATHS, readBlob: async (p) => (p.endsWith('RegionSelector.tsx') ? 'styles.pill 서울 종로' : 'nothing'),
     });
     const prompt = formatVerifiedForPrompt(v);
-    expect(prompt).toContain('레포 원본에서 확인됨, 이 파일이 그린다: app/components/RegionSelector.tsx');
-    expect(prompt).toContain("CSS 모듈 클래스 'pill'");
-    expect(prompt).not.toContain('원인'); // 「그린다」까지만 — 「원인이 여기 있다」는 말은 안 한다(PR #6)
-    expect(prompt).toContain('레포 원본에서 확인 못 함, 대조 불가'); // 두 번째 요소
+    expect(prompt).toContain('confirmed in the repo source, rendered by: app/components/RegionSelector.tsx');
+    expect(prompt).toContain("CSS module class 'pill'");
+    expect(prompt).not.toContain('cause'); // 「그린다」까지만 — 「원인이 여기 있다」는 말은 안 한다(PR #6)
+    expect(prompt).toContain('not found in the repo source, cannot be matched'); // 두 번째 요소
     const pr = formatVerifiedForPrBody(v);
     expect(pr).toContain('- Picked element: "서울 종로" button → `app/components/RegionSelector.tsx` renders it');
     expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");

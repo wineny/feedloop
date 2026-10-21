@@ -102,7 +102,7 @@ describe('truncatePatch', () => {
     const out = truncatePatch(long);
     expect(out.truncated).toBe(true);
     expect(out.patch!.startsWith('x'.repeat(PATCH_CHARS_MAX))).toBe(true);
-    expect(out.patch).toContain('이하 생략');
+    expect(out.patch).toContain('rest omitted');
   });
 });
 
