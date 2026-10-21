@@ -4,6 +4,7 @@
 // 그래서 "필수" 항목이 하나도 없다 — 아무것도 안 정해도 위젯은 멀쩡히 뜬다.
 
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -20,6 +21,7 @@ export default async function BotAppearancePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslations('bots.pages.appearance');
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -48,14 +50,14 @@ export default async function BotAppearancePage({
   return (
     <div className="flex flex-col gap-6">
       <PageHero
-        title="위젯 모양"
-        description={`${bot.service_name} 방문자가 보는 위젯의 이름·인사말·시작 질문·프로필·색을 정합니다`}
+        title={t('title')}
+        description={t('description', { name: bot.service_name })}
         actions={
           <Link
             href={`/bots/${bot.id}/connect`}
             className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
-            연결 화면으로 돌아가기
+            {t('back')}
           </Link>
         }
       />

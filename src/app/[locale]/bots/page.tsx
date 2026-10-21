@@ -3,19 +3,19 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import Link from 'next/link';
 import { headers } from 'next/headers';
+import { getTranslations } from 'next-intl/server';
+import { useTranslations } from 'next-intl';
 import { RiChat1Line, RiCustomerService2Line } from 'react-icons/ri';
 import { Button } from '@/components/ui/button';
 import { InstallResultBanner } from '@/components/github/InstallResultBanner';
 import { PageHero, PAGE_EMOJI } from '@/components/layout/PageHero';
 import { PrModeControl, type PrMode } from '@/components/bots/PrModeControl';
 import { DeleteBotButton } from '@/components/bots/DeleteBotButton';
-import { defaultGreeting, defaultOperatorName } from '@/lib/bot/appearance';
 import { knowledgeSize, type FaqItem } from '@/lib/bot/knowledge';
 import { isLlmProvider, PROVIDER_LABELS } from '@/lib/llm/models';
 import { effectiveModelId } from '@/lib/llm/key';
 import { DEFAULT_LIMITS, PLATFORM_MODEL_LABEL } from '@/lib/llm/limits';
 import { cn } from '@/lib/utils';
-import { sourceLabel } from '@/lib/channel/labels';
 import { ScopedBotRow, ScopedBotsSummary, ScopedWidgetSnippet } from '@/components/bots/ScopedBots';
 import { listAccessibleBots } from '@/lib/auth/ownership';
 import { APPROVER_BOT_COLUMNS, toApproverView, type ApproverBotView } from '@/lib/bot/bot-list';
@@ -126,30 +126,31 @@ function toView(row: BotRow): BotView {
   };
 }
 
-const demoBots: BotView[] = [
+function makeDemoBots(t: (key: string) => string): BotView[] {
+  return [
   {
     id: 'demo-bot-1',
     service_name: 'rona.so',
     service_url: 'https://rona.so',
-    service_description: 'rona.so 커뮤니티 피드백 수집 및 AI 분류',
+    service_description: t('list.demo.rona.description'),
     status: 'active',
     pr_mode: 'approve',
     github_repo_url: 'https://github.com/example/rona',
     widget_connected_at: '2026-03-25T09:10:00Z',
     last_active_at: null,
     channel_connected_at: null,
-    display_name: '로나',
-    greeting: '안녕하세요! 로나를 쓰다 불편한 점이 있으면 알려주세요.',
+    display_name: t('list.demo.rona.displayName'),
+    greeting: t('list.demo.rona.greeting'),
     operator_display_name: null,
-    knowledge_text: '로나는 실무형 AI 코칭 서비스입니다. 결제는 월 단위이고 환불은 7일 이내 전액입니다.',
+    knowledge_text: t('list.demo.rona.knowledge'),
     knowledge_faq: [
       {
-        q: '환불은 어떻게 하나요?',
-        a: '결제 7일 이내면 설정 > 결제에서 전액 환불됩니다.',
+        q: t('list.demo.rona.q1'),
+        a: t('list.demo.rona.a1'),
       },
       {
-        q: '코칭 시간은 언제인가요?',
-        a: '평일 오전 10시부터 오후 7시까지 예약할 수 있어요.',
+        q: t('list.demo.rona.q2'),
+        a: t('list.demo.rona.a2'),
       },
     ],
     llm_provider: 'anthropic',
@@ -168,9 +169,9 @@ const demoBots: BotView[] = [
   },
   {
     id: 'demo-bot-2',
-    service_name: 'Feedloop 테스트',
+    service_name: t('list.demo.test.name'),
     service_url: null,
-    service_description: '개발/테스트용',
+    service_description: t('list.demo.test.description'),
     status: 'pending',
     pr_mode: 'auto',
     github_repo_url: null,
@@ -195,18 +196,13 @@ const demoBots: BotView[] = [
     github_installation_lost_at: null,
     created_at: '2026-03-27T14:00:00Z',
   },
-];
+  ];
+}
 
-const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-const countFormatter = new Intl.NumberFormat('ko-KR');
-
+/** 2026-03-25 꼴 — 로캘과 무관하게 같은 모양 */
 function formatDate(value: string): string {
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '' : dateFormatter.format(d).replace(/\.\s?/g, '-').replace(/-$/, '');
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
 
 /** https://github.com/owner/repo → owner/repo */
@@ -227,25 +223,27 @@ function hostLabel(url: string): string {
 const PILL = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold leading-[1.45]';
 
 function StatusLabel({ status }: { status: string }) {
+  const t = useTranslations('bots.list');
   if (status === 'active') {
     // 잉크 채움 — 세그먼트 토글의 「선택됨」과 같은 문법. 이 행에서 코랄은 「연결됨」과 「다음 할 일」 둘만 뜻한다
-    return <span className={cn(PILL, 'bg-foreground text-background')}>활성</span>;
+    return <span className={cn(PILL, 'bg-foreground text-background')}>{t('status.active')}</span>;
   }
   if (status === 'pending') {
     // 회색 테두리 — 채움 없이 «아직» 임을 말한다. 글자는 muted 까지만(faint 는 안 읽힌다)
-    return <span className={cn(PILL, 'border border-border-strong text-muted-foreground')}>대기중</span>;
+    return <span className={cn(PILL, 'border border-border-strong text-muted-foreground')}>{t('status.pending')}</span>;
   }
-  return <span className={cn(PILL, 'border border-destructive/40 text-destructive')}>오류</span>;
+  return <span className={cn(PILL, 'border border-destructive/40 text-destructive')}>{t('status.error')}</span>;
 }
 
 /** 「키 확인 필요」 — 누르면 사유가 적힌 API 키 탭으로 바로 간다. */
 function KeyCheckBadge({ botId }: { botId: string }) {
+  const t = useTranslations('bots.list');
   return (
     <Link
       href={`/bots/${botId}/knowledge?tab=key`}
       className={cn(PILL, 'border border-destructive/40 bg-destructive/[0.06] text-destructive hover:bg-destructive/10')}
     >
-      키 확인 필요
+      {t('keyCheck')}
     </Link>
   );
 }
@@ -286,17 +284,19 @@ function hasInstallation(bot: BotView): boolean {
  * 둘을 나란히 두면 어느 계정 이름으로 PR 이 열릴지 이 줄만 보고는 알 수 없다.
  */
 function GithubConnectionStatus({ bot, isDemo }: { bot: BotView; isDemo: boolean }) {
-  const tokenTail = bot.github_token_last4 ? ` · 토큰 ····${bot.github_token_last4} 도 있음` : '';
+  const t = useTranslations('bots.list.gh');
+  const tl = useTranslations('bots.list');
+  const tokenTail = bot.github_token_last4 ? t('tokenAlso', { last4: bot.github_token_last4 }) : '';
 
   // 설치를 잃었으면 그게 먼저다 — 앱 경로가 죽어 있고, 남은 건 토큰이나 공용 계정이다
   if (bot.github_installation_lost_at) {
     return (
       <span className="text-sm">
-        <b className="font-semibold text-amber-700">GitHub 앱 확인 필요</b>
+        <b className="font-semibold text-amber-700">{tl('githubAppCheck')}</b>
         <span className="text-muted-foreground">
           {bot.github_token_last4 && !bot.github_token_failed_at
-            ? ` · 토큰 ····${bot.github_token_last4} 로 시도`
-            : ' · 공용 계정으로 시도'}
+            ? t('appLostToken', { last4: bot.github_token_last4 })
+            : t('appLostShared')}
         </span>
       </span>
     );
@@ -305,13 +305,13 @@ function GithubConnectionStatus({ bot, isDemo }: { bot: BotView; isDemo: boolean
   if (hasInstallation(bot)) {
     return (
       <span className="text-sm text-muted-foreground">
-        Feedloop 앱{bot.github_installation_login ? ` · @${bot.github_installation_login}` : ''}
+        {t('appName')}{bot.github_installation_login ? ` · @${bot.github_installation_login}` : ''}
         {tokenTail}{' '}
         {isDemo ? (
-          <span className="whitespace-nowrap font-semibold text-faint">설치 관리 →</span>
+          <span className="whitespace-nowrap font-semibold text-faint">{t('manage')}</span>
         ) : (
           <Link href={`/bots/${bot.id}/knowledge?tab=github`} className="whitespace-nowrap font-semibold hover:underline">
-            설치 관리 →
+            {t('manage')}
           </Link>
         )}
       </span>
@@ -326,14 +326,15 @@ function GithubConnectionStatus({ bot, isDemo }: { bot: BotView; isDemo: boolean
  * 실패했으면 그게 먼저다. 토큰이 없으면 공용 계정이고, 그건 초대된 레포에서만 되므로 다음 할 일(코랄)이다.
  */
 function GithubTokenStatus({ bot, isDemo }: { bot: BotView; isDemo: boolean }) {
+  const t = useTranslations('bots.list.gh');
   if (bot.github_token_failed_at) {
-    return <span className="text-sm font-semibold text-destructive">GitHub 토큰 확인 필요</span>;
+    return <span className="text-sm font-semibold text-destructive">{t('tokenFailed')}</span>;
   }
   if (bot.github_token_last4) {
     return (
       <span className="text-sm text-muted-foreground">
-        내 GitHub 토큰 ····{bot.github_token_last4}
-        {bot.github_token_broad && <span className="ml-1.5 text-amber-700">· 계정 전체 권한</span>}
+        {t('myToken', { last4: bot.github_token_last4 })}
+        {bot.github_token_broad && <span className="ml-1.5 text-amber-700">{t('broad')}</span>}
       </span>
     );
   }
@@ -341,12 +342,12 @@ function GithubTokenStatus({ bot, isDemo }: { bot: BotView; isDemo: boolean }) {
   // 토큰은 대안으로 남아 있고, 링크 하나가 둘 다로 데려간다.
   return (
     <span className="text-sm text-muted-foreground">
-      공용 계정으로 시도 · 초대된 저장소만{' '}
+      {t('shared')}{' '}
       {isDemo ? (
-        <span className="whitespace-nowrap font-semibold text-brand-strong/60">GitHub 연결하기 →</span>
+        <span className="whitespace-nowrap font-semibold text-brand-strong/60">{t('connect')}</span>
       ) : (
         <Link href={`/bots/${bot.id}/knowledge?tab=github`} className="whitespace-nowrap font-semibold text-brand-strong hover:underline">
-          GitHub 연결하기 →
+          {t('connect')}
         </Link>
       )}
     </span>
@@ -358,6 +359,7 @@ function GithubTokenStatus({ bot, isDemo }: { bot: BotView; isDemo: boolean }) {
  * 상태 열의 무게는 크기가 아니라 굵기로 준다. 「연결됨」은 코랄 옅은 채움, 「미연결」은 회색 테두리.
  */
 function Channel({ icon, label, on }: { icon: React.ReactNode; label: string; on: boolean }) {
+  const t = useTranslations('bots.list.channel');
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold">
       <span className="text-muted-foreground">{icon}</span>
@@ -365,10 +367,10 @@ function Channel({ icon, label, on }: { icon: React.ReactNode; label: string; on
       {on ? (
         <span className={cn(PILL, 'bg-brand-subtle text-brand-strong')}>
           <i className="block h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
-          연결됨
+          {t('on')}
         </span>
       ) : (
-        <span className={cn(PILL, 'border border-border text-muted-foreground')}>미연결</span>
+        <span className={cn(PILL, 'border border-border text-muted-foreground')}>{t('off')}</span>
       )}
     </span>
   );
@@ -438,6 +440,8 @@ function SettingsLink({ href, disabled, children }: { href: string; disabled?: b
  * place they can act: the inbox. No settings links, no delete, nothing the owner configures.
  */
 function ApproverRow({ bot }: { bot: ApproverBotView }) {
+  const t = useTranslations('bots.list');
+  const src = useTranslations('common.channels.source');
   const webOn = Boolean(bot.widget_connected_at);
   const channelOn = Boolean(bot.channel_connected_at);
   return (
@@ -446,32 +450,31 @@ function ApproverRow({ bot }: { bot: ApproverBotView }) {
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <h2 className="break-words text-xl font-bold leading-[1.2] tracking-[-0.02em]">{bot.service_name}</h2>
           <StatusLabel status={bot.status} />
-          <span className={cn(PILL, 'bg-muted text-muted-foreground')}>Approver</span>
+          <span className={cn(PILL, 'bg-muted text-muted-foreground')}>{t('approverBadge')}</span>
         </div>
         <p className="mt-1.5 truncate text-[12.5px] leading-[1.45] text-muted-foreground">
-          {bot.service_url ? hostLabel(bot.service_url) : bot.service_description || '서비스 주소 없음'}
+          {bot.service_url ? hostLabel(bot.service_url) : bot.service_description || t('noUrl')}
           <span className="mx-1.5">·</span>
-          등록 {formatDate(bot.created_at)}
+          {t('registered', { date: formatDate(bot.created_at) })}
         </p>
       </div>
       <div className="grid gap-x-8 gap-y-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <Cell title="입구">
+        <Cell title={t('cell.entrances')}>
           <div className="flex flex-col gap-1.5">
-            <Channel icon={<RiChat1Line className="h-4 w-4" aria-hidden />} label={sourceLabel('web')} on={webOn} />
-            <Channel icon={<RiCustomerService2Line className="h-4 w-4" aria-hidden />} label={sourceLabel('channel')} on={channelOn} />
+            <Channel icon={<RiChat1Line className="h-4 w-4" aria-hidden />} label={src('web')} on={webOn} />
+            <Channel icon={<RiCustomerService2Line className="h-4 w-4" aria-hidden />} label={src('channel')} on={channelOn} />
           </div>
         </Cell>
         <Cell
-          title="내 역할"
+          title={t('cell.myRole')}
           action={
             <CellAction href="/inbox" next>
-              받은편지함 열기
+              {t('openInbox')}
             </CellAction>
           }
         >
           <span className="text-sm text-muted-foreground">
-            You approve or reject this bot&apos;s refund requests in the inbox. Replies, settings and the API key stay
-            with the owner.
+            {t('approverNote')}
           </span>
         </Cell>
       </div>
@@ -491,22 +494,23 @@ function Cell({ title, action, children }: { title: string; action?: React.React
 
 /** 「API 키」 한 줄 — 누구 돈으로 답하는지. 실패했으면 그게 먼저다 */
 function LlmKeyStatus({ bot }: { bot: BotView }) {
+  const t = useTranslations('bots.list.key');
   if (bot.llm_key_failed_at) {
-    return <span className="text-sm font-semibold text-destructive">API 키 확인 필요</span>;
+    return <span className="text-sm font-semibold text-destructive">{t('check')}</span>;
   }
   // 아래 순서는 `resolveLimit` 과 «같다» — daily_reply_limit 예외가 걸린 봇은 provider·키
   // 유무와 무관하게 그 값이 이긴다. 키 분기를 먼저 보면 예외 적용 봇이 키 문구에 걸려
   // 상한을 영영 말하지 못한다.
   const key =
     bot.hasLlmKey && isLlmProvider(bot.llm_provider)
-      ? `내 키 · ${PROVIDER_LABELS[bot.llm_provider]} ${effectiveModelId(bot.llm_provider, bot.llm_model)}`
+      ? t('own', { provider: PROVIDER_LABELS[bot.llm_provider], model: effectiveModelId(bot.llm_provider, bot.llm_model) })
       : null;
 
   if (bot.daily_reply_limit != null) {
     // 예외가 상한을 정하지만 「누구 돈으로」는 여전히 키가 정한다 — 둘 다 사실이라 함께 둔다.
     return (
       <span className="truncate text-sm text-muted-foreground">
-        하루 {countFormatter.format(bot.daily_reply_limit)}건 · 예외 적용{key ? ` · ${key}` : ''}
+        {t('exception', { count: bot.daily_reply_limit, key: key ? ` · ${key}` : '' })}
       </span>
     );
   }
@@ -515,7 +519,7 @@ function LlmKeyStatus({ bot }: { bot: BotView }) {
   }
   return (
     <span className="text-sm text-muted-foreground">
-      무료 {DEFAULT_LIMITS.noKey}건/일 · {PLATFORM_MODEL_LABEL}
+      {t('free', { count: DEFAULT_LIMITS.noKey, model: PLATFORM_MODEL_LABEL })}
     </span>
   );
 }
@@ -523,12 +527,15 @@ function LlmKeyStatus({ bot }: { bot: BotView }) {
 export default async function BotsPage({ searchParams }: { searchParams: Promise<{ app?: string | string[] }> }) {
   // 설치 콜백이 «어느 봇인지 못 정한 채» 돌아오면 여기로 온다. 이 값을 안 읽으면 운영자는 아무 안내도 못 받는다(코드 리뷰 HIGH)
   const { app } = await searchParams;
+  const t = await getTranslations('bots.list');
+  const src = await getTranslations('common.channels.source');
+  const tm = await getTranslations('bots');
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id ?? null;
   const isDemo = !userId;
 
   // 사용자 소유의 봇(설정 전부) + 승인자로 참여한 봇(bot_members — PayPal 해커톤 데모 봇; 축소 뷰)
-  let bots: BotView[] = demoBots;
+  let bots: BotView[] = makeDemoBots((k) => tm(k));
   // bots this user only approves for: read with the short column list, drawn as a compact row with no
   // settings — knowledge, key tail, GitHub and the owner's id never leave the database for them (6/6)
   let approverBots: ApproverBotView[] = [];
@@ -584,10 +591,10 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
   const totalCount = bots.length + approverBots.length;
 
   const registerButton = isDemo ? (
-    <Button disabled>새 서비스 등록</Button>
+    <Button disabled>{t('registerNew')}</Button>
   ) : (
     <Button asChild>
-      <Link href="/bots/new">새 서비스 등록</Link>
+      <Link href="/bots/new">{t('registerNew')}</Link>
     </Button>
   );
   const heroActions = (
@@ -602,7 +609,7 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
       <InstallResultBanner app={app} />
       <PageHero
         emoji={PAGE_EMOJI.bots}
-        title="챗봇 설정"
+        title={tm('title')}
         description={<ScopedBotsSummary total={totalCount} receiving={receivingCount} />}
         actions={heroActions}
       />
@@ -613,11 +620,11 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/emoji/rocket_3d.png" alt="" aria-hidden width={56} height={56} className="h-14 w-14" />
           <p className="text-sm leading-relaxed text-muted-foreground">
-            서비스를 등록하고 스크립트 한 줄을 붙이면 피드백이 들어오기 시작해요
+            {t('emptyText')}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button asChild>
-              <Link href="/bots/new">서비스 등록하기</Link>
+              <Link href="/bots/new">{t('registerService')}</Link>
             </Button>
             {canJoinDemo && <TryDemoBotButton />}
           </div>
@@ -659,26 +666,26 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                           알아채지 못하면 조용히 답이 안 나가는 상태가 이어진다 — 이름 옆에 한 번 더 띄운다 */}
                       {bot.llm_key_failed_at && !isDemo && <KeyCheckBadge botId={bot.id} />}
                       {bot.github_token_failed_at && !isDemo && (
-                        <GithubCheckBadge botId={bot.id} label="GitHub 토큰 확인 필요" tone="token" />
+                        <GithubCheckBadge botId={bot.id} label={t('githubTokenCheck')} tone="token" />
                       )}
                       {bot.github_installation_lost_at && !isDemo && (
-                        <GithubCheckBadge botId={bot.id} label="GitHub 앱 확인 필요" tone="app" />
+                        <GithubCheckBadge botId={bot.id} label={t('githubAppCheck')} tone="app" />
                       )}
                     </div>
                     <p className="mt-1.5 truncate text-[12.5px] leading-[1.45] text-muted-foreground">
-                      {bot.service_url ? hostLabel(bot.service_url) : bot.service_description || '서비스 주소 없음'}
+                      {bot.service_url ? hostLabel(bot.service_url) : bot.service_description || t('noUrl')}
                       <span className="mx-1.5">·</span>
-                      등록 {formatDate(bot.created_at)}
+                      {t('registered', { date: formatDate(bot.created_at) })}
                     </p>
                   </div>
 
                   {/* 입구 — 어디서 피드백이 들어오는지. 왼쪽 300 에 15px 로 두어 ① 을 먼저 읽게 한다.
                       링크는 스크립트 발급·오픈빌더 안내 화면 */}
                   <Cell
-                    title="입구"
+                    title={t('cell.entrances')}
                     action={
                       <CellAction href={`/bots/${bot.id}/connect`} next={!anyOn} disabled={isDemo}>
-                        연결 설정하기
+                        {t('setupConnection')}
                       </CellAction>
                     }
                   >
@@ -687,21 +694,21 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                         붙이라는 말이 된다. 라벨은 공용 맵(lib/channel/labels.ts).
                         순서는 연결 화면 갈림길과 같다 */}
                     <div className="flex flex-col gap-1.5">
-                      <Channel icon={<RiChat1Line className="h-4 w-4" aria-hidden />} label={sourceLabel('web')} on={webOn} />
+                      <Channel icon={<RiChat1Line className="h-4 w-4" aria-hidden />} label={src('web')} on={webOn} />
                       <Channel
                         icon={<RiCustomerService2Line className="h-4 w-4" aria-hidden />}
-                        label={sourceLabel('channel')}
+                        label={src('channel')}
                         on={channelOn}
                       />
                     </div>
-                    {!anyOn && <Hint>아직 들어올 길이 없어요. 스크립트 한 줄을 붙이면 됩니다</Hint>}
+                    {!anyOn && <Hint>{t('noEntrance')}</Hint>}
                   </Cell>
 
                   {/* 나머지 3칸 — 한 번 정하면 잘 안 바뀌는 것(레포·모양)과 답변의 근거(지식·키) */}
                   <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 md:grid-cols-3">
                     {/* 고칠 레포 — 이 칸의 행동은 PR 모드 토글이라 링크가 따로 없다.
                         레포 URL 은 등록 뒤 고치는 화면이 아직 없다(제품 공백) — 그래서 「없음」 안내만 하고 코랄 링크를 만들지 않는다 */}
-                    <Cell title="고칠 저장소">
+                    <Cell title={t('cell.repo')}>
                       {bot.github_repo_url ? (
                         <a
                           href={bot.github_repo_url}
@@ -712,7 +719,7 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                           {repoLabel(bot.github_repo_url)}
                         </a>
                       ) : (
-                        <Hint>저장소가 없어 수정안을 만들지 않아요. 피드백 분류까지만 합니다</Hint>
+                        <Hint>{t('noRepo')}</Hint>
                       )}
                       {/* 어느 GitHub 계정으로 PR 을 여는지 (앱 설치 → 봇 토큰 → 공용). 레포가 있을 때만 뜻이 있다 */}
                       {bot.github_repo_url && <GithubConnectionStatus bot={bot} isDemo={isDemo} />}
@@ -726,49 +733,47 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
 
                     {/* 위젯 모양 — 방문자 눈에 보이는 이름·인사말. 링크는 편집 화면 */}
                     <Cell
-                      title="위젯 모양"
+                      title={t('cell.appearance')}
                       action={
                         <CellAction href={`/bots/${bot.id}/appearance`} disabled={isDemo}>
-                          모양 바꾸기
+                          {t('changeAppearance')}
                         </CellAction>
                       }
                     >
                       <span className="truncate text-sm">
                         <b className="font-semibold">{displayName}</b>
                         <span className="text-muted-foreground">
-                          {' '}
-                          · 답장 {bot.operator_display_name || defaultOperatorName(displayName)}
+                          {t('replyAs', { name: bot.operator_display_name || tm('defaults.operatorName', { name: displayName }) })}
                         </span>
                       </span>
                       <span className="line-clamp-2 text-sm text-muted-foreground">
-                        {bot.greeting ? `“${bot.greeting}”` : `기본 인사말 “${defaultGreeting(displayName)}”`}
+                        {bot.greeting ? t('customGreeting', { text: bot.greeting }) : t('defaultGreeting', { text: tm('defaults.greeting', { name: displayName }) })}
                       </span>
                     </Cell>
 
                     {/* 답변 지식 — 봇이 무엇을 근거로(지식), 누구 돈으로(API 키) 답하는지. 링크는 지식·키 화면 */}
                     <Cell
-                      title="답변 지식"
+                      title={t('cell.knowledge')}
                       action={
                         <CellAction
                           href={knowledgeHref}
                           next={knowledgeEmpty || Boolean(bot.llm_key_failed_at)}
                           disabled={isDemo}
                         >
-                          {bot.llm_key_failed_at ? '키 확인하기' : knowledgeEmpty ? '지식 넣기' : '지식·키 설정'}
+                          {bot.llm_key_failed_at ? t('checkKey') : knowledgeEmpty ? t('addKnowledge') : t('knowledgeKey')}
                         </CellAction>
                       }
                     >
                       {knowledgeEmpty ? (
-                        <Hint>아직 지식이 없어요. 넣으면 근거를 갖고 답합니다</Hint>
+                        <Hint>{t('noKnowledge')}</Hint>
                       ) : (
                         // 이 칸만 큰 숫자 — 지식의 양이 곧 답변의 근거이자 호출 1건의 비용이다
                         <span className="flex items-baseline gap-2">
                           <span className="text-[20px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">
-                            {countFormatter.format(knowledgeChars)}
-                            <span className="ml-0.5 text-sm font-semibold tracking-normal text-muted-foreground">자</span>
+                            {t.rich('chars', { count: knowledgeChars, small: (c) => <span className="ml-0.5 text-sm font-semibold tracking-normal text-muted-foreground">{c}</span> })}
                           </span>
                           <span className="text-[12.5px] text-muted-foreground">
-                            FAQ <span className="tabular-nums">{faqCount}</span>개
+                            {t.rich('faq', { count: faqCount, n: (c) => <span className="tabular-nums">{c}</span> })}
                           </span>
                         </span>
                       )}
@@ -780,12 +785,12 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                       이 줄은 «이 서비스에 대해 할 수 있는 일 전부»를 한 곳에서 훑는 자리다.
                       삭제는 이 줄에만 있다 — 칸 안에 두면 「지식 넣기」 옆에서 눌릴 자리가 된다 */}
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5 border-t border-border pt-4 text-sm lg:col-span-2">
-                    <span className="text-[12.5px] font-semibold text-muted-foreground">설정</span>
-                    <SettingsLink href={`/bots/${bot.id}/connect`} disabled={isDemo}>연결</SettingsLink>
-                    <SettingsLink href={`/bots/${bot.id}/appearance`} disabled={isDemo}>위젯 모양</SettingsLink>
-                    <SettingsLink href={`/bots/${bot.id}/knowledge`} disabled={isDemo}>답변 지식</SettingsLink>
-                    <SettingsLink href={`/bots/${bot.id}/knowledge?tab=key`} disabled={isDemo}>API 키</SettingsLink>
-                    <SettingsLink href={`/bots/${bot.id}/knowledge?tab=github`} disabled={isDemo}>GitHub 연결</SettingsLink>
+                    <span className="text-[12.5px] font-semibold text-muted-foreground">{t('settings.label')}</span>
+                    <SettingsLink href={`/bots/${bot.id}/connect`} disabled={isDemo}>{t('settings.connection')}</SettingsLink>
+                    <SettingsLink href={`/bots/${bot.id}/appearance`} disabled={isDemo}>{t('settings.appearance')}</SettingsLink>
+                    <SettingsLink href={`/bots/${bot.id}/knowledge`} disabled={isDemo}>{t('settings.knowledge')}</SettingsLink>
+                    <SettingsLink href={`/bots/${bot.id}/knowledge?tab=key`} disabled={isDemo}>{t('settings.key')}</SettingsLink>
+                    <SettingsLink href={`/bots/${bot.id}/knowledge?tab=github`} disabled={isDemo}>{t('settings.github')}</SettingsLink>
                     <div className="ml-auto flex min-w-0 basis-full justify-end sm:basis-auto">
                       <DeleteBotButton botId={bot.id} serviceName={bot.service_name} disabled={isDemo} />
                     </div>

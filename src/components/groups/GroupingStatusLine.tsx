@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { DemoHint } from '@/components/demo/DemoHint';
 
@@ -20,6 +21,22 @@ interface GroupingStatusLineProps {
   /** 예정·진행 중이면 이 간격으로 부모에게 다시 읽으라고 한다. 기본 10초. */
   onRefresh?: () => void | Promise<void>;
   refreshMs?: number;
+}
+
+/** 화면용 — 같은 판정을 사전 키(`dashboard.grouping.<key>`)와 인자로 돌려준다. describeGroupingStatus 와 갈라지지 않게 같이 고친다 */
+export function groupingStatusMessage(
+  status: GroupingStatus,
+  now = Date.now(),
+): { key: 'none' | 'running' | 'due' | 'soon' | 'idle'; vars: { count: number; secs?: number }; waiting: boolean } {
+  const count = status.pending;
+  if (count === 0) return { key: 'none', vars: { count }, waiting: false };
+  if (status.running) return { key: 'running', vars: { count }, waiting: true };
+  const dueMs = status.dueAt ? new Date(status.dueAt).getTime() - now : NaN;
+  if (Number.isFinite(dueMs) && dueMs > 0) {
+    return { key: 'due', vars: { count, secs: Math.max(5, Math.round(dueMs / 5000) * 5) }, waiting: true };
+  }
+  if (Number.isFinite(dueMs) && dueMs > -30_000) return { key: 'soon', vars: { count }, waiting: true };
+  return { key: 'idle', vars: { count }, waiting: false };
 }
 
 /** 순수 함수 — 테스트한다. 상태를 한 문장으로. */
@@ -41,10 +58,12 @@ export function describeGroupingStatus(status: GroupingStatus, now = Date.now())
 }
 
 export function GroupingStatusLine({ status, onRunNow, running, hint = null, onRefresh, refreshMs = 10_000 }: GroupingStatusLineProps) {
+  const t = useTranslations('dashboard.grouping');
   const [now, setNow] = useState(() => Date.now());
 
   // 상태를 못 읽었으면(마이그레이션이 늦은 배포 등) 문장은 없지만 [지금 묶기]는 살아 있어야 한다.
-  const described = status ? describeGroupingStatus(status, now) : { text: '묶기 상태를 읽지 못했어요', waiting: false };
+  const msg = status ? groupingStatusMessage(status, now) : null;
+  const described = { text: msg ? t(msg.key, msg.vars) : t('unreadable'), waiting: msg?.waiting ?? false };
   const waiting = described.waiting;
 
   // 「약 N초 뒤」가 멈춘 숫자로 보이지 않게 5초마다 다시 센다 — 기다리는 동안만.
@@ -91,7 +110,7 @@ export function GroupingStatusLine({ status, onRunNow, running, hint = null, onR
             className="inline-flex items-center gap-1 text-sm font-semibold text-brand-strong disabled:opacity-50"
           >
             {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Layers className="h-3.5 w-3.5" aria-hidden />}
-            지금 묶기
+            {t('runNow')}
           </button>
         </span>
       )}

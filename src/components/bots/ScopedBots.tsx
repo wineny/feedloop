@@ -12,6 +12,7 @@
 //    새는 정보는 없다. 대신 행 자체를 DOM 에서 빼서(null 반환) 스크린리더와 Ctrl+F 가
 //    안 보이는 행을 읽지 않게 한다.
 
+import { useTranslations } from 'next-intl';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 import { SectionTitle } from '@/components/layout/SectionTitle';
 import { CopySnippetButton } from '@/components/bots/CopySnippetButton';
@@ -51,26 +52,17 @@ export function ScopedBotsSummary({
   total: number;
   receiving: number;
 }) {
+  const t = useTranslations('bots.scoped');
   const { botId: selected, current, bots, loaded } = useBotScope();
   const filtering = Boolean(selected) && (!loaded || bots.some((b) => b.id === selected));
 
-  if (total === 0) return <>서비스 0개</>;
+  if (total === 0) return <>{t('zero')}</>;
 
   if (filtering && current) {
-    return (
-      <>
-        <b className="font-semibold text-foreground">{current.service_name}</b>만 보는 중 · 전체{' '}
-        <strong className="tabular-nums">{total}개</strong>
-      </>
-    );
+    return <>{t.rich('only', { name: current.service_name, total, b: (c) => <b className="font-semibold text-foreground">{c}</b>, strong: (c) => <strong className="tabular-nums">{c}</strong> })}</>;
   }
 
-  return (
-    <>
-      서비스 <strong className="tabular-nums">{total}개</strong> · 들어오는 중{' '}
-      <strong className="tabular-nums">{receiving}개</strong>
-    </>
-  );
+  return <>{t.rich('summary', { total, receiving, strong: (c) => <strong className="tabular-nums">{c}</strong> })}</>;
 }
 
 /**
@@ -89,6 +81,7 @@ export function ScopedWidgetSnippet({
   baseUrl: string;
   isDemo: boolean;
 }) {
+  const t = useTranslations('bots.scoped');
   const { botId: selected, bots: scopeBots, loaded } = useBotScope();
   const filtering = Boolean(selected) && (!loaded || scopeBots.some((b) => b.id === selected));
   const target = (filtering ? bots.find((b) => b.id === selected) : undefined) ?? bots[0];
@@ -98,20 +91,20 @@ export function ScopedWidgetSnippet({
   // 하나만 보는 중이면 「다른 서비스는 각 행에서」가 가리킬 행이 화면에 없다 — 그 말을 뺀다.
   const sub =
     !filtering && bots.length > 1
-      ? `${target.service_name} 전용 · 다른 서비스는 각 행의 「연결 설정하기」에서`
-      : `${target.service_name} · 서비스 <body> 끝에 한 줄`;
+      ? t('subOnly', { name: target.service_name })
+      : t('subAll', { name: target.service_name, body: '<body>' });
 
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <SectionTitle sub={sub}>위젯 스크립트</SectionTitle>
+        <SectionTitle sub={sub}>{t('snippetTitle')}</SectionTitle>
         {!isDemo && <CopySnippetButton text={snippet} />}
       </div>
       <code className="block overflow-x-auto whitespace-nowrap rounded-2xl border border-border bg-card px-5 py-4 font-mono text-[12.5px] leading-relaxed text-foreground">
         {snippet}
       </code>
       <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
-        붙이고 첫 방문자가 위젯을 열면 「연결됨」으로 바뀝니다. 위젯 모양을 바꾸면 반영에 1~2분 걸려요.
+        {t('snippetNote')}
       </p>
     </section>
   );

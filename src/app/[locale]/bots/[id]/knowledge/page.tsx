@@ -8,6 +8,7 @@
 // 탭 3 「GitHub」(B5) — 수정 PR 을 어느 계정으로 여는지. components/onboarding/GithubTokenForm.tsx.
 
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -32,6 +33,7 @@ export default async function BotKnowledgePage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
+  const t = await getTranslations('bots.pages.knowledge');
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -54,14 +56,14 @@ export default async function BotKnowledgePage({
   return (
     <div className="flex flex-col gap-6">
       <PageHero
-        title="답변 지식"
-        description={`${bot.service_name} 봇이 무엇을 근거로 답할지 정합니다. 여기 없는 내용은 지어내지 않고 사람에게 넘겨요`}
+        title={t('title')}
+        description={t('description', { name: bot.service_name })}
         actions={
           <Link
             href="/bots"
             className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
-            챗봇 설정으로 돌아가기
+            {t('back')}
           </Link>
         }
       />
@@ -71,9 +73,9 @@ export default async function BotKnowledgePage({
           «지금 보고 있는 탭»과 같아진다. 서버 왕복 없이 주소창만 고친다(UrlSyncedTabs 주석 참고). */}
       <UrlSyncedTabs defaultValue={tab === 'key' ? 'key' : tab === 'github' ? 'github' : 'knowledge'} className="gap-6">
         <TabsList variant="line" className={LINE_TABS_LIST}>
-          <TabsTrigger value="knowledge" className={LINE_TAB}>답변 지식</TabsTrigger>
-          <TabsTrigger value="key" className={LINE_TAB}>API 키</TabsTrigger>
-          <TabsTrigger value="github" className={LINE_TAB}>GitHub</TabsTrigger>
+          <TabsTrigger value="knowledge" className={LINE_TAB}>{t('tabKnowledge')}</TabsTrigger>
+          <TabsTrigger value="key" className={LINE_TAB}>{t('tabKey')}</TabsTrigger>
+          <TabsTrigger value="github" className={LINE_TAB}>{t('tabGithub')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="knowledge">

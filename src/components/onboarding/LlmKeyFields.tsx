@@ -14,7 +14,9 @@
 // 오류 문구를 prop 으로 받게 하면 두 부모가 서로 다른 문장을 띄울 수 있다.
 // 부모는 같은 함수를 한 번 더 불러 «버튼을 잠글지»만 정한다.
 
+import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
+import { validationText } from '@/lib/i18n/message';
 import { cn } from '@/lib/utils';
 import {
   LLM_PROVIDERS,
@@ -58,6 +60,8 @@ export function LlmKeyFields({
   onCustomModelChange,
   onApiKeyChange,
 }: LlmKeyFieldsProps) {
+  const t = useTranslations('llm');
+  const tv = useTranslations();
   const modelCheck = validateModelId(draftModelValue(modelChoice, customModel));
   const keyCheck = checkKeyFormat(provider, apiKey);
 
@@ -74,10 +78,10 @@ export function LlmKeyFields({
   return (
     <div className={cn('flex flex-col', compact ? 'gap-4' : 'gap-6')}>
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold">1. 어디 모델을 쓸까요</h2>
+        <h2 className="text-sm font-semibold">{t('fields.step1')}</h2>
         <div
           role="radiogroup"
-          aria-label="AI 제공사"
+          aria-label={t('fields.providerLabel')}
           className="inline-flex flex-wrap rounded-full border border-border-strong p-0.5"
         >
           {LLM_PROVIDERS.map((p) => (
@@ -102,7 +106,7 @@ export function LlmKeyFields({
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold">2. 어떤 모델로</h2>
+        <h2 className="text-sm font-semibold">{t('fields.step2')}</h2>
         <ModelPicker
           provider={provider}
           choice={modelChoice}
@@ -111,26 +115,25 @@ export function LlmKeyFields({
           onChoice={onModelChoiceChange}
           onCustom={onCustomModelChange}
         />
-        {!modelCheck.ok && <p className="text-xs text-destructive">{modelCheck.error}</p>}
+        {!modelCheck.ok && <p className="text-xs text-destructive">{validationText(tv, modelCheck)}</p>}
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold">3. API 키</h2>
+        <h2 className="text-sm font-semibold">{t('fields.step3')}</h2>
         <Input
           type="password"
           value={apiKey}
           disabled={disabled}
           onChange={(e) => onApiKeyChange(e.target.value)}
-          placeholder={`${PROVIDER_LABELS[provider]} API 키를 붙여넣으세요`}
+          placeholder={t('fields.providerKeyPlaceholder', { provider: PROVIDER_LABELS[provider] })}
           autoComplete="off"
           spellCheck={false}
-          aria-label="API 키"
+          aria-label={t('fields.keyLabel')}
         />
         <p className="text-[13px] leading-relaxed text-muted-foreground">
-          저장하기 전에 {PROVIDER_LABELS[provider]}에 한 번 물어봐서 실제로 통하는 키인지
-          확인합니다. 저장한 뒤에는 마지막 4자만 보이고, 원문은 어떤 화면에도 다시 나오지 않아요.
+          {t('fields.keyNote', { provider: PROVIDER_LABELS[provider] })}
         </p>
-        {apiKey && !keyCheck.ok && <p className="text-xs text-destructive">{keyCheck.error}</p>}
+        {apiKey && !keyCheck.ok && <p className="text-xs text-destructive">{validationText(tv, keyCheck)}</p>}
       </section>
     </div>
   );
@@ -142,6 +145,9 @@ export function LlmKeyFields({
  * 목록은 **닫힌 집합이 아니다** — provider 가 새 모델을 내면 우리 배포를 기다리게 할 수
  * 없으므로 「직접 입력」을 함께 둔다. 그 대가(저장 시 이름 확인 불가)는 화면이 정직하게 말한다.
  */
+/** 모델 id 의 `.` 은 사전 키에서 경로 구분자라 `_` 로 바꾼다 */
+const modelKey = (id: string) => id.replace(/\./g, '_');
+
 export function ModelPicker({
   provider,
   choice,
@@ -157,24 +163,25 @@ export function ModelPicker({
   onChoice: (v: string) => void;
   onCustom: (v: string) => void;
 }) {
+  const t = useTranslations('llm');
   return (
     <div className="space-y-2">
       <select
         value={choice}
         disabled={disabled}
         onChange={(e) => onChoice(e.target.value)}
-        aria-label="모델"
+        aria-label={t('fields.modelLabel')}
         className="h-10 w-full max-w-md rounded-[10px] border border-border-strong bg-background px-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <option value="">자동 — 추천 모델({modelLabel(provider, RECOMMENDED[provider])})을 씁니다</option>
+        <option value="">{t('fields.auto', { model: modelLabel(provider, RECOMMENDED[provider]) })}</option>
         {MODELS[provider].map((m) => (
           <option key={m.id} value={m.id}>
             {m.label}
-            {m.id === RECOMMENDED[provider] ? ' · 추천' : ''}
-            {m.note ? ` — ${m.note}` : ''}
+            {m.id === RECOMMENDED[provider] ? ` · ${t('fields.recommended')}` : ''}
+            {m.note ? ` — ${t.has(`models.${modelKey(m.id)}`) ? t(`models.${modelKey(m.id)}`) : m.note}` : ''}
           </option>
         ))}
-        <option value={CUSTOM_MODEL}>직접 입력…</option>
+        <option value={CUSTOM_MODEL}>{t('fields.custom')}</option>
       </select>
 
       {choice === CUSTOM_MODEL && (
@@ -183,15 +190,14 @@ export function ModelPicker({
             value={custom}
             disabled={disabled}
             onChange={(e) => onCustom(e.target.value)}
-            placeholder="예: gemini-3.8-flash"
+            placeholder={t('fields.customPlaceholder')}
             autoComplete="off"
             spellCheck={false}
-            aria-label="직접 입력한 모델 이름"
+            aria-label={t('fields.customLabel')}
             className="max-w-md"
           />
           <p className="text-xs leading-relaxed text-muted-foreground">
-            목록에 없는 모델도 쓸 수 있어요. 대신 이름이 맞는지는 저장할 때 확인하지 못합니다 —
-            잘못된 이름이면 첫 답변에서 실패로 표시돼요.
+            {t('fields.customNote')}
           </p>
         </>
       )}

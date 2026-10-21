@@ -13,6 +13,23 @@
  *
  * @param now 비교 기준. 테스트가 「오늘」을 고정하려고 넘긴다
  */
+export type LastFeedbackParts =
+  | { kind: 'none' }
+  | { kind: 'invalid' }
+  | { kind: 'today' | 'yesterday' | 'date'; at: Date };
+
+/** 화면용 — 문구는 사전(`connect.lastFeedback.<kind>`)이 쓰고, 여기서는 오늘·어제·그 전을 가르기만 한다 */
+export function lastFeedbackParts(iso: string | null, now: Date = new Date()): LastFeedbackParts {
+  if (!iso) return { kind: 'none' };
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return { kind: 'invalid' };
+  const day = kstDayNumber(at);
+  const today = kstDayNumber(now);
+  if (day === today) return { kind: 'today', at };
+  if (day === today - 1) return { kind: 'yesterday', at };
+  return { kind: 'date', at };
+}
+
 export function lastFeedbackLabel(iso: string | null, now: Date = new Date()): string {
   if (!iso) return '아직 들어온 피드백이 없어요';
 

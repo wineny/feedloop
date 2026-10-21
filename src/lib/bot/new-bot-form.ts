@@ -8,6 +8,7 @@
 // 등록값은 `lib/bot/registration.ts`, 키·모델은 `api/bots/[id]/llm-key` 가 판정한다.
 // 여기서 통과한 키가 «실제로 통하는» 키인지는 저 라우트의 provider 실호출만 안다.
 
+import { i18nMessage, validationMessage } from '@/lib/i18n/message';
 import * as z from 'zod';
 import { isLlmProvider, validateModelId, type LlmProvider } from '@/lib/llm/models';
 import { checkGithubTokenFormat } from '@/lib/github/token-format';
@@ -27,17 +28,17 @@ export const DEFAULT_KEY_PROVIDER: LlmProvider = 'anthropic';
 export const newBotFormSchema = z
   .object({
     service_name: z.string().min(2, {
-      message: '서비스 이름은 2글자 이상이어야 합니다.',
+      message: i18nMessage('common.validation.form.serviceNameMin'),
     }),
     service_description: z.string().optional(),
     service_url: z
       .string()
-      .url({ message: '유효한 URL을 입력해주세요.' })
+      .url({ message: i18nMessage('common.validation.form.urlInvalid') })
       .optional()
       .or(z.literal('')),
     github_repo_url: z
       .string()
-      .url({ message: '유효한 GitHub URL을 입력해주세요.' })
+      .url({ message: i18nMessage('common.validation.form.githubUrlInvalid') })
       .optional()
       .or(z.literal('')),
     pr_mode: z.enum(['approve', 'auto']),
@@ -49,7 +50,7 @@ export const newBotFormSchema = z
     // 목록 밖 provider 는 받지 않는다. z.enum 대신 판별 함수를 쓰는 이유는
     // 목록(LLM_PROVIDERS)이 한 곳에만 있게 하려는 것이다.
     llm_provider: z.custom<LlmProvider>(isLlmProvider, {
-      message: 'AI 제공사를 골라주세요',
+      message: i18nMessage('common.validation.form.providerRequired'),
     }),
     /** <select> 의 값. 빈 문자열 = 「자동」, `CUSTOM_MODEL` = 「직접 입력…」 */
     llm_model_choice: z.string(),
@@ -62,7 +63,7 @@ export const newBotFormSchema = z
     if (values.github_token.trim() !== '') {
       const tokenCheck = checkGithubTokenFormat(values.github_token);
       if (!tokenCheck.ok) {
-        ctx.addIssue({ code: 'custom', path: ['github_token'], message: tokenCheck.error });
+        ctx.addIssue({ code: 'custom', path: ['github_token'], message: validationMessage(tokenCheck) });
       }
     }
 
@@ -72,7 +73,7 @@ export const newBotFormSchema = z
 
     const keyCheck = checkKeyFormat(values.llm_provider, values.llm_api_key);
     if (!keyCheck.ok) {
-      ctx.addIssue({ code: 'custom', path: ['llm_api_key'], message: keyCheck.error });
+      ctx.addIssue({ code: 'custom', path: ['llm_api_key'], message: validationMessage(keyCheck) });
     }
 
     const modelCheck = validateModelId(
@@ -80,7 +81,7 @@ export const newBotFormSchema = z
     );
     if (!modelCheck.ok) {
       // 「직접 입력…」 칸이 잘못된 경우다 — 목록에서 고른 값은 이 검사를 통과한다.
-      ctx.addIssue({ code: 'custom', path: ['llm_model_custom'], message: modelCheck.error });
+      ctx.addIssue({ code: 'custom', path: ['llm_model_custom'], message: validationMessage(modelCheck) });
     }
   });
 

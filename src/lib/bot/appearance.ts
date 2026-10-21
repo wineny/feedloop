@@ -162,7 +162,7 @@ export const STARTER_FAQ_FALLBACK_COUNT = 3;
 
 export type StarterQuestionsResult =
   | { ok: true; value: string[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code: string; vars?: Record<string, string | number> };
 
 /**
  * PATCH body 의 starter_questions 를 정규화한다.
@@ -175,14 +175,14 @@ export type StarterQuestionsResult =
 export function validateStarterQuestions(raw: unknown): StarterQuestionsResult {
   if (raw === null || raw === undefined) return { ok: true, value: [] };
   if (!Array.isArray(raw)) {
-    return { ok: false, error: '시작 질문은 목록이어야 합니다' };
+    return { ok: false, error: '시작 질문은 목록이어야 합니다', code: 'starter.notList' };
   }
 
   // 일하기 «전에» 거절한다. 빈 줄을 버리는 관용 때문에 항목 수와 결과 수가 다를 수
   // 있어 넉넉히 잡지만, 20만 줄을 다 훑고 나서 「4개까지」를 말하지는 않는다 —
   // 보안 리뷰 실측으로 5만 항목에 1.9초가 걸렸다(서버리스 함수 CPU).
   if (raw.length > MAX_STARTER_QUESTIONS * 10) {
-    return { ok: false, error: `시작 질문은 ${MAX_STARTER_QUESTIONS}개까지 넣을 수 있습니다` };
+    return { ok: false, error: `시작 질문은 ${MAX_STARTER_QUESTIONS}개까지 넣을 수 있습니다`, code: 'starter.tooMany', vars: { max: MAX_STARTER_QUESTIONS } };
   }
 
   // 중복 검사는 Set 으로. 배열 includes 면 항목 수의 제곱만큼 비교한다.
@@ -190,7 +190,7 @@ export function validateStarterQuestions(raw: unknown): StarterQuestionsResult {
   const value: string[] = [];
   for (const item of raw) {
     if (typeof item !== 'string') {
-      return { ok: false, error: '시작 질문은 문장이어야 합니다' };
+      return { ok: false, error: '시작 질문은 문장이어야 합니다', code: 'starter.notString' };
     }
     const text = collapseWhitespace(item);
     if (!text) continue;
@@ -198,6 +198,8 @@ export function validateStarterQuestions(raw: unknown): StarterQuestionsResult {
       return {
         ok: false,
         error: `시작 질문은 ${MAX_STARTER_QUESTION_CHARS}자까지 입력할 수 있습니다`,
+        code: 'starter.tooLong',
+        vars: { max: MAX_STARTER_QUESTION_CHARS },
       };
     }
     if (seen.has(text)) continue;
@@ -206,7 +208,7 @@ export function validateStarterQuestions(raw: unknown): StarterQuestionsResult {
   }
 
   if (value.length > MAX_STARTER_QUESTIONS) {
-    return { ok: false, error: `시작 질문은 ${MAX_STARTER_QUESTIONS}개까지 넣을 수 있습니다` };
+    return { ok: false, error: `시작 질문은 ${MAX_STARTER_QUESTIONS}개까지 넣을 수 있습니다`, code: 'starter.tooMany', vars: { max: MAX_STARTER_QUESTIONS } };
   }
 
   return { ok: true, value };

@@ -29,5 +29,48 @@
       "kakao": "Kakao user",
       "channel": "Customer"
     }
+  },
+  "holdingMessage": "A person is checking. Please hold on a moment 🙏",
+  "validation": {
+    "key": {
+      "empty": "Enter your API key",
+      "whitespace": "The API key has spaces or line breaks around it",
+      "format": {
+        "gemini": "That key does not look right. Gemini keys start with AIza",
+        "anthropic": "That key does not look right. Anthropic keys start with sk-ant-",
+        "openai": "That key does not look right. OpenAI keys start with sk-"
+      }
+    },
+    "github": {
+      "empty": "Enter your GitHub token",
+      "whitespace": "The token has spaces or line breaks around it",
+      "format": "That token does not look right. Fine-grained tokens start with github_pat_, classic tokens with ghp_ (gho_ from gh auth token works too)"
+    },
+    "model": {
+      "notString": "The model name must be text",
+      "empty": "The model name is empty",
+      "padded": "The model name has spaces around it",
+      "tooLong": "The model name can be up to {max} characters",
+      "chars": "Model names can only use letters, numbers and . _ -"
+    },
+    "starter": {
+      "notList": "Starter questions must be a list",
+      "tooMany": "You can add up to {max} starter questions",
+      "notString": "Starter questions must be text",
+      "tooLong": "Each starter question can be up to {max} characters"
+    },
+    "form": {
+      "serviceNameMin": "Service name must be at least 2 characters.",
+      "urlInvalid": "Enter a valid URL.",
+      "githubUrlInvalid": "Enter a valid GitHub URL.",
+      "providerRequired": "Choose an AI provider",
+      "hex": "Enter a color code in #RRGGBB format",
+      "displayNameMax": "The display name can be up to 40 characters",
+      "statusTextMax": "The status text can be up to 60 characters",
+      "greetingMax": "The greeting can be up to 300 characters",
+      "operatorNameMax": "The reply name can be up to 40 characters",
+      "imageUrlMax": "The profile image URL can be up to 500 characters",
+      "httpsOnly": "Only addresses starting with https:// are allowed"
+    }
   }
 }

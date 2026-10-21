@@ -1,0 +1,194 @@
+{
+  "title": "루프 대시보드",
+  "subtitleEmpty": "들어온 피드백이 루프의 어디까지 왔는지 한눈에 봅니다.",
+  "subtitle": "피드백 <strong>{received}건</strong>을 받았고, 반영 알림을 <strong>{returned}건</strong> 전달했어요.",
+  "notes": {
+    "unknown": "분류 상태 상세 미확인",
+    "pending": "대기 {count}",
+    "processing": "처리 중 {count}",
+    "failed": "실패 {count}",
+    "exhausted": "한도 도달 {count}",
+    "none": "남은 미분류 없음",
+    "returnQueued": "전달 대기 {count}건",
+    "prShippedOpen": "반영 {merged} · 대기 {open}",
+    "prShipped": "반영 {merged}"
+  },
+  "slowMerge": "PR 을 하나씩 GitHub 에 확인하고 있어요. 최대 2분 걸릴 수 있습니다.",
+  "merge": {
+    "failed": "{count}건 확인 실패 · 「수정안」 화면에서 오류를 확인해 주세요",
+    "delivered": "{count}건을 유저에게 되돌렸습니다",
+    "already": "이미 반영한 수정에는 알림이 나갔습니다 · 배포·해결 여부는 상세에서 확인하세요",
+    "none": "아직 반영한 수정이 없습니다",
+    "deferred": "{count}건은 다음에 보냅니다",
+    "skipped": "{count}개 실행은 다음 확인에서 봅니다",
+    "demo": "반영됐는지 확인했어요. 새로 반영된 건 없어요 (연습용 화면이라 예시는 그대로예요)."
+  },
+  "errors": {
+    "api": "API 오류: {status}",
+    "load": "데이터를 불러오지 못했습니다",
+    "classify": "분류 복구 요청에 실패했습니다. 다시 시도해 주세요.",
+    "classifyShort": "분류 복구 요청 실패",
+    "check": "확인에 실패했습니다"
+  },
+  "checkMerged": "반영됐는지 확인",
+  "checking": "확인 중… {seconds}초",
+  "runClassify": "AI 분류 실행",
+  "stuck": "분류가 밀린 피드백이 있어요",
+  "stuckCta": "확인하고 복구하기 ›",
+  "modeNote": "<b>수정안 모드 · 승인.</b> 수정안은 만들어두고 반영은 사람이 합니다. 반영이 확인되면 그 문제를 말한 사람 모두에게 반영 알림이 나갑니다.",
+  "channels": {
+    "title": "피드백 채널",
+    "settings": "챗봇 설정",
+    "web": "웹 위젯",
+    "webSub": "권장 입구 · 스크립트 한 줄",
+    "channel": "채널톡",
+    "channelSub": "선택 채널 · 상담 웹훅",
+    "on": "연결됨",
+    "off": "아직 안 붙음",
+    "connect": "연결하기"
+  },
+  "feed": {
+    "title": "루프에서 일어난 일",
+    "empty": "아직 기록이 없습니다. 피드백이 들어와 분류되면 여기에 쌓입니다.",
+    "kind": {
+      "classified": "AI 분류",
+      "pr_created": "수정안 만듦",
+      "pr_failed": "자동 수정 중단",
+      "returned": "반영 알림"
+    },
+    "ago": {
+      "now": "방금",
+      "minutes": "{count}분 전",
+      "hours": "{count}시간 전",
+      "days": "{count}일 전"
+    }
+  },
+  "quality": {
+    "avgLabel": "제보 → 반영 알림 평균",
+    "none": "아직 없음",
+    "failed": "집계 못 함",
+    "avgFailed": "표본을 다 읽지 못했어요 · 새로고침해 주세요",
+    "avgBasis": "반영 알림 {count}건 기준",
+    "avgWait": "반영 알림이 나가면 그때부터 잽니다",
+    "yesLabel": "「네, 잘 돼요」 비율",
+    "yesFailed": "답을 다 읽지 못했어요 · 새로고침해 주세요",
+    "yesBasis": "웹 위젯 기준 · 답한 {answered}건 중 {fixed}건",
+    "yesRate": " · 응답률 {rate}",
+    "yesNoAnswer": "웹 위젯 기준 · 반영 알림 {delivered}건 중 아직 답이 없어요",
+    "yesWait": "웹 위젯 카드에서 답을 받으면 채워져요",
+    "dur": {
+      "none": "아직 없음",
+      "lessThanMinute": "1분 미만",
+      "minutes": "{value}분",
+      "hours": "{value}시간",
+      "days": "{value}일"
+    }
+  },
+  "stages": {
+    "label": "루프 단계",
+    "collected": "들어온 피드백",
+    "classified": "AI 가 분류",
+    "prCreated": "수정안",
+    "returned": "반영 알림",
+    "returnedCount": "{count}명에게 「반영됐어요」가 돌아갔어요",
+    "returnedHint": "반영되면 제보한 사람에게 돌아갑니다"
+  },
+  "onboarding": {
+    "title": "첫 루프까지 4단계",
+    "progress": "{done}/4 단계",
+    "hide": "제보가 한 건이라도 들어오면 이 안내는 사라집니다.",
+    "done": "완료",
+    "steps": {
+      "connect": {
+        "label": "스크립트 붙이기",
+        "action": "연결하러 가기"
+      },
+      "feedback": {
+        "label": "첫 제보 보내보기",
+        "action": "대화 열어보기"
+      },
+      "github": {
+        "label": "GitHub 연결",
+        "action": "저장소 연결하기"
+      },
+      "pr": {
+        "label": "첫 수정안",
+        "action": "수정안 보기"
+      }
+    }
+  },
+  "recent": {
+    "title": "채널에서 들어온 피드백",
+    "reply": "대화에서 답장",
+    "empty": "아직 들어온 피드백이 없습니다. 채널을 연결하면 여기에 쌓입니다.",
+    "aiSent": "AI 답변 보냄",
+    "aiWait": "답변 대기",
+    "notified": "반영 알림 보냄",
+    "notifyWait": "반영 알림 대기"
+  },
+  "grouping": {
+    "none": "안 묶인 피드백이 없어요",
+    "running": "{count}건을 지금 묶는 중이에요",
+    "due": "{count}건 · 약 {secs}초 뒤 자동으로 묶어요 (보충 제보를 기다리는 중)",
+    "soon": "{count}건을 곧 묶어요",
+    "idle": "{count}건이 아직 안 묶였어요",
+    "unreadable": "묶기 상태를 읽지 못했어요",
+    "runNow": "지금 묶기"
+  },
+  "groups": {
+    "categories": {
+      "bug": "버그",
+      "ux": "UX",
+      "feature_request": "기능 요청",
+      "praise": "칭찬",
+      "cs": "문의",
+      "other": "기타"
+    },
+    "ago": {
+      "now": "방금",
+      "minutes": "{count}분 전",
+      "hours": "{count}시간 전",
+      "yesterday": "어제",
+      "days": "{count}일 전"
+    },
+    "demoGroup": {
+      "title": "401 에러 뒤 무한 리다이렉트",
+      "summary": "세션이 만료된 뒤 로그인 화면과 서비스 화면이 서로를 계속 불러 빠져나오지 못한다는 제보.",
+      "reason": "세션 만료 뒤 로그인 단계에서 빠져나오지 못함"
+    },
+    "notices": {
+      "nothing": "묶을 수 있는 피드백이 없어요 (문의·칭찬은 묶음 대상이 아닙니다)",
+      "one": "1건을 묶었어요",
+      "busy": "이미 자동으로 묶는 중이에요. 잠시 뒤 다시 읽어요",
+      "deferred": "처리를 보류했습니다. {count}건이 남았어요",
+      "grouped": "{count}건을 묶었어요",
+      "dismissed": "묶음을 닫았어요. 연습용 화면이라 새로고침하면 되돌아와요."
+    },
+    "errors": {
+      "group": "묶기에 실패했습니다",
+      "groupBots": "묶기 실패 {count}개 봇: {reasons}",
+      "pr": "수정안 만들기를 시작하지 못했습니다",
+      "spec": "스펙 초안을 만들지 못했습니다"
+    },
+    "title": "피드백 묶음",
+    "sub": "같은 문제를 말한 사람들을 수정안 하나로 묶습니다. 제보 뒤 1~2분이면 저절로 묶여요.",
+    "tryThis": "먼저 이걸 눌러보세요",
+    "empty": "아직 묶인 피드백이 없습니다. 같은 문제를 말한 사람들을 PR 하나로 모읍니다 — 버그·UX·기능 요청으로 분류된 피드백은 제보 뒤 1~2분 안에 저절로 묶여요.",
+    "order": "아직 안 고친 것부터 · 말한 사람이 많고 핵심 흐름이 막힌 순",
+    "core": "핵심 흐름",
+    "followUp": "후속 확인 대상 · 기존 그룹에 연결했습니다. 배포·해결 확인 전 새 PR은 보류합니다.",
+    "feedbackCount": "피드백 <b>{count}</b>건",
+    "people": "<b>{count}</b>명이 말했어요",
+    "score": "점수 {score}",
+    "shipped": "반영됨",
+    "prOpen": "PR 열림",
+    "viewPr": "PR #{number} 보기",
+    "tryPr": "이제 이걸 눌러보세요",
+    "createPr": "수정안 만들기",
+    "viewSpec": "스펙 보기",
+    "draftSpec": "스펙 초안",
+    "dismiss": "닫기",
+    "dismissLabel": "이 묶음 닫기",
+    "specNote": "스펙 초안 · 만들지 말지는 사람이 정합니다"
+  }
+}

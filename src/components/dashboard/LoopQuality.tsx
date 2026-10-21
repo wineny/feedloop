@@ -1,5 +1,6 @@
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { formatLoopDuration, type LoopTimeStats } from '@/lib/dashboard/loop-time';
+import { loopDurationParts, type LoopTimeStats } from '@/lib/dashboard/loop-time';
 import { confirmationRates, formatRate, type ConfirmationStats } from '@/lib/dashboard/confirmation';
 
 // 루프의 «질» 칸 — 단계별 건수(StatsCards)가 답하지 못하는 두 가지를 말한다.
@@ -48,6 +49,11 @@ function MetricCell({ label, value, emptyLabel, note, index }: MetricCellProps) 
  * 오른쪽 = 정말 고쳐졌다고 하던가(정의는 `lib/dashboard/confirmation.ts`).
  */
 export function LoopQuality({ loopTime, confirmation }: LoopQualityProps) {
+  const t = useTranslations('dashboard.quality');
+  const durationText = (ms: number) => {
+    const p = loopDurationParts(ms);
+    return p.unit === 'none' || p.unit === 'lessThanMinute' ? t(`dur.${p.unit}`) : t(`dur.${p.unit}`, { value: p.value });
+  };
   const timeFailed = loopTime?.state === 'error';
   const sampleSize = loopTime?.sampleSize ?? 0;
   const averageMs = loopTime?.averageMs ?? null;
@@ -62,30 +68,30 @@ export function LoopQuality({ loopTime, confirmation }: LoopQualityProps) {
     <div className="card-surface grid grid-cols-1 sm:grid-cols-2">
       <MetricCell
         index={0}
-        label="제보 → 반영 알림 평균"
-        value={!timeFailed && sampleSize > 0 && averageMs !== null ? formatLoopDuration(averageMs) : undefined}
-        emptyLabel={timeFailed ? '집계 못 함' : '아직 없음'}
+        label={t('avgLabel')}
+        value={!timeFailed && sampleSize > 0 && averageMs !== null ? durationText(averageMs) : undefined}
+        emptyLabel={timeFailed ? t('failed') : t('none')}
         note={
           timeFailed
-            ? '표본을 다 읽지 못했어요 · 새로고침해 주세요'
+            ? t('avgFailed')
             : sampleSize > 0
-              ? `반영 알림 ${sampleSize}건 기준`
-              : '반영 알림이 나가면 그때부터 잽니다'
+              ? t('avgBasis', { count: sampleSize })
+              : t('avgWait')
         }
       />
       <MetricCell
         index={1}
-        label="「네, 잘 돼요」 비율"
+        label={t('yesLabel')}
         value={!confirmFailed && fixedRate !== null ? formatRate(fixedRate) : undefined}
-        emptyLabel={confirmFailed ? '집계 못 함' : '아직 없음'}
+        emptyLabel={confirmFailed ? t('failed') : t('none')}
         note={
           confirmFailed
-            ? '답을 다 읽지 못했어요 · 새로고침해 주세요'
+            ? t('yesFailed')
             : answered > 0
-              ? `웹 위젯 기준 · 답한 ${answered}건 중 ${confirmation?.fixed ?? 0}건${responseRate !== null ? ` · 응답률 ${formatRate(responseRate)}` : ''}`
+              ? `${t('yesBasis', { answered, fixed: confirmation?.fixed ?? 0 })}${responseRate !== null ? t('yesRate', { rate: formatRate(responseRate) }) : ''}`
               : delivered > 0
-                ? `웹 위젯 기준 · 반영 알림 ${delivered}건 중 아직 답이 없어요`
-                : '웹 위젯 카드에서 답을 받으면 채워져요'
+                ? t('yesNoAnswer', { delivered })
+                : t('yesWait')
         }
       />
     </div>

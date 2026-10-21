@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 import { scopedBody, scopedUrl } from '@/lib/scope/scope';
 import { ScopeNote } from '@/components/layout/BotScopeSelect';
@@ -57,14 +58,18 @@ const EMPTY: DashboardData = {
 };
 
 /** 부제는 형용사가 아니라 이번 루프의 사실을 말한다 */
+type Translate = ReturnType<typeof useTranslations<'dashboard'>>;
+
 function Subtitle({ stats }: { stats: LoopStats }) {
-  if (stats.collected === 0) {
-    return <>들어온 피드백이 루프의 어디까지 왔는지 한눈에 봅니다.</>;
-  }
+  const t = useTranslations('dashboard');
+  if (stats.collected === 0) return <>{t('subtitleEmpty')}</>;
   return (
     <>
-      피드백 <strong className="tabular-nums">{stats.collected}건</strong>을 받았고, 반영 알림을{' '}
-      <strong className="tabular-nums">{stats.returned}건</strong> 전달했어요.
+      {t.rich('subtitle', {
+        received: stats.collected,
+        returned: stats.returned,
+        strong: (chunks) => <strong className="tabular-nums">{chunks}</strong>,
+      })}
     </>
   );
 }
@@ -76,34 +81,33 @@ function Subtitle({ stats }: { stats: LoopStats }) {
  * 처럼 네 가지를 늘 나열해서, 아무 일도 없는 평상시에 0 이 세 개씩 붙고 390px 에서 두 줄로 접혔다.
  * 전부 0 이면 「다 처리했어요」 한마디가 같은 사실을 더 잘 말한다.
  */
-function tileNotes(stats: LoopStats, groups: GroupSummary[]) {
+function tileNotes(stats: LoopStats, groups: GroupSummary[], t: Translate) {
   const classification = stats.classification;
   const merged = groups.filter((g) => g.pr?.mergedAt).length;
   const open = groups.filter((g) => g.pr && !g.pr.mergedAt).length;
 
   let classified: string;
   if (!classification) {
-    classified = '분류 상태 상세 미확인';
+    classified = t('notes.unknown');
   } else {
     const parts = [
-      classification.pending > 0 ? `대기 ${classification.pending}` : null,
-      classification.processing > 0 ? `처리 중 ${classification.processing}` : null,
-      classification.failed > 0 ? `실패 ${classification.failed}` : null,
-      classification.exhausted > 0 ? `한도 도달 ${classification.exhausted}` : null,
+      classification.pending > 0 ? t('notes.pending', { count: classification.pending }) : null,
+      classification.processing > 0 ? t('notes.processing', { count: classification.processing }) : null,
+      classification.failed > 0 ? t('notes.failed', { count: classification.failed }) : null,
+      classification.exhausted > 0 ? t('notes.exhausted', { count: classification.exhausted }) : null,
     ].filter((v): v is string => v !== null);
-    classified = parts.length > 0 ? parts.join(' · ') : '남은 미분류 없음';
+    classified = parts.length > 0 ? parts.join(' · ') : t('notes.none');
   }
 
   return {
     classified,
-    returned: (stats.returnQueued ?? 0) > 0 ? `전달 대기 ${stats.returnQueued}건` : undefined,
-    prCreated: stats.prCreated > 0 ? (open > 0 ? `반영 ${merged} · 대기 ${open}` : `반영 ${merged}`) : undefined,
+    returned: (stats.returnQueued ?? 0) > 0 ? t('notes.returnQueued', { count: stats.returnQueued ?? 0 }) : undefined,
+    prCreated: stats.prCreated > 0 ? (open > 0 ? t('notes.prShippedOpen', { merged, open }) : t('notes.prShipped', { merged })) : undefined,
   };
 }
 
 // 「머지 확인」이 오래 걸릴 때의 안내. 두 화면(대시보드·수정 PR)이 같은 문구를 쓰지만
 // 공용 훅으로 빼지 않는다 — 이 두 파일은 디자인 세션도 만지고 있어 충돌면을 넓히지 않는다.
-const SLOW_MERGE_NOTICE = 'PR 을 하나씩 GitHub 에 확인하고 있어요. 최대 2분 걸릴 수 있습니다.';
 
 interface MergeCheckResult {
   delivered?: number;
@@ -119,7 +123,7 @@ interface MergeCheckResult {
   failed?: number;
 }
 
-function mergeResultNotice(json: MergeCheckResult): string {
+function mergeResultNotice(json: MergeCheckResult, t: Translate): string {
   const delivered = json.delivered ?? 0;
   const merged = json.merged ?? 0;
   const deferred = json.deferred ?? 0;
@@ -127,22 +131,23 @@ function mergeResultNotice(json: MergeCheckResult): string {
   const failed = json.failed ?? 0;
 
   // 실패부터 말한다 — 다른 숫자에 묻히면 아무도 원인을 보러 가지 않는다.
-  if (failed > 0) return `${failed}건 확인 실패 · 「수정안」 화면에서 오류를 확인해 주세요`;
+  if (failed > 0) return t('merge.failed', { count: failed });
 
   const parts = [
     delivered > 0
-      ? `${delivered}건을 유저에게 되돌렸습니다`
+      ? t('merge.delivered', { count: delivered })
       : merged > 0
         // 머지 ≠ 배포 ≠ 해결. 되돌림이 안 나갔다고 「끝났다」고 말하면 안 된다.
-        ? '이미 반영한 수정에는 알림이 나갔습니다 · 배포·해결 여부는 상세에서 확인하세요'
-        : '아직 반영한 수정이 없습니다',
+        ? t('merge.already')
+        : t('merge.none'),
   ];
-  if (deferred > 0) parts.push(`${deferred}건은 다음에 보냅니다`);
-  if (skipped > 0) parts.push(`${skipped}개 실행은 다음 확인에서 봅니다`);
+  if (deferred > 0) parts.push(t('merge.deferred', { count: deferred }));
+  if (skipped > 0) parts.push(t('merge.skipped', { count: skipped }));
   return parts.join(' · ');
 }
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboard');
   const router = useRouter();
   const { status: authStatus } = useSession();
   const demo = useDemoMode<DemoDashboard>('dashboard');
@@ -189,15 +194,15 @@ export default function DashboardPage() {
         return;
       }
 
-      if (!res.ok) throw new Error(`API 오류: ${res.status}`);
+      if (!res.ok) throw new Error(t('errors.api', { status: res.status }));
       setData(await res.json());
       await fetchGroups();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '데이터를 불러오지 못했습니다');
+      setError(err instanceof Error ? err.message : t('errors.load'));
     } finally {
       setLoading(false);
     }
-  }, [botId, fetchGroups]);
+  }, [botId, fetchGroups, t]);
 
   // 스코프가 바뀌면 옛 숫자를 새 스코프 이름 밑에 두지 않는다 — 대시보드 조회는 몇 초 걸린다.
   useEffect(() => {
@@ -223,10 +228,10 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scopedBody({}, botId)),
       });
-      if (!response.ok) throw new Error('분류 복구 요청에 실패했습니다. 다시 시도해 주세요.');
+      if (!response.ok) throw new Error(t('errors.classify'));
       await fetchData();
     } catch (err) {
-      setMergeNotice(err instanceof Error ? err.message : '분류 복구 요청 실패');
+      setMergeNotice(err instanceof Error ? err.message : t('errors.classifyShort'));
     } finally {
       setClassifying(false);
     }
@@ -237,7 +242,7 @@ export default function DashboardPage() {
     // 연습용 화면 — GitHub 에 나갈 것이 없다. 예시 PR 은 이미 머지 여부가 정해져 있어
     // 「새로 머지된 건 없다」가 사실 그대로다. 거짓으로 숫자를 올리지 않는다.
     if (demo.isDemo) {
-      setMergeNotice('반영됐는지 확인했어요. 새로 반영된 건 없어요 (연습용 화면이라 예시는 그대로예요).');
+      setMergeNotice(t('merge.demo'));
       return;
     }
 
@@ -251,7 +256,7 @@ export default function DashboardPage() {
     const tick = setInterval(() => {
       const secs = Math.floor((Date.now() - started) / 1000);
       setMergeElapsed(secs);
-      if (secs >= 10) setMergeNotice(SLOW_MERGE_NOTICE);
+      if (secs >= 10) setMergeNotice(t('slowMerge'));
     }, 1000);
 
     try {
@@ -261,11 +266,11 @@ export default function DashboardPage() {
         body: JSON.stringify(scopedBody({}, botId)),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '확인에 실패했습니다');
-      setMergeNotice(mergeResultNotice(json));
+      if (!res.ok) throw new Error(json.error || t('errors.check'));
+      setMergeNotice(mergeResultNotice(json, t));
       await fetchData();
     } catch (err) {
-      setMergeNotice(err instanceof Error ? err.message : '확인에 실패했습니다');
+      setMergeNotice(err instanceof Error ? err.message : t('errors.check'));
     } finally {
       clearInterval(tick);
       setCheckingMerge(false);
@@ -315,20 +320,20 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-10 sm:gap-12">
       <PageHero
         emoji={PAGE_EMOJI.dashboard}
-        title="루프 대시보드"
+        title={t('title')}
         description={<><ScopeNote /><Subtitle stats={stats} /></>}
         actions={
           <>
             <Button variant="outline" onClick={handleCheckMerged} disabled={checkingMerge}>
               {checkingMerge ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-              {checkingMerge ? `확인 중… ${mergeElapsed}초` : '반영됐는지 확인'}
+              {checkingMerge ? t('checking', { seconds: mergeElapsed }) : t('checkMerged')}
             </Button>
             <Button
               onClick={handleClassify}
               disabled={demo.isDemo || classifying || (stats.classification?.eligible ?? 0) === 0}
             >
               {classifying ? <Loader2 className="animate-spin" /> : <Sparkles />}
-              AI 분류 실행
+              {t('runClassify')}
             </Button>
           </>
         }
@@ -340,7 +345,7 @@ export default function DashboardPage() {
 
       {/* 루프 단계는 «화면 전체 폭»을 쓴다 — 이 화면이 크게 말하는 한 가지라서,
           사이드 칼럼 옆에 끼워 넣으면 그 음량이 나오지 않는다. */}
-      <LoopStages stats={stats} notes={tileNotes(stats, shownGroups)} />
+      <LoopStages stats={stats} notes={tileNotes(stats, shownGroups, t)} />
 
       {/* 본문 | 사이드 320. 루프 단계가 위로 빠져 본문이 660 → 유동으로 넓어졌다 */}
       <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -355,8 +360,8 @@ export default function DashboardPage() {
               href="/classify"
               className="flex items-center justify-between gap-3 rounded-2xl bg-brand-subtle px-5 py-3.5 text-sm font-semibold text-brand-strong transition-colors hover:bg-primary-tint-hover"
             >
-              <span>분류가 밀린 피드백이 있어요</span>
-              <span className="shrink-0 text-[12.5px] font-semibold">확인하고 복구하기 ›</span>
+              <span>{t('stuck')}</span>
+              <span className="shrink-0 text-[12.5px] font-semibold">{t('stuckCta')}</span>
             </Link>
           )}
           <InsightGroups groups={shownGroups} demo={demo.isDemo} onChanged={fetchGroups} grouping={grouping} />
@@ -367,8 +372,7 @@ export default function DashboardPage() {
           <ChannelIntegration webOn={webOn} channelOn={channelOn} />
           <LoopActivityFeed events={events} limit={5} />
           <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-            <b className="font-semibold text-foreground">수정안 모드 · 승인.</b> 수정안은 만들어두고 반영은 사람이
-            합니다. 반영이 확인되면 그 문제를 말한 사람 모두에게 반영 알림이 나갑니다.
+            {t.rich('modeNote', { b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b> })}
           </p>
         </aside>
       </div>

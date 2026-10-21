@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 
 interface LoopStagesProps {
@@ -33,10 +34,10 @@ interface LoopStagesProps {
  * self-host 한 것과 같은 판단이다.
  */
 const stages = [
-  { key: 'collected', label: '들어온 피드백', emoji: '/emoji/mailbox_3d.png' },
-  { key: 'classified', label: 'AI 가 분류', emoji: '/emoji/card_index_dividers_3d.png' },
-  { key: 'prCreated', label: '수정안', emoji: '/emoji/hammer_and_wrench_3d.png' },
-  { key: 'returned', label: '반영 알림', emoji: '/emoji/love_letter_3d.png' },
+  { key: 'collected', emoji: '/emoji/mailbox_3d.png' },
+  { key: 'classified', emoji: '/emoji/card_index_dividers_3d.png' },
+  { key: 'prCreated', emoji: '/emoji/hammer_and_wrench_3d.png' },
+  { key: 'returned', emoji: '/emoji/love_letter_3d.png' },
 ] as const;
 
 /**
@@ -106,10 +107,11 @@ function Stage({
 }
 
 export function LoopStages({ stats, notes }: LoopStagesProps) {
+  const t = useTranslations('dashboard.stages');
   const returned = stats.returned;
 
   return (
-    <section aria-label="루프 단계">
+    <section aria-label={t('label')}>
       {/* 화살표가 네 칸을 통째로 지나가야 하므로 격자 «바깥»을 기준 상자로 삼는다 */}
       <div className="relative">
         <FlowArrow />
@@ -118,7 +120,7 @@ export function LoopStages({ stats, notes }: LoopStagesProps) {
             <Stage
               key={s.key}
               emoji={s.emoji}
-              label={s.label}
+              label={t(s.key)}
               value={stats[s.key]}
               note={notes?.[s.key]}
               isLast={s.key === 'returned'}
@@ -132,8 +134,8 @@ export function LoopStages({ stats, notes }: LoopStagesProps) {
       <p className="mt-7 flex items-center gap-1.5 text-[12.5px] font-semibold text-brand-strong">
         <span aria-hidden>↻</span>
         {returned > 0
-          ? `${returned}명에게 「반영됐어요」가 돌아갔어요`
-          : '반영되면 제보한 사람에게 돌아갑니다'}
+          ? t('returnedCount', { count: returned })
+          : t('returnedHint')}
       </p>
     </section>
   );

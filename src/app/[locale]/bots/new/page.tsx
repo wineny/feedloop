@@ -14,6 +14,7 @@
 // 키 저장은 봇이 생긴 뒤에야 가능해(라우트가 botId 를 요구한다) 등록 → 키 두 단계로 보낸다.
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { PLATFORM_MODEL_LABEL } from '@/lib/llm/limits';
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
@@ -37,7 +38,6 @@ import { PageHero } from "@/components/layout/PageHero";
 import { SectionTitle } from "@/components/layout/SectionTitle";
 import { LlmKeyFields } from "@/components/onboarding/LlmKeyFields";
 import { cn } from "@/lib/utils";
-import { HOLDING_MESSAGE } from "@/lib/bot/holding";
 import { DEFAULT_LIMITS } from "@/lib/llm/limits";
 import {
   DEFAULT_KEY_PROVIDER,
@@ -56,6 +56,8 @@ const AI_MODE_LABEL_ID = "bot-ai-mode";
 const PR_MODE_LABEL_ID = "bot-pr-mode";
 
 export default function NewBotPage() {
+  const t = useTranslations('bots');
+  const tc = useTranslations('common');
   const router = useRouter();
   const demo = useDemoMode('botsNew');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,7 +142,7 @@ export default function NewBotPage() {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
           // 조용히 넘어가지 않는다 — 키가 없는 채로 연결되면 위젯이 플랫폼 무료분으로
           // 답하기 시작하고, 운영자는 자기 키로 도는 줄 안다.
-          setKeyError(data?.error ?? "키를 저장하지 못했어요");
+          setKeyError(data?.error ?? t('new.errors.keySave'));
           return;
         }
       }
@@ -156,7 +158,7 @@ export default function NewBotPage() {
         });
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setGithubError(`GitHub 토큰을 저장하지 못했어요 — ${data?.error ?? "확인에 실패했어요"}. 연결 뒤 「답변 지식 › GitHub」 탭에서 다시 넣을 수 있어요`);
+          setGithubError(t('new.githubFail', { reason: data?.error ?? t('new.githubFailReason') }));
           return;
         }
       }
@@ -164,7 +166,7 @@ export default function NewBotPage() {
       goToConnect(botId);
     } catch (error) {
       console.error("Error creating bot:", error);
-      alert("서비스 등록 중 오류가 발생했습니다.");
+      alert(t('new.errors.register'));
     } finally {
       setIsSubmitting(false);
     }
@@ -173,42 +175,38 @@ export default function NewBotPage() {
   return (
     <div className="flex max-w-[660px] flex-col gap-7">
       <PageHero
-        title="새 서비스 등록"
-        description="피드백을 받을 서비스를 등록합니다. 창구(채널톡·웹 위젯)는 다음 화면에서 고릅니다."
+        title={t('new.title')}
+        description={t('new.description')}
       />
 
       {/* 채널을 나열하지 않는다 — 「등록하면 다음에 무슨 일이 일어나는가」 한 문단이면 된다.
           고르는 일은 다음 화면이 맡고, 거기서 각 선택지의 전제까지 같이 보여준다 */}
       <p className="text-[13px] leading-relaxed text-muted-foreground">
-        등록을 마치면 연결 화면으로 갑니다.{' '}
-        <b className="font-semibold text-foreground">쓰던 채널톡 상담창에 붙이거나</b>, 상담 창구가
-        없다면 <b className="font-semibold text-foreground">서비스에 위젯 한 줄을 넣거나</b> — 거기서
-        고르시면 됩니다. 나중에 바꾸거나 둘 다 붙일 수 있어요.
+        {t.rich('new.afterRegister', { b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b> })}
       </p>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
           {locked && (
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-              서비스는 이미 등록됐어요. 지금은 키만 저장합니다 — 다른 정보는 챗봇 설정 화면에서
-              바꿀 수 있어요
+              {t('new.lockedNote')}
             </p>
           )}
           {/* 세 그룹으로 나눈다 — 「무엇을 등록하는가」·「누구 키로 답하는가」·「그 뒤에 무엇이 자동으로 일어나는가」는 다른 결정이다 */}
-          <SectionTitle className="border-t border-border pt-5" sub="대시보드와 위젯에 쓰이는 이름·주소">
-            기본 정보
+          <SectionTitle className="border-t border-border pt-5" sub={t('new.basicSub')}>
+            {t('new.basic')}
           </SectionTitle>
           <FormField
             control={form.control}
             name="service_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-sm font-semibold">서비스 이름 *</FormLabel>
+                <FormLabel className="text-sm font-semibold">{t('new.serviceName')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="예: 널널투어, 로나" disabled={locked} {...field} />
+                  <Input placeholder={t('new.serviceNamePlaceholder')} disabled={locked} {...field} />
                 </FormControl>
                 <FormDescription className="text-[13px] leading-relaxed">
-                  대시보드에서 서비스를 구분할 이름입니다.
+                  {t('new.serviceNameHelp')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -220,10 +218,10 @@ export default function NewBotPage() {
             name="service_description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-sm font-semibold">서비스 설명 (선택)</FormLabel>
+                <FormLabel className="text-sm font-semibold">{t('new.serviceDescription')}</FormLabel>
                 <FormControl>
                   <Textarea
-                    placeholder="이 서비스가 무엇인지, 어떤 피드백을 받을지 간단한 설명"
+                    placeholder={t('new.serviceDescriptionPlaceholder')}
                     className="resize-none"
                     disabled={locked}
                     {...field}
@@ -239,7 +237,7 @@ export default function NewBotPage() {
             name="service_url"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-sm font-semibold">서비스 URL (선택)</FormLabel>
+                <FormLabel className="text-sm font-semibold">{t('new.serviceUrl')}</FormLabel>
                 <FormControl>
                   <Input placeholder="https://example.com" disabled={locked} {...field} />
                 </FormControl>
@@ -248,8 +246,8 @@ export default function NewBotPage() {
             )}
           />
 
-          <SectionTitle className="mt-2 border-t border-border pt-5" sub="위젯이 연결되면 바로 답하기 시작합니다">
-            AI 답변
+          <SectionTitle className="mt-2 border-t border-border pt-5" sub={t('new.aiSub')}>
+            {t('new.ai')}
           </SectionTitle>
           <FormField
             control={form.control}
@@ -261,7 +259,7 @@ export default function NewBotPage() {
                     보이는 이름만 두고 그룹이 aria-labelledby 로 그걸 가리킨다.
                     FormControl(Slot)도 같은 이유로 그룹 컨테이너에는 쓰지 않는다. */}
                 <span id={AI_MODE_LABEL_ID} className="text-sm font-semibold">
-                  API 키
+                  {t('new.apiKey')}
                 </span>
                 <div
                   role="radiogroup"
@@ -287,7 +285,7 @@ export default function NewBotPage() {
                         className="h-4 w-4 accent-foreground"
                       />
                       <span id={`${AI_MODE_LABEL_ID}-free-title`} className="font-semibold">
-                        무료로 시작
+                        {t('new.freeTitle')}
                       </span>
                     </div>
                     <p
@@ -295,11 +293,11 @@ export default function NewBotPage() {
                       className="text-[13px] leading-relaxed text-muted-foreground"
                     >
                       {/* 숫자를 문장에 박지 않는다 — 상한이 바뀌면 이 안내가 곧바로 거짓이 된다 */}
-                      하루{' '}
-                      <b className="font-semibold tabular-nums text-foreground">
-                        {DEFAULT_LIMITS.noKey}건
-                      </b>
-                      까지 무료. {PLATFORM_MODEL_LABEL} 로 답해요.
+                      {t.rich('new.freeBody', {
+                        limit: DEFAULT_LIMITS.noKey,
+                        model: PLATFORM_MODEL_LABEL,
+                        b: (chunks) => <b className="font-semibold tabular-nums text-foreground">{chunks}</b>,
+                      })}
                     </p>
                   </label>
 
@@ -321,20 +319,19 @@ export default function NewBotPage() {
                         className="h-4 w-4 accent-foreground"
                       />
                       <span id={`${AI_MODE_LABEL_ID}-own-title`} className="font-semibold">
-                        내 API 키로 시작
+                        {t('new.ownTitle')}
                       </span>
                     </div>
                     <p
                       id={`${AI_MODE_LABEL_ID}-own-desc`}
                       className="text-[13px] leading-relaxed text-muted-foreground"
                     >
-                      모델을 직접 고르고 한도 없이 답해요. 요금은 내 키로.
+                      {t('new.ownBody')}
                     </p>
                   </label>
                 </div>
                 <FormDescription className="text-[13px] leading-relaxed">
-                  어느 쪽이든 답변 지식에 없는 사실은 지어내지 않고 「{HOLDING_MESSAGE}」로 넘깁니다.
-                  나중에 챗봇 설정 화면에서 바꿀 수 있어요.
+                  {t('new.aiNote', { holding: tc('holdingMessage') })}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -367,8 +364,7 @@ export default function NewBotPage() {
             <div className="flex flex-col gap-2 rounded-[10px] border border-destructive/40 p-4">
               <p className="text-xs text-destructive">{keyError}</p>
               <p className="text-[13px] leading-relaxed text-muted-foreground">
-                서비스는 등록됐지만 키는 저장되지 않았어요. 키를 고쳐 다시 저장하거나, 나중에
-                챗봇 설정 → API 키에서 넣을 수 있어요
+                {t('new.keyFailedNote')}
               </p>
               <div>
                 <Button
@@ -378,26 +374,26 @@ export default function NewBotPage() {
                   disabled={isSubmitting}
                   onClick={() => createdBotId && goToConnect(createdBotId)}
                 >
-                  키 없이 계속
+                  {t('new.continueWithoutKey')}
                 </Button>
               </div>
             </div>
           )}
 
-          <SectionTitle className="mt-2 border-t border-border pt-5" sub="비워두면 분류까지만 하고 수정안은 만들지 않습니다">
-            수정안
+          <SectionTitle className="mt-2 border-t border-border pt-5" sub={t('new.fixSub')}>
+            {t('new.fix')}
           </SectionTitle>
           <FormField
             control={form.control}
             name="github_repo_url"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-sm font-semibold">GitHub 저장소 URL (선택)</FormLabel>
+                <FormLabel className="text-sm font-semibold">{t('new.repoUrl')}</FormLabel>
                 <FormControl>
                   <Input placeholder="https://github.com/user/repo" disabled={locked} {...field} />
                 </FormControl>
                 <FormDescription className="text-[13px] leading-relaxed">
-                  피드백을 보고 자동으로 수정안을 올릴 저장소입니다.
+                  {t('new.repoUrlHelp')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -409,7 +405,7 @@ export default function NewBotPage() {
             name="github_token"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-sm font-semibold">GitHub 토큰 (선택)</FormLabel>
+                <FormLabel className="text-sm font-semibold">{t('new.githubToken')}</FormLabel>
                 <FormControl>
                   <Input
                     type="password"
@@ -421,8 +417,7 @@ export default function NewBotPage() {
                   />
                 </FormControl>
                 <FormDescription className="text-[13px] leading-relaxed">
-                  내 계정으로 위 저장소에 PR 을 열게 하는 fine-grained 토큰(Contents·Pull requests Read and write, 그 저장소만).
-                  비워두면 Feedloop 공용 계정으로 시도하는데, 그 계정을 협업자로 초대한 저장소에서만 됩니다. 나중에 설정에서 넣어도 돼요.
+                  {t('new.githubTokenHelp')}
                 </FormDescription>
                 <FormMessage />
                 {githubError && <p className="text-sm text-destructive">{githubError}</p>}
@@ -436,7 +431,7 @@ export default function NewBotPage() {
             render={({ field }) => (
               <FormItem>
                 <span id={PR_MODE_LABEL_ID} className="text-sm font-semibold">
-                  수정안 모드
+                  {t('new.prMode')}
                 </span>
                 <div
                   role="radiogroup"
@@ -463,15 +458,14 @@ export default function NewBotPage() {
                           className="h-4 w-4 accent-foreground"
                         />
                         <span id={`${PR_MODE_LABEL_ID}-approve-title`} className="font-semibold">
-                          승인 후 PR
+                          {t('new.prApprove')}
                         </span>
                       </div>
                       <p
                         id={`${PR_MODE_LABEL_ID}-approve-desc`}
                         className="text-[13px] leading-relaxed text-muted-foreground"
                       >
-                        묶음마다 대시보드에서 [수정안 만들기] 를 눌러 만듭니다. AI 수정이 옳은지
-                        사람이 먼저 봅니다.
+                        {t('new.prApproveBody')}
                       </p>
                     </label>
 
@@ -494,15 +488,14 @@ export default function NewBotPage() {
                           className="h-4 w-4 accent-foreground"
                         />
                         <span id={`${PR_MODE_LABEL_ID}-auto-title`} className="font-semibold">
-                          자동으로 만들기
+                          {t('new.prAuto')}
                         </span>
                       </div>
                       <p
                         id={`${PR_MODE_LABEL_ID}-auto-desc`}
                         className="text-[13px] leading-relaxed text-muted-foreground"
                       >
-                        매일 09:00 가장 큰 새 묶음 하나에 수정안을 자동으로 올립니다. 반영은 여전히
-                        사람이 합니다. 나중에 챗봇 설정 화면에서 바꿀 수 있습니다.
+                        {t('new.prAutoBody')}
                       </p>
                     </label>
                 </div>
@@ -518,15 +511,15 @@ export default function NewBotPage() {
               onClick={() => router.back()}
               disabled={isSubmitting || demo.isDemo}
             >
-              취소
+              {t('new.cancel')}
             </Button>
             {demo.isDemo ? (
               <Button type="button" onClick={() => signIn('google')}>
-                로그인 후 등록 가능
+                {t('new.loginToRegister')}
               </Button>
             ) : (
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (locked ? "키 저장 중..." : "등록 중...") : locked ? "키 저장하고 연결하기" : "등록하고 연결하기"}
+                {isSubmitting ? (locked ? t('new.submit.savingKey') : t('new.submit.registering')) : locked ? t('new.submit.saveKey') : t('new.submit.register')}
               </Button>
             )}
           </div>

@@ -1,14 +1,16 @@
 'use client';
 
 // One button that turns a fresh Google login into an approver of the demo bot and lands them in its inbox.
-// English on purpose: this is the first thing a hackathon judge touches after signing in.
+// The first thing a hackathon judge touches after signing in, so the English text is the one that gets the care.
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 
 export function TryDemoBotButton({ variant = 'outline' }: { variant?: 'outline' | 'default' }) {
+  const t = useTranslations('bots.list.tryDemo');
   const router = useRouter();
   const scope = useBotScope();
   const [state, setState] = useState<'idle' | 'joining' | 'error'>('idle');
@@ -34,10 +36,10 @@ export function TryDemoBotButton({ variant = 'outline' }: { variant?: 'outline' 
   return (
     <div className="flex flex-col items-start gap-1">
       <Button variant={variant} onClick={join} disabled={state === 'joining'}>
-        {state === 'joining' ? 'Joining the demo bot…' : 'Try the demo bot'}
+        {state === 'joining' ? t('joining') : t('button')}
       </Button>
       {state === 'error' && (
-        <span className="text-xs text-destructive">Could not join the demo bot. Try again in a moment.</span>
+        <span className="text-xs text-destructive">{t('error')}</span>
       )}
     </div>
   );

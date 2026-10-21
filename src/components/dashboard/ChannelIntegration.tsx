@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { RiChat1Line, RiCustomerService2Line } from 'react-icons/ri';
 import { cn } from '@/lib/utils';
 
@@ -8,9 +9,9 @@ import { cn } from '@/lib/utils';
 // 없고(마지막 메시지 2026-09-06), 권유할 입구가 아니다.
 // 순서는 연결 화면 갈림길과 같게 둔다 — 두 화면이 다른 순서를 말하면 어느 쪽이 권유인지 흐려진다.
 const channels = [
-  { id: 'web', name: '웹 위젯', sub: '권장 입구 · 스크립트 한 줄', icon: RiChat1Line, iconClass: 'bg-muted text-foreground' },
-  { id: 'channel', name: '채널톡', sub: '선택 채널 · 상담 웹훅', icon: RiCustomerService2Line, iconClass: 'bg-muted text-foreground' },
-];
+  { id: 'web', icon: RiChat1Line, iconClass: 'bg-muted text-foreground' },
+  { id: 'channel', icon: RiCustomerService2Line, iconClass: 'bg-muted text-foreground' },
+] as const;
 
 export interface ChannelIntegrationProps {
   /** 어느 봇이든 웹 위젯이 첫 메시지를 받았는가(`widget_connected_at`). 판정 정본은 /bots 와 같다 */
@@ -26,13 +27,14 @@ export interface ChannelIntegrationProps {
  * 봇이 여럿이면 합산이다(하나라도 켜져 있으면 「연결됨」). 봇별 분리는 I-27 의 몫.
  */
 export function ChannelIntegration({ webOn, channelOn }: ChannelIntegrationProps) {
+  const t = useTranslations('dashboard.channels');
   const on: Record<string, boolean> = { web: webOn, channel: channelOn };
   return (
     <section className="card-surface flex flex-col gap-2 p-5">
       <div className="flex items-baseline justify-between">
-        <h3 className="text-sm font-bold">피드백 채널</h3>
+        <h3 className="text-sm font-bold">{t('title')}</h3>
         <Link href="/bots" className="text-[12.5px] font-semibold text-brand-strong">
-          챗봇 설정
+          {t('settings')}
         </Link>
       </div>
       <ul>
@@ -42,20 +44,20 @@ export function ChannelIntegration({ webOn, channelOn }: ChannelIntegrationProps
               <ch.icon className="h-[18px] w-[18px]" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">{ch.name}</p>
-              <p className="truncate text-[12.5px] text-muted-foreground">{ch.sub}</p>
+              <p className="text-sm font-semibold">{t(ch.id)}</p>
+              <p className="truncate text-[12.5px] text-muted-foreground">{t(`${ch.id}Sub`)}</p>
             </div>
             {on[ch.id] ? (
               <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-brand-strong">
                 <i className="block h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
-                연결됨
+                {t('on')}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
                 <i className="block h-1.5 w-1.5 rounded-full bg-border" aria-hidden />
-                아직 안 붙음
+                {t('off')}
                 <Link href="/bots" className="font-semibold text-brand-strong">
-                  연결하기
+                  {t('connect')}
                 </Link>
               </span>
             )}

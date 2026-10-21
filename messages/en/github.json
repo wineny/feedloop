@@ -1,0 +1,113 @@
+{
+  "app": {
+    "alreadyInstalled": "Already installed · connect",
+    "install": "Install Feedloop on GitHub →",
+    "needRepo": "Connect a repository to fix first and you can install. The app attaches to that one repository only.",
+    "recheck": "Check installation",
+    "reauthorize": "Fixed on GitHub · reconnect",
+    "reinstall": "Reinstall →",
+    "lostNote": "Reinstalling picks up where it left off. In the meantime it tries with the token below or the shared Feedloop account.",
+    "lostFallback": "Please check the GitHub app connection",
+    "unbind": "Unlink",
+    "confirmUnbind": "Yes, unlink",
+    "unbindNote": "Unlinking leaves the installation on the GitHub side. To remove it completely, uninstall it in the installation settings.",
+    "manage": "Manage installation on GitHub →",
+    "connected": "Connected through the Feedloop app",
+    "recommended": "Recommended",
+    "title": "Feedloop app installation",
+    "connectedAt": "{date} connected",
+    "prOpened": "PRs are opened as <b>{login}</b>. There is no token to create or renew.",
+    "connectedBy": "Connected by @{user}.",
+    "allRepos": "This installation can reach <b>every repository on the account</b>. You can narrow it to “Only select repositories” in GitHub installation settings.",
+    "installExplain": "Click install to go to GitHub; you come back automatically. On that screen, pick <b>just the one repository to fix</b> and click Install, and you are done: there is no token to create, copy and paste. PRs are opened as <b>{login}</b>. The permissions are read/write on that repository's Contents and Pull requests, and read on Deployments and Commit statuses. If you already installed Feedloop on this account (for another service), click <b>Connect</b> next to it.",
+    "defaultBotLogin": "Feedloop bot"
+  },
+  "cancel": "Cancel",
+  "broad": {
+    "note": "It works fine, but if it leaks the damage reaches further. We recommend switching to a fine-grained token (github_pat_…) limited to this repository.",
+    "title": "This token can reach every repository on the account{scopes}"
+  },
+  "verifyAndSave": "Verify and save",
+  "token": {
+    "label": "GitHub token",
+    "remove": "Remove token",
+    "confirmRemove": "Yes, remove",
+    "removeNote": "Removing it returns to the shared account. PRs cannot be created on repositories it has not been invited to.",
+    "removeNoteApp": "Removing it leaves the app installation as is. You only lose PRs on repositories the app cannot reach.",
+    "replace": "Replace token",
+    "line": "<b>GitHub token</b> ····{last4}",
+    "verified": "{date} verified"
+  },
+  "steps": {
+    "pasteTitle": "2. Paste the token",
+    "issueTitle": "1. Issue a fine-grained token",
+    "s1": "In <link>GitHub › Settings › Developer settings › Fine-grained tokens</link> click “Generate new token”. This link opens with the name, permissions and expiry prefilled",
+    "s2": "Set Repository access to <b>Only select repositories</b> and pick {repo, select, none {only the repository to fix} other {only {repo}}}",
+    "s3": "Under Permissions › Repository permissions, set <b>Contents</b> and <b>Pull requests</b> to <b>Read and write</b>",
+    "s4": "(Optional) Give <b>Deployments</b> and <b>Commit statuses</b> Read access and the Fix PRs screen also shows preview and build status. Without them only that field shows “Unknown”",
+    "s5": "It must be a repository you own or are a member of. A repository you were only invited to as a collaborator does not work with a fine-grained token and needs a classic token (ghp_)",
+    "pasteNote": "Before saving, we check with GitHub {repo, select, has {that the token can access this repository} other {that the token is valid}}. Write access is judged on the first PR. The token is stored encrypted and only the last 4 characters stay on screen."
+  },
+  "failedNote": "The token may have expired or the repository permissions may have changed. Replacing it with a new token clears this notice.",
+  "failedFallback": "The last GitHub call failed",
+  "alt": {
+    "hintNoApp": "We recommend installing the app above. Add a token only if organization policy prevents installing the app.",
+    "hintApp": "When the app is installed it takes priority. The token is only used for repositories the app cannot reach (older PRs) or when the app does not work.",
+    "collapse": "Hide token settings",
+    "expand": "Show token settings",
+    "title": "Connect with your own token (alternative)"
+  },
+  "summary": {
+    "noConnection": "Without a connection, PRs cannot be created.",
+    "noRepo": "There is no repository to fix yet. Once you register one, PRs are opened on it.",
+    "repo": "Fix PRs are opened on <b>{repo}</b>.",
+    "app": "Right now the <b>Feedloop app</b> creates branches and PRs as {login, select, none {the bot} other {<b>{login}</b>}}.",
+    "token": "Right now branches and PRs are created from <b>your GitHub account</b>.",
+    "shared": "Without a connection, Feedloop tries with the <b>shared Feedloop account</b>. That only works on repositories that account was invited to as a collaborator. Connect below and PRs open on your repository directly, with no invitation."
+  },
+  "status": {
+    "tokenRemoved": "Token removed. Feedloop will now try with the shared account",
+    "tokenSavedNoRepo": "Token verified and saved. Once you connect a repository, PRs are opened from this account",
+    "tokenSaved": "Token verified and saved. PRs are opened from this account from now on",
+    "unbound": "Unlinked. The installation on the GitHub side is still there"
+  },
+  "errors": {
+    "networkSave": "Could not save because of a network error",
+    "save": "Could not save",
+    "networkCheck": "Could not check because of a network error",
+    "checkFailed": "Could not check with GitHub"
+  },
+  "loadError": "Could not load the GitHub connection settings. Please reload.",
+  "loading": "Loading…",
+  "recheck": {
+    "unknown": "Could not read the check result. Please try again in a moment",
+    "changed": "This repository has a different installation. Use “Reinstall” to link it to this bot",
+    "suspended": "The app is suspended. Lift the suspension in GitHub installation settings",
+    "missing": "Could not find the Feedloop app installation on this repository. Please install it again",
+    "notBound": "It is not linked to this bot yet. Start the installation with the button above",
+    "noRepo": "There is no repository to fix, so there is nothing to check. Connect a repository first",
+    "ok": "The installation is still there. PRs can be opened on this repository"
+  },
+  "footer": {
+    "app": "PRs created by the {service} bot are opened as {login}.",
+    "appDefault": "the app",
+    "token": "PRs created by the {service} bot are opened under the name of this token's account.",
+    "merge": "Merging is still done by a person, in Feedloop's “Fix PRs” screen or on GitHub."
+  },
+  "callback": {
+    "bound": "GitHub app installed and linked to this bot",
+    "no_repo": "Connect a repository to fix first. Install after that and it links",
+    "not_installed": "Installed, but this bot's repository is not on the app's access list. Add the repository in GitHub installation settings",
+    "suspended": "The app is suspended on GitHub. Lift the suspension in installation settings",
+    "no_push": "The GitHub account that installed it has no write access to this repository. Install it with the repository owner or an account with write access",
+    "unknown_push": "Could not check with GitHub. Click “Check installation” in a moment",
+    "requested": "An install request was sent to the organization owner. Once it is approved, click the install button once more to connect",
+    "need_state": "Could not tell which service to connect. Start again with “Install” on Feedloop's connect screen (if it is already installed, it only checks and returns right away)",
+    "no_code": "Did not receive the authorization needed to connect. Start again with the install button",
+    "auth_failed": "GitHub authorization check failed. Start again with the install button",
+    "no_bot": "There is no service to connect. Register a service first, then install",
+    "unconfigured": "The GitHub app is not set up on this deployment. Connect with a token instead",
+    "busy": "Too many install requests. Please try again in a moment",
+    "error": "Something went wrong while connecting. Try again with the install button in a moment"
+  }
+}

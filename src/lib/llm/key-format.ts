@@ -25,18 +25,19 @@ const KEY_HINT: Record<LlmProvider, string> = {
   openai: 'OpenAI 키는 sk- 로 시작해요',
 };
 
-export type KeyFormatResult = { ok: true } | { ok: false; error: string };
+/** `code`·`vars` 는 화면용(사전 키 `common.validation.<code>`) — `error` 는 서버 응답용 한국어 */
+export type KeyFormatResult = { ok: true } | { ok: false; error: string; code: string; vars?: Record<string, string | number> };
 
 /** 붙여넣기 사고(앞뒤 공백·줄바꿈·따옴표)와 명백한 오탈자만 거른다. */
 export function checkKeyFormat(provider: LlmProvider, key: unknown): KeyFormatResult {
   if (typeof key !== 'string' || key.trim() === '') {
-    return { ok: false, error: 'API 키를 입력해 주세요' };
+    return { ok: false, error: 'API 키를 입력해 주세요', code: 'key.empty' };
   }
   if (key !== key.trim()) {
-    return { ok: false, error: 'API 키 앞뒤에 공백이나 줄바꿈이 섞여 있어요' };
+    return { ok: false, error: 'API 키 앞뒤에 공백이나 줄바꿈이 섞여 있어요', code: 'key.whitespace' };
   }
   if (!KEY_PREFIX[provider].test(key)) {
-    return { ok: false, error: `키 형식이 맞지 않아요. ${KEY_HINT[provider]}` };
+    return { ok: false, error: `키 형식이 맞지 않아요. ${KEY_HINT[provider]}`, code: `key.format.${provider}` };
   }
   return { ok: true };
 }

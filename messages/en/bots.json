@@ -1,0 +1,281 @@
+{
+  "knowledge": {
+    "textOver": "The content is over the limit. Shorten it to save; it is never truncated for you.",
+    "save": "Save",
+    "sizeNote": "This much goes to the model with every reply. The longer it is, the higher the cost and response time.",
+    "sizeLabel": "Size loaded into the prompt",
+    "publicWarning": "Whatever you put here can be quoted word for word in replies to visitors. Only add information that is fine to make public.",
+    "addItem": "Add item",
+    "faqAnswerPlaceholder": "Write the answer you would like the bot to give.",
+    "faqQuestionPlaceholder": "e.g. Until when can I get a refund?",
+    "faqEmpty": "None yet. Add the first one below.",
+    "faqHint": "Writing questions and answers separately helps the bot find them much better.",
+    "faqTitle": "Frequently asked questions",
+    "textTitle": "What the bot should know",
+    "errors": {
+      "network": "Could not save because of a network error",
+      "save": "Could not save"
+    },
+    "saved": "Saved. Replies use this content from now on",
+    "emptyNote": "While knowledge is empty, the bot does not answer factual questions (policies, prices, quantities) and hands off with “{holding}”. It still replies to feedback as usual. Add knowledge here and it answers within that range right away.",
+    "count": "{count, number} / {max, number} chars",
+    "textPlaceholder": "Paste what the bot needs to know about {name}: how to use it, pricing, shipping and refund rules, common situations.",
+    "textNote": "You can paste what you already wrote in Notion or a README as is. Anything not here, the bot does not make up. It hands off with “{holding}”.",
+    "faqCount": "{count} / {max} items",
+    "questionLabel": "Question {n}",
+    "questionDelete": "Delete question {n}",
+    "answerLabel": "Answer {n}",
+    "size": "≈ {size, number} chars",
+    "faqOver": "There are more than {max} frequently asked questions."
+  },
+  "appearance": {
+    "previewSend": "Send",
+    "previewPlaceholder": "Leave us anything",
+    "previewReply": "I will check and let you know.",
+    "previewVisitor": "My coupon box keeps looking empty",
+    "previewFaq": "Frequently asked questions",
+    "previewLabel": "Widget preview",
+    "resetDefault": "Reset to default",
+    "default": "Default",
+    "previewTitle": "What visitors see (first screen + sample bubbles)",
+    "saving": "Saving…",
+    "save": "Save",
+    "bubbleHelp": "Background of the bubbles visitors send. The text color is picked automatically between white and black by brightness.",
+    "bubble": "Your bubble color",
+    "accentHelp": "Used on the floating button, unread badge, profile initial, send button, links and the fixed-notification card. The text color on top is picked automatically between white and black by brightness, and a light color makes links and borders slightly darker.",
+    "accent": "Accent color",
+    "colorsHelp": "If empty, Feedloop default colors are used. Add your brand color and the widget looks like part of your site.",
+    "colors": "Colors",
+    "imageUrlHelp": "A 512×512 square PNG/JPG is recommended. File upload is not ready yet, so enter a public URL for now.",
+    "imageUrl": "Profile image URL",
+    "operatorNameHelp": "The name attached to replies you send from the Inbox.",
+    "operatorName": "Reply name",
+    "fallbackNote": "A question you write in the field above always wins. This choice only applies when that field is empty.",
+    "fallbackOffNote": "The first screen shows only the greeting and the feedback button. The knowledge is still used and the bot answers when visitors ask on their own.",
+    "fallbackOff": "Show none",
+    "fallbackOn": "Fill from the knowledge",
+    "fallbackTitle": "When starter questions are empty",
+    "starters": "Starter questions",
+    "greetingHelp": "The first bubble visitors see when they open the widget.",
+    "greeting": "First greeting",
+    "statusTextHelp": "One line under the display name. A place to say in advance when replies usually arrive.",
+    "statusText": "Status text",
+    "displayNameHelp": "Used in the widget header and the floating button. If empty, the service name is used.",
+    "displayName": "Display name",
+    "errors": {
+      "network": "Could not save because of a network error",
+      "save": "Could not save"
+    },
+    "saved": "Saved. It reaches the visitor widget within a few minutes",
+    "starterExample1": "How many coupons can I get per day?",
+    "starterExample2": "Is the crowd level live?",
+    "startersHelp": "One per line, up to {max} (each up to {chars} characters). They appear under the greeting, and when a visitor taps one it is sent right away and answered on the spot.",
+    "fallbackOnNote": "The first FAQ questions are shown to visitors as they are. Right now that starts with “{first}” and shows {count, plural, one {# question} other {# questions}}.",
+    "fallbackOnEmpty": "If you add FAQs to the knowledge, the first questions are shown to visitors. There are no FAQs right now, so nothing shows.",
+    "colorSwatch": "{label} swatch",
+    "previewPick": "Pick on screen",
+    "previewHuman": "Talk to a person",
+    "chips": {
+      "bug": "I have a problem",
+      "feature": "I have a suggestion"
+    }
+  },
+  "defaults": {
+    "statusText": "Usually replies in a few minutes",
+    "greeting": "Hi! Tell us anything that bothered you or anything you'd like while using {name}. Our team reads and answers every message.",
+    "operatorName": "{name} team"
+  },
+  "new": {
+    "loginToRegister": "Log in to register",
+    "cancel": "Cancel",
+    "prAutoBody": "Every day at 09:00 a fix PR is opened for the largest new group. A person still decides what ships. You can change this later on the Bots screen.",
+    "prAuto": "Create automatically",
+    "prApproveBody": "For each group, click [Create fix PR] in the dashboard. A person checks first that the AI fix is right.",
+    "prApprove": "PR after approval",
+    "prMode": "Fix PR mode",
+    "githubTokenHelp": "A fine-grained token (Contents and Pull requests: Read and write, that repository only) that lets PRs be opened from your account on the repository above. If empty, Feedloop tries with its shared account, which only works on repositories that account was invited to as a collaborator. You can add one later in settings.",
+    "githubToken": "GitHub token (optional)",
+    "repoUrlHelp": "The repository where fix PRs are opened from feedback.",
+    "repoUrl": "GitHub repository URL (optional)",
+    "fix": "Fix PRs",
+    "fixSub": "If empty, it only triages and creates no fix PRs",
+    "continueWithoutKey": "Continue without a key",
+    "keyFailedNote": "The service is registered but the key was not saved. Fix the key and save again, or add it later under Bots → API key.",
+    "ownBody": "Pick the model yourself and answer with no limit. You pay through your own key.",
+    "ownTitle": "Start with my own API key",
+    "freeTitle": "Start free",
+    "apiKey": "API key",
+    "ai": "AI replies",
+    "aiSub": "Starts answering as soon as the widget is connected",
+    "serviceUrl": "Service URL (optional)",
+    "serviceDescriptionPlaceholder": "A short description of what this service is and what feedback you expect",
+    "serviceDescription": "Service description (optional)",
+    "serviceNameHelp": "The name that tells your services apart in the dashboard.",
+    "serviceNamePlaceholder": "e.g. Acme Tours, Rona",
+    "serviceName": "Service name *",
+    "basic": "Basic info",
+    "basicSub": "The name and address used in the dashboard and widget",
+    "lockedNote": "The service is already registered. Only the key is saved now; you can change the other details on the Bots screen.",
+    "description": "Register the service that will receive feedback. You choose the entrance (Channel Talk or web widget) on the next screen.",
+    "title": "Register a new service",
+    "errors": {
+      "register": "Something went wrong while registering the service.",
+      "keySave": "Could not save the key"
+    },
+    "githubFail": "Could not save the GitHub token — {reason}. You can add it again after connecting, under “Knowledge › GitHub”.",
+    "githubFailReason": "verification failed",
+    "afterRegister": "After you register you go to the connect screen. There you either <b>attach to the Channel Talk chat you already use</b> or, if you have no support channel, <b>add one widget line to your service</b>. You can change this later or attach both.",
+    "freeBody": "Up to <b>{limit, number}</b> a day free. Answers with {model}.",
+    "aiNote": "Either way, a fact that is not in the knowledge is not made up: the bot hands off with “{holding}”. You can change this later on the Bots screen.",
+    "submit": {
+      "savingKey": "Saving key...",
+      "registering": "Registering...",
+      "saveKey": "Save key and connect",
+      "register": "Register and connect"
+    }
+  },
+  "delete": {
+    "cancel": "Cancel",
+    "deleting": "Deleting…",
+    "confirm": "Delete permanently",
+    "confirmLabel": "Type the service name exactly to confirm",
+    "body": "Conversations, feedback, groups, fix PR records, knowledge and the API key are all deleted and this cannot be undone. PRs and branches already created on GitHub stay. The widget on your service stops showing.",
+    "button": "Delete service",
+    "error": "Could not delete",
+    "title": "Delete “{name}”?"
+  },
+  "prMode": {
+    "label": "Fix PR mode",
+    "error": "Could not save",
+    "approve": "Create after approval",
+    "approveHint": "You have to click [Create fix PR] in the dashboard",
+    "auto": "Create automatically",
+    "autoHint": "Every day at 09:00 a fix PR is opened for the largest new group"
+  },
+  "scoped": {
+    "zero": "0 services",
+    "only": "<b>{name}</b> only · <strong>{total}</strong> in total",
+    "summary": "Services <strong>{total}</strong> · receiving <strong>{receiving}</strong>",
+    "subOnly": "{name} only · other services from “Set up connection” on each row",
+    "subAll": "{name} · one line at the end of your service's {body}",
+    "snippetTitle": "Widget script",
+    "snippetNote": "Once you paste it and the first visitor opens the widget, it changes to “Connected”. Changes to the widget appearance take 1–2 minutes to apply."
+  },
+  "title": "Bots",
+  "list": {
+    "registerNew": "Register a new service",
+    "registerService": "Register a service",
+    "emptyText": "Register a service and paste one script line, and feedback starts coming in",
+    "status": {
+      "active": "Active",
+      "pending": "Pending",
+      "error": "Error"
+    },
+    "keyCheck": "Key needs checking",
+    "githubTokenCheck": "GitHub token needs checking",
+    "githubAppCheck": "GitHub app needs checking",
+    "gh": {
+      "tokenAlso": " · token ····{last4} also set",
+      "appLostToken": " · trying with token ····{last4}",
+      "appLostShared": " · trying with the shared account",
+      "appName": "Feedloop app",
+      "manage": "Manage installation →",
+      "tokenFailed": "GitHub token needs checking",
+      "myToken": "My GitHub token ····{last4}",
+      "broad": "· access to the whole account",
+      "shared": "Trying with the shared account · invited repositories only",
+      "connect": "Connect GitHub →"
+    },
+    "channel": {
+      "on": "Connected",
+      "off": "Not connected"
+    },
+    "noUrl": "No service URL",
+    "registered": "Registered {date}",
+    "approverBadge": "Approver",
+    "cell": {
+      "entrances": "Entrances",
+      "myRole": "My role",
+      "repo": "Repository to fix",
+      "appearance": "Widget appearance",
+      "knowledge": "Knowledge"
+    },
+    "openInbox": "Open Inbox",
+    "approverNote": "You approve or reject this bot's refund requests in the inbox. Replies, settings and the API key stay with the owner.",
+    "key": {
+      "check": "API key needs checking",
+      "own": "My key · {provider} {model}",
+      "exception": "{count, number} a day · exception applied{key}",
+      "free": "Free {count} a day · {model}"
+    },
+    "setupConnection": "Set up connection",
+    "noEntrance": "No way for feedback to come in yet. Paste one script line",
+    "noRepo": "No repository, so no fix PRs are created. It only triages feedback",
+    "changeAppearance": "Change appearance",
+    "replyAs": " · replies as {name}",
+    "customGreeting": "“{text}”",
+    "defaultGreeting": "Default greeting “{text}”",
+    "checkKey": "Check key",
+    "addKnowledge": "Add knowledge",
+    "knowledgeKey": "Knowledge & key settings",
+    "noKnowledge": "No knowledge yet. Add some and it answers with grounds",
+    "chars": "{count, number}<small> chars</small>",
+    "faq": "FAQ <n>{count}</n>",
+    "settings": {
+      "label": "Settings",
+      "connection": "Connection",
+      "appearance": "Widget appearance",
+      "knowledge": "Knowledge",
+      "key": "API key",
+      "github": "GitHub connection"
+    },
+    "demo": {
+      "rona": {
+        "description": "rona.so community feedback collection and AI triage",
+        "displayName": "Rona",
+        "greeting": "Hi! If anything bothers you while using Rona, let us know.",
+        "knowledge": "Rona is a hands-on AI coaching service. Payment is monthly and refunds are full within 7 days.",
+        "q1": "How do I get a refund?",
+        "a1": "Within 7 days of payment you get a full refund under Settings > Billing.",
+        "q2": "When is coaching available?",
+        "a2": "You can book weekdays from 10 AM to 7 PM."
+      },
+      "test": {
+        "name": "Feedloop test",
+        "description": "For development and testing"
+      }
+    },
+    "tryDemo": {
+      "button": "Try the demo bot",
+      "joining": "Joining the demo bot…",
+      "error": "Could not join the demo bot. Try again in a moment."
+    }
+  },
+  "pages": {
+    "appearance": {
+      "title": "Widget appearance",
+      "description": "Set the name, greeting, starter questions, profile and colors visitors see in the {name} widget",
+      "back": "Back to Connect to service"
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "description": "Decide what the {name} bot answers from. Anything not here is not made up; it goes to a person",
+      "back": "Back to Bots",
+      "tabKnowledge": "Knowledge",
+      "tabKey": "API key",
+      "tabGithub": "GitHub"
+    },
+    "connect": {
+      "fallbackName": "this service",
+      "lockedTitle": "Move to {want}",
+      "lockedDescription": "This service currently receives feedback through {using}.",
+      "widgetTitle": "Add the widget",
+      "widgetDescription": "Put this one line in the layout that every page uses and you are done.",
+      "channelTitle": "Connect Channel Talk",
+      "channelDescription": "Issue a key and register the webhook address, and you are done. Three steps.",
+      "overviewTitle": "Connect to service",
+      "overviewDescription": "These are the ways feedback reaches {name} right now.",
+      "chooserDescription": "Set up the entrance that receives the feedback coming in to {name}."
+    }
+  }
+}

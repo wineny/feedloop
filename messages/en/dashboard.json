@@ -1,0 +1,194 @@
+{
+  "title": "Loop dashboard",
+  "subtitleEmpty": "See at a glance how far incoming feedback has gotten in the loop.",
+  "subtitle": "You received <strong>{received, plural, one {# piece} other {# pieces}}</strong> of feedback and delivered <strong>{returned, plural, one {# notification} other {# notifications}}</strong>.",
+  "notes": {
+    "unknown": "Classification detail unavailable",
+    "pending": "Waiting {count}",
+    "processing": "Processing {count}",
+    "failed": "Failed {count}",
+    "exhausted": "Limit reached {count}",
+    "none": "Nothing left unclassified",
+    "returnQueued": "{count} waiting to send",
+    "prShippedOpen": "Shipped {merged} · waiting {open}",
+    "prShipped": "Shipped {merged}"
+  },
+  "slowMerge": "Checking PRs on GitHub one by one. This can take up to 2 minutes.",
+  "merge": {
+    "failed": "{count} failed to check · see the errors in the Fix PRs screen",
+    "delivered": "{count} sent back to users",
+    "already": "Fixes already shipped were notified · check deploy and resolution in the details",
+    "none": "No shipped fixes yet",
+    "deferred": "{count} will be sent next time",
+    "skipped": "{count} runs will be checked next time",
+    "demo": "Checked whether fixes shipped. Nothing new shipped (this is a practice screen, so the examples stay as they are)."
+  },
+  "errors": {
+    "api": "API error: {status}",
+    "load": "Could not load the data",
+    "classify": "The classification recovery request failed. Please try again.",
+    "classifyShort": "Classification recovery failed",
+    "check": "Check failed"
+  },
+  "checkMerged": "Check for shipped fixes",
+  "checking": "Checking… {seconds}s",
+  "runClassify": "Run AI triage",
+  "stuck": "Some feedback is stuck in classification",
+  "stuckCta": "Check and recover ›",
+  "modeNote": "<b>Fix PR mode · approval.</b> Fix PRs are prepared and a person ships them. Once a fix is confirmed shipped, everyone who raised that problem gets a notification.",
+  "channels": {
+    "title": "Feedback channels",
+    "settings": "Bots",
+    "web": "Web widget",
+    "webSub": "Recommended entrance · one script line",
+    "channel": "Channel Talk",
+    "channelSub": "Optional channel · support webhook",
+    "on": "Connected",
+    "off": "Not connected yet",
+    "connect": "Connect"
+  },
+  "feed": {
+    "title": "What happened in the loop",
+    "empty": "No activity yet. Once feedback comes in and is triaged, it collects here.",
+    "kind": {
+      "classified": "AI triage",
+      "pr_created": "Fix PR created",
+      "pr_failed": "Auto-fix stopped",
+      "returned": "Notification"
+    },
+    "ago": {
+      "now": "just now",
+      "minutes": "{count}m ago",
+      "hours": "{count}h ago",
+      "days": "{count}d ago"
+    }
+  },
+  "quality": {
+    "avgLabel": "Report → notification average",
+    "none": "Not yet",
+    "failed": "Could not count",
+    "avgFailed": "Could not read the whole sample · please reload",
+    "avgBasis": "Based on {count, plural, one {# notification} other {# notifications}}",
+    "avgWait": "Measured once notifications go out",
+    "yesLabel": "“Yes, it works” rate",
+    "yesFailed": "Could not read all the answers · please reload",
+    "yesBasis": "Web widget only · {fixed} of {answered} answered",
+    "yesRate": " · response rate {rate}",
+    "yesNoAnswer": "Web widget only · no answer yet from {delivered} notifications",
+    "yesWait": "Fills in once answers arrive on the web widget card",
+    "dur": {
+      "none": "Not yet",
+      "lessThanMinute": "Under 1 minute",
+      "minutes": "{value} min",
+      "hours": "{value} h",
+      "days": "{value} d"
+    }
+  },
+  "stages": {
+    "label": "Loop stages",
+    "collected": "Incoming feedback",
+    "classified": "AI triage",
+    "prCreated": "Fix PR",
+    "returned": "Notification",
+    "returnedCount": "“Fixed” went back to {count, plural, one {# person} other {# people}}",
+    "returnedHint": "When a fix ships, it goes back to the person who reported it"
+  },
+  "onboarding": {
+    "title": "4 steps to your first loop",
+    "progress": "{done}/4 steps",
+    "hide": "This guide disappears once a single report comes in.",
+    "done": "Done",
+    "steps": {
+      "connect": {
+        "label": "Paste the script",
+        "action": "Go connect"
+      },
+      "feedback": {
+        "label": "Send a first report",
+        "action": "Open the Inbox"
+      },
+      "github": {
+        "label": "Connect GitHub",
+        "action": "Connect a repository"
+      },
+      "pr": {
+        "label": "First fix PR",
+        "action": "View fix PRs"
+      }
+    }
+  },
+  "recent": {
+    "title": "Feedback from your channels",
+    "reply": "Reply in Inbox",
+    "empty": "No feedback yet. Connect a channel and it collects here.",
+    "aiSent": "AI replied",
+    "aiWait": "Waiting for a reply",
+    "notified": "Notification sent",
+    "notifyWait": "Notification waiting"
+  },
+  "grouping": {
+    "none": "No ungrouped feedback",
+    "running": "Grouping {count, plural, one {# item} other {# items}} now",
+    "due": "{count, plural, one {# item} other {# items}} · grouping automatically in about {secs} seconds (waiting for follow-up reports)",
+    "soon": "Grouping {count, plural, one {# item} other {# items}} shortly",
+    "idle": "{count, plural, one {# item is} other {# items are}} not grouped yet",
+    "unreadable": "Could not read the grouping status",
+    "runNow": "Group now"
+  },
+  "groups": {
+    "categories": {
+      "bug": "Bug",
+      "ux": "UX",
+      "feature_request": "Feature request",
+      "praise": "Praise",
+      "cs": "Question",
+      "other": "Other"
+    },
+    "ago": {
+      "now": "just now",
+      "minutes": "{count}m ago",
+      "hours": "{count}h ago",
+      "yesterday": "yesterday",
+      "days": "{count}d ago"
+    },
+    "demoGroup": {
+      "title": "Endless redirect after a 401 error",
+      "summary": "Reports that after the session expires, the login screen and the service screen keep sending users back to each other and they cannot get out.",
+      "reason": "Cannot get out of the login step after the session expires"
+    },
+    "notices": {
+      "nothing": "No feedback can be grouped (questions and praise are not grouped)",
+      "one": "Grouped 1 item",
+      "busy": "Already grouping automatically. Reloading shortly",
+      "deferred": "Processing was put on hold. {count} left",
+      "grouped": "Grouped {count, plural, one {# item} other {# items}}",
+      "dismissed": "Group closed. This is a practice screen, so it comes back when you reload."
+    },
+    "errors": {
+      "group": "Grouping failed",
+      "groupBots": "Grouping failed for {count} bots: {reasons}",
+      "pr": "Could not start creating the fix PR",
+      "spec": "Could not create the spec draft"
+    },
+    "title": "Feedback groups",
+    "sub": "People who raised the same problem are bundled into one fix PR. A group forms by itself 1–2 minutes after a report.",
+    "tryThis": "Try this first",
+    "empty": "No groups yet. People who raised the same problem are gathered into one PR — feedback classified as bug, UX or feature request is grouped by itself within 1–2 minutes of the report.",
+    "order": "Not fixed yet first · most people affected and core flow blocked first",
+    "core": "Core flow",
+    "followUp": "Follow-up check · linked to an existing group. No new PR until deploy and resolution are confirmed.",
+    "feedbackCount": "Feedback <b>{count}</b>",
+    "people": "Raised by <b>{count}</b>",
+    "score": "Score {score}",
+    "shipped": "Shipped",
+    "prOpen": "PR open",
+    "viewPr": "View PR #{number}",
+    "tryPr": "Now click this",
+    "createPr": "Create fix PR",
+    "viewSpec": "View spec",
+    "draftSpec": "Draft spec",
+    "dismiss": "Close",
+    "dismissLabel": "Close this group",
+    "specNote": "Spec draft · a person decides whether to build it"
+  }
+}

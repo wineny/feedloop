@@ -18,6 +18,7 @@
 
 import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
@@ -29,7 +30,7 @@ import { ChannelTalkConnectGuide } from '@/components/onboarding/ChannelTalkConn
 import { WebWidgetConnectGuide } from '@/components/onboarding/WebWidgetConnectGuide';
 import { ConnectChooser, ConnectLocked, ConnectOverview } from '@/components/onboarding/ConnectChooser';
 import { resolveVia } from '@/lib/connect/via';
-import { ENTRANCE_NAME, resolveConnectScreen } from '@/lib/connect/exclusive';
+import { resolveConnectScreen } from '@/lib/connect/exclusive';
 import { limitForDisplay, resolveLimit } from '@/lib/llm/limits';
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +64,8 @@ export default async function BotConnectPage({
 }) {
   const { id } = await params;
   const { via: viaParam, tab } = await searchParams;
+  const t = await getTranslations('bots.pages.connect');
+  const tn = await getTranslations('connect.entrance');
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -83,7 +86,7 @@ export default async function BotConnectPage({
   const via = resolveVia(viaParam, tab);
   // 서비스명은 운영자가 적은 임의의 말이다. 뒤에 붙는 조사는 받침을 타지 않는 것만 쓴다 —
   // 「…로」는 받침이 있으면 「…으로」여야 해서(「봇로」 ✗) 남의 서비스 이름에서 곧바로 깨진다.
-  const serviceName = bot.service_name || '이 서비스';
+  const serviceName = bot.service_name || t('fallbackName');
   const widgetOn = Boolean(bot.widget_connected_at);
   const channelOn = Boolean(bot.channel_connected_at);
 
@@ -102,12 +105,13 @@ export default async function BotConnectPage({
     return (
       <Frame
         botId={bot.id}
+        backLabel={t('overviewTitle')}
         // 「채널톡 붙이기」라고 쓰면 제목이 약속하는 일과 본문이 말하는 일이 어긋난다 —
         // 큰 글씨로 붙이라고 해놓고 아래에서 못 붙인다고 하는 꼴이다(2026-09-20 브라우저 QA).
-        title={`${ENTRANCE_NAME[screen.want]}으로 옮기기`}
+        title={t('lockedTitle', { want: tn(screen.want) })}
         // 서비스명 뒤에 받침 타는 조사를 붙이지 않는다 — 「널널투어은」이 실제로 나왔다.
         // 이 파일 위쪽 serviceName 주석이 경고하던 바로 그 함정이다.
-        description={`이 서비스는 지금 ${ENTRANCE_NAME[screen.using]}으로 피드백을 받고 있어요.`}
+        description={t('lockedDescription', { using: tn(screen.using) })}
       >
         <ConnectLocked botId={bot.id} want={screen.want} using={screen.using} />
       </Frame>
@@ -116,7 +120,7 @@ export default async function BotConnectPage({
 
   if (screen.kind === 'guide' && screen.via === 'widget') {
     return (
-      <Frame botId={bot.id} title="위젯 붙이기" description="이 한 줄을 모든 페이지에 들어가는 레이아웃에 넣으면 끝납니다.">
+      <Frame botId={bot.id} backLabel={t('overviewTitle')} title={t('widgetTitle')} description={t('widgetDescription')}>
         <WebWidgetConnectGuide
           botId={bot.id}
           scriptSrc={`${baseUrl}/widget.js`}
@@ -129,7 +133,7 @@ export default async function BotConnectPage({
 
   if (screen.kind === 'guide' && screen.via === 'channel') {
     return (
-      <Frame botId={bot.id} title="채널톡에 연결" description="키를 발급해 넣고, 웹훅 주소를 등록하면 끝납니다. 세 단계예요.">
+      <Frame botId={bot.id} backLabel={t('overviewTitle')} title={t('channelTitle')} description={t('channelDescription')}>
         <ChannelTalkConnectGuide
           botId={bot.id}
           serviceName={bot.service_name ?? ''}
@@ -150,8 +154,8 @@ export default async function BotConnectPage({
     return (
       <div className="flex flex-col gap-6">
         <PageHero
-          title="서비스에 연결"
-          description={`지금 ${serviceName}에 피드백이 들어오는 길입니다.`}
+          title={t('overviewTitle')}
+          description={t('overviewDescription', { name: serviceName })}
         />
         <ConnectOverview
           botId={bot.id}
@@ -166,8 +170,8 @@ export default async function BotConnectPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHero
-        title="서비스에 연결"
-        description={`${serviceName}에 들어오는 피드백을 받을 창구를 냅니다.`}
+        title={t('overviewTitle')}
+        description={t('chooserDescription', { name: serviceName })}
       />
       <ConnectChooser
         botId={bot.id}
@@ -196,8 +200,10 @@ function Frame({
   title,
   description,
   children,
+  backLabel,
 }: {
   botId: string;
+  backLabel: string;
   title: string;
   description: string;
   children: ReactNode;
@@ -210,7 +216,7 @@ function Frame({
           className="inline-flex w-fit items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-          서비스에 연결
+          {backLabel}
         </Link>
         <PageHero title={title} description={description} />
       </div>

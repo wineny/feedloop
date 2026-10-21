@@ -3,6 +3,8 @@
 import * as React from "react"
 import type { Label as LabelPrimitive } from "radix-ui"
 import { Slot } from "radix-ui"
+import { useTranslations } from "next-intl"
+import { resolveMessage } from "@/lib/i18n/message"
 import {
   Controller,
   FormProvider,
@@ -137,7 +139,10 @@ function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
 
 function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
   const { error, formMessageId } = useFormField()
-  const body = error ? String(error?.message ?? "") : props.children
+  const t = useTranslations()
+  // zod 메시지가 `i18n:<사전 키>` 이면 현재 언어로 푼다(lib/i18n/message.ts)
+  const raw = error ? String(error?.message ?? "") : props.children
+  const body = typeof raw === "string" ? resolveMessage(t, raw) : raw
 
   if (!body) {
     return null

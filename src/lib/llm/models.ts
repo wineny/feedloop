@@ -103,24 +103,25 @@ export const MODEL_ID_RE = /^[A-Za-z0-9._-]+$/;
  */
 export function validateModelId(
   value: unknown,
-): { ok: true; value: string | null } | { ok: false; error: string } {
+): { ok: true; value: string | null } | { ok: false; error: string; code: string; vars?: Record<string, string | number> } {
   if (value === null || value === undefined) return { ok: true, value: null };
   if (typeof value !== 'string') {
-    return { ok: false, error: '모델 이름은 문자열이어야 합니다' };
+    return { ok: false, error: '모델 이름은 문자열이어야 합니다', code: 'model.notString' };
   }
   if (value.trim() === '') {
-    return { ok: false, error: '모델 이름이 비어 있습니다' };
+    return { ok: false, error: '모델 이름이 비어 있습니다', code: 'model.empty' };
   }
   if (value !== value.trim()) {
-    return { ok: false, error: '모델 이름 앞뒤에 공백이 있습니다' };
+    return { ok: false, error: '모델 이름 앞뒤에 공백이 있습니다', code: 'model.padded' };
   }
   if (value.length > MODEL_ID_MAX) {
-    return { ok: false, error: `모델 이름은 ${MODEL_ID_MAX}자까지 입력할 수 있습니다` };
+    return { ok: false, error: `모델 이름은 ${MODEL_ID_MAX}자까지 입력할 수 있습니다`, code: 'model.tooLong', vars: { max: MODEL_ID_MAX } };
   }
   if (!MODEL_ID_RE.test(value)) {
     return {
       ok: false,
       error: '모델 이름에는 영문·숫자와 . _ - 만 쓸 수 있습니다',
+      code: 'model.chars',
     };
   }
   return { ok: true, value };
