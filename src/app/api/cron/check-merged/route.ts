@@ -7,6 +7,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { checkMergedRuns } from '@/lib/auto-dev/loop-closed';
 import { cleanupShots, type ShotCleanupResult } from '@/lib/widget/shots';
+import { resolvePayPalBot } from '@/lib/paypal/bot';
+import { sweepStuckActions, type SweepResult } from '@/lib/paypal/reconcile';
+import { supabasePaymentsStore } from '@/lib/paypal/store';
+
+/**
+ * PayPal refund reaper (stage 3): finishes payment_actions rows whose PayPal answer was lost
+ * (executing/unknown) and expires approval requests older than 7 days. Same reason it lives here as
+ * the shot cleanup — no free cron slot. Failure is reported, never a 500 for the merge check.
+ */
+async function runRefundSweep(): Promise<SweepResult & { ok: boolean }> {
+  try {
+    const sweep = await sweepStuckActions({
+      store: supabasePaymentsStore(),
+      paypalFor: async (botId) => {
+        const r = await resolvePayPalBot(botId);
+        return r.ok ? r.bot.client : null;
+      },
+    });
+    console.log(
+      `[cron/check-merged] 환불 정리 · 만료 ${sweep.expired} · 확인 ${sweep.scanned} · 완료 ${sweep.executed} · 실패 ${sweep.failed}` +
+        ` · 대기 ${sweep.stillPending} · 연결 실패 ${sweep.unreachable} · 건너뜀 ${sweep.skipped} · 오류 ${sweep.errors}`,
+    );
+    return { ...sweep, ok: true };
+  } catch (err) {
+    console.error('[cron/check-merged] 환불 정리 실패', err instanceof Error ? err.message : err);
+    return { expired: 0, announced: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0, ok: false };
+  }
+}
 
 /**
  * 「화면에서 선택하기」 스크린샷 정리(I-55) — 붙지 않은 지 24시간 된 고아 + 보존 90일 지난 것.
@@ -63,8 +91,10 @@ export async function GET(req: NextRequest) {
         ` · 미룸 ${deferred} · 못 본 run ${skipped} · 실패 ${failures.length}`,
     );
     const shots = await runShotCleanup();
+    const refunds = await runRefundSweep();
     return NextResponse.json({
       shots,
+      refunds,
       checked: results.length,
       merged: merged.length,
       delivered,
@@ -77,6 +107,7 @@ export async function GET(req: NextRequest) {
     const message = err instanceof Error ? err.message : 'unknown';
     console.error('[cron/check-merged]', message);
     await runShotCleanup();
+    await runRefundSweep();
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

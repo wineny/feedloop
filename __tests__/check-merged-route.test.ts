@@ -4,6 +4,9 @@ const { select, check } = vi.hoisted(() => ({ select: vi.fn(), check: vi.fn() })
 vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from: () => ({ select }) }) }));
 vi.mock('@/lib/auto-dev/loop-closed', () => ({ checkMergedRuns: check }));
 vi.mock('@/lib/widget/shots', () => ({ cleanupShots: async () => ({ orphans: 0, expired: 0, failed: false }) }));
+vi.mock('@/lib/paypal/reconcile', () => ({
+  sweepStuckActions: async () => ({ expired: 0, announced: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0 }),
+}));
 import { GET } from '@/app/api/cron/check-merged/route';
 beforeEach(() => { vi.clearAllMocks(); process.env.CRON_SECRET = 'local-test'; });
 it('bot lookup failure returns an error instead of a successful empty cron scan', async () => {

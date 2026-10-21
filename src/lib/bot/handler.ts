@@ -176,8 +176,11 @@ export async function callLlm(
  *
  * 우리 키로 자동 폴백하지 않는다 — 조용히 우리 돈이 나가고 운영자는 키가 죽은 걸
  * 영원히 모르게 된다. 대신 사유를 4분류로 남기고, 방문자에겐 상위 폴백 문구가 간다.
+ *
+ * export 인 이유: 위젯의 결제 에이전트(lib/paypal/agent.ts 경로)는 `callLlm` 을 거치지 않고
+ * 같은 provider 를 부른다. 실패를 같은 4분류·같은 배지로 남기려면 이 함수를 같이 써야 한다.
  */
-async function recordLlmFailure(
+export async function recordLlmFailure(
   config: BotConfig,
   resolved: ResolvedModel | null,
   err: unknown,

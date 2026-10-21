@@ -23,6 +23,8 @@ import { PickedShot } from '@/components/picked/PickedShot';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 import { scopedUrl } from '@/lib/scope/scope';
 import { ScopeNote } from '@/components/layout/BotScopeSelect';
+import { PaymentActionCard, type PaymentDecision } from '@/components/inbox/PaymentActionCard';
+import { interpretDecisionResponse, type PaymentActionView } from '@/lib/paypal/action-view';
 import Link from 'next/link';
 import { Loader2, Clock, CornerDownLeft, UserRound, ExternalLink, ChevronRight } from 'lucide-react';
 
@@ -44,7 +46,7 @@ interface InboxItem {
 
 interface TimelineItem {
   id: string;
-  kind: 'user' | 'ai' | 'operator' | 'system' | 'notice';
+  kind: 'user' | 'ai' | 'operator' | 'system' | 'notice' | 'payment';
   body: string;
   at: string;
 }
@@ -96,6 +98,7 @@ const KIND_LABEL: Record<TimelineItem['kind'], string> = {
   operator: '내 답장',
   system: '알림',
   notice: '안내',
+  payment: 'PayPal',
 };
 
 /** 위젯이 붙은 사이트. 프로토콜은 떼고 호스트만 보여준다 — 길어서 헤더를 밀어낸다. */
@@ -172,6 +175,18 @@ function Bubble({ item, userLabel, context, shot }: { item: TimelineItem; userLa
     );
   }
 
+  // 결제 카드(3단계) — 서버 고정 영어 문장(환불 결과·결제 링크). 링크 줄은 운영자에겐 텍스트로만 보인다.
+  if (item.kind === 'payment') {
+    return (
+      <div className="self-end max-w-[72%]">
+        <div className="rounded-[16px] rounded-br-[4px] border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed">
+          <span className="mb-1 block text-[12.5px] font-semibold text-muted-foreground">PayPal · {formatAt(item.at)}</span>
+          <span className="whitespace-pre-wrap break-words">{item.body}</span>
+        </div>
+      </div>
+    );
+  }
+
   // 가운데 안내 칩 — 방문자가 「담당자에게 물어보기」를 누른 기록. 되돌림(system)과 달리 강조하지 않는다.
   if (item.kind === 'notice') {
     return (
@@ -228,6 +243,11 @@ export default function InboxPage() {
   // 열림/닫힘. 채널톡의 「닫힘」 웹훅 스코프가 확인되지 않아(§3-(f)) 운영자가 직접 닫는 길이
   // 유일한 대안이다 — 그 대안이 화면에 없으면 라우트가 있어도 아무도 못 쓴다.
   const [convStatus, setConvStatus] = useState<string>('open');
+  // 결제 행(환불 요청 → 승인 카드, 3단계). 운영자 라우트만 준다; 연습용 화면엔 없다.
+  const [paymentActions, setPaymentActions] = useState<PaymentActionView[]>([]);
+  // 이 봇에서 내가 소유자인지 승인자인지(3단계 6/6). 승인자는 환불 카드만 누를 수 있다 —
+  // 답장 칸과 「대화 닫기」는 숨긴다(라우트도 403 으로 거절하지만, 안 되는 버튼을 보여 주지 않는다).
+  const [role, setRole] = useState<'owner' | 'approver'>('owner');
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +350,8 @@ export default function InboxPage() {
       setShots(demo.data.shots?.[id] ?? {});
       setOrigin(null);
       setDeskUrl(null);
+      setPaymentActions([]);
+      setRole('owner');
       // 닫아 둔 대화는 닫힌 채로 다시 연다 — 늘 'open' 으로 되돌리면 [대화 닫기]가 안 먹은 것처럼 보인다.
       setConvStatus(demo.data.closedIds?.includes(id) ? 'closed' : 'open');
       return;
@@ -345,6 +367,8 @@ export default function InboxPage() {
       setOrigin(json.conversation?.origin ?? null);
       setDeskUrl(json.conversation?.deskUrl ?? null);
       setConvStatus(json.conversation?.status ?? 'open');
+      setPaymentActions(Array.isArray(json.paymentActions) ? json.paymentActions : []);
+      setRole(json.role === 'approver' ? 'approver' : 'owner');
       // 열었으니 읽음 — 목록의 점을 즉시 끈다(서버는 이미 기록했다)
       setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false } : c)));
     } catch (err) {
@@ -384,6 +408,33 @@ export default function InboxPage() {
     } finally {
       setClosing(false);
     }
+  };
+
+  /**
+   * 승인·거절(3단계). 서버가 한 번만 전이시키고(0행이면 409 + 지금 상태) 승인이면 PayPal 로 보낸다.
+   * 돌아온 행으로 카드를 갱신한다. 어느 쪽이든 사람이 움직였으니 배지는 서버가 내린다 — 목록도 맞춘다.
+   */
+  const handleDecidePayment = async (actionId: string, decision: PaymentDecision): Promise<PaymentActionView> => {
+    if (!selected) throw new Error('No conversation is open.');
+    const res = await fetch(`/api/inbox/${selected}/payment-actions/${actionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision }),
+    });
+    const json = await res.json().catch(() => ({}));
+    // Whatever the status, a row in the body is the row as the server now has it — the card shows it.
+    // The badge comes down only when the server says so (another refund may still be waiting).
+    const effect = interpretDecisionResponse(res.status, json);
+    if (effect.action) {
+      const next = effect.action;
+      setPaymentActions((prev) => prev.map((a) => (a.id === actionId ? next : a)));
+    }
+    if (effect.escalationCleared) {
+      setConversations((prev) => prev.map((c) => (c.id === selected ? { ...c, escalated: false } : c)));
+    }
+    if (effect.notice) setNotice(effect.notice);
+    if (effect.cardError || !effect.action) throw new Error(effect.cardError ?? `The decision failed (${res.status}).`);
+    return effect.action;
   };
 
   const handleSendReply = async () => {
@@ -606,6 +657,10 @@ export default function InboxPage() {
                     <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[12.5px] font-semibold text-muted-foreground">
                       닫힘
                     </span>
+                  ) : role === 'approver' ? (
+                    <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[12.5px] font-semibold text-muted-foreground">
+                      Approver
+                    </span>
                   ) : (
                     <Button
                       size="sm"
@@ -618,7 +673,7 @@ export default function InboxPage() {
                     </Button>
                   )}
                 </div>
-                {convStatus !== 'closed' && (
+                {convStatus !== 'closed' && role === 'owner' && (
                   <p className="basis-full text-left text-[12.5px] text-faint sm:text-right">
                     {current.source === 'channel'
                       ? '채널톡의 상담 상태를 따라갑니다. 채널톡에서 대화가 다시 열리면 여기도 다시 열려요.'
@@ -631,6 +686,15 @@ export default function InboxPage() {
                   </p>
                 )}
               </div>
+
+              {/* 환불 요청 카드(3단계) — 타임라인 위. 대기 중이면 승인·거절, 끝났으면 결과만 */}
+              {paymentActions.length > 0 && (
+                <div className="flex flex-col gap-3 border-b border-border bg-muted/30 px-5 py-4 sm:px-6">
+                  {paymentActions.map((a) => (
+                    <PaymentActionCard key={a.id} action={a} onDecide={handleDecidePayment} disabled={demo.isDemo} />
+                  ))}
+                </div>
+              )}
 
               <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-5 py-5 sm:px-6">
                 {timeline.map((it) => (
@@ -646,7 +710,14 @@ export default function InboxPage() {
 
               {/* 답장 — 카드 바닥. 바탕을 한 톤 내려 「여기서 이어 쓴다」가 대화와 한 덩어리로 보이게 */}
               <div className="flex flex-col gap-2 border-t border-border bg-muted/40 px-5 py-4 sm:px-6">
-                {current.source === 'channel' ? (
+                {role === 'approver' ? (
+                  /* 승인자(데모 봇의 심사위원)는 환불 카드만 누른다. 입력창을 두면 403 을 보게 된다. */
+                  <p className="flex items-start gap-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                    <Clock className="mt-0.5 h-3 w-3 shrink-0 text-faint" aria-hidden />
+                    You are an approver on this bot: approve or reject refund requests above. Replies and closing the
+                    conversation are for the bot owner.
+                  </p>
+                ) : current.source === 'channel' ? (
                   /* 채널톡은 답장 창구가 데스크 하나다. 여기에 입력창을 두면 두 곳이 되고
                      「누가 이미 답했나」가 흐려진다 — 그래서 링크만 둔다. */
                   <>

@@ -457,3 +457,107 @@ export function renderNewConversationEmail(v: NewConversationEmailVars): Rendere
 
   return { subject, html, text: textLines.join('\n') };
 }
+
+// ── Refund approval request (bot owner) ─────────────────────────────────────
+//
+// Stage 3 (design v2 §4): a visitor asked the widget for a refund and the guardrail did not let it
+// run automatically — the row is `pending` and waits in the inbox. One mail per pending action,
+// English like the rest of the payment feature (§10). The decision itself is taken in the inbox
+// (approve / reject); this mail carries the facts and the deep link, never a decision button.
+
+export interface RefundApprovalEmailVars {
+  serviceName: string;
+  visitorLabel: string;
+  visitorEmail: string | null;
+  /** "$29.50" */
+  amount: string;
+  reason: string | null;
+  /** The guardrail checks that did not pass — why a person is asked. */
+  failedChecks: string[];
+  /** PayPal capture id, for the operator's PayPal dashboard. */
+  captureId: string;
+  /** Feedloop inbox deep link. Null → button omitted. */
+  inboxUrl: string | null;
+  requestedAt?: Date;
+}
+
+export function renderRefundApprovalEmail(v: RefundApprovalEmailVars): RenderedEmail {
+  const service = sanitizeSubjectText(v.serviceName) || 'your store';
+  const visitor = sanitizeSubjectText(v.visitorLabel) || 'A visitor';
+  const inbox = safeHttpsUrl(v.inboxUrl);
+  const at = formatKstEnglish(v.requestedAt ?? new Date());
+  const subject = `[${service}] Refund approval needed · ${v.amount} · ${visitor}`;
+  const reason = v.reason?.trim() || null;
+
+  const checksHtml = v.failedChecks.length
+    ? `<ul style="margin:0;padding-left:18px">${v.failedChecks.map((c) => `<li style="margin:0 0 4px">${htmlEscape(c)}</li>`).join('')}</ul>`
+    : '<p style="margin:0">Automatic refunds are switched off for this store.</p>';
+
+  const rows = [
+    emailHero({
+      imageUrl: FLUENT_3D.speechBalloon,
+      eyebrow: 'REFUND APPROVAL',
+      heading: `${visitor} is asking for a ${v.amount} refund.`,
+      subHtml: `The refund did not meet ${htmlEscape(service)}'s automatic-refund rules, so it is <b>waiting for you</b> in the Feedloop inbox. Nothing has been sent to PayPal.`,
+    }),
+    emailSection({
+      eyebrow: '01 · Request',
+      title: 'What the visitor said',
+      children: [
+        reason ? emailCard({ bodyHtml: textToHtml(reason) }) : emailNote({ html: 'No reason was given.' }),
+        emailRows([
+          { label: 'Amount', valueHtml: htmlEscape(v.amount), strong: true },
+          { label: 'Visitor', valueHtml: htmlEscape(v.visitorLabel) },
+          { label: 'Email', valueHtml: v.visitorEmail ? htmlEscape(v.visitorEmail) : 'not left' },
+          { label: 'PayPal capture', valueHtml: htmlEscape(v.captureId) },
+          { label: 'Requested', valueHtml: htmlEscape(at) },
+        ]),
+      ].join('\n'),
+    }),
+    emailSection({
+      eyebrow: '02 · Why it waits',
+      title: 'Checks that did not pass',
+      children: emailCard({ bodyHtml: checksHtml }),
+    }),
+    emailSection({
+      eyebrow: '03 · Decide',
+      title: 'Approve or reject in the inbox',
+      last: true,
+      children: emailHighlightCard({
+        eyebrow: '💬 Feedloop inbox',
+        leadHtml: 'Open the conversation and use the Approve / Reject buttons on the refund card.',
+        bodyHtml: 'Approving sends the refund to PayPal with the exact amount above. Rejecting tells the visitor in the widget. Either way this request can only be decided once.',
+        cta: inbox ? { href: inbox, label: 'Open the conversation →' } : null,
+      }),
+    }),
+    emailFooter({
+      link: inbox ? { href: inbox, label: 'Feedloop inbox' } : null,
+      note: `This mail goes to the owner of the ${service} bot when a refund needs a person. · Feedloop`,
+    }),
+  ];
+
+  const html = emailShell({ title: subject, children: rows.join('\n') });
+  const textLines = [
+    `${v.visitorLabel} is asking for a ${v.amount} refund.`,
+    '',
+    '[Reason]',
+    reason ?? '(none given)',
+    '',
+    `Amount: ${v.amount}`,
+    `Visitor: ${v.visitorLabel}`,
+    `Email: ${v.visitorEmail ?? 'not left'}`,
+    `PayPal capture: ${v.captureId}`,
+    `Requested: ${at}`,
+    '',
+    '[Checks that did not pass]',
+    ...(v.failedChecks.length ? v.failedChecks.map((c) => `- ${c}`) : ['- Automatic refunds are switched off for this store.']),
+  ];
+  if (inbox) textLines.push('', `Decide in the inbox: ${inbox}`);
+  textLines.push('', 'Nothing has been sent to PayPal. Approve or reject on the refund card in the Feedloop inbox.', `— ${service} · Feedloop`);
+  return { subject, html, text: textLines.join('\n') };
+}
+
+/** "Oct 21, 2026, 10:00 KST" — the English payment mails keep the owner's time zone but not the Korean wording. */
+function formatKstEnglish(d: Date): string {
+  return `${new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(d)} KST`;
+}

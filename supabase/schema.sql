@@ -2,7 +2,7 @@
 -- Stands up a fresh Supabase project in one go. Apply with:
 --   psql "$POSTGRES_URL_NON_POOLING" -v ON_ERROR_STOP=1 -f supabase/schema.sql
 -- Requires Supabase (auth.uid(), roles anon/authenticated/service_role, pgrst).
--- Files in apply order (51):
+-- Files in apply order (55):
 --   init_schema.sql
 --   add_auto_dev.sql
 --   add_kakao_support.sql
@@ -10,7 +10,7 @@
 --   20260906_02_web_widget.sql
 --   20260906_03_widget_appearance.sql
 --   20260906_04_rls_rest.sql
---   20260906_04_run_closed_at.sql
+--   20260906_05_run_closed_at.sql
 --   20260908_01_message_context.sql
 --   20260908_02_group_spec_draft.sql
 --   20260909_01_run_close_reason.sql
@@ -54,6 +54,10 @@
 --   20261009_01_priority_jev.sql
 --   20261009_02_draft_pr_gate_lock.sql
 --   20261019_01_paypal_foundation.sql
+--   20261020_01_payment_verifications.sql
+--   20261021_01_refund_guardrail_v2.sql
+--   20261021_02_refund_attention.sql
+--   20261021_03_payment_announcements.sql
 
 
 -- ═══════════════════════════ init_schema.sql ═══════════════════════════
@@ -474,7 +478,7 @@ ALTER TABLE public.classifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.action_logs     ENABLE ROW LEVEL SECURITY;
 
 
--- ═══════════════════════════ 20260906_04_run_closed_at.sql ═══════════════════════════
+-- ═══════════════════════════ 20260906_05_run_closed_at.sql ═══════════════════════════
 
 -- 머지 없이 닫힌 PR 을 기록한다 (2026-09-06).
 -- 머지 감지는 merged_at 만 봤기 때문에 GitHub 에서 닫아버린 PR(리허설 중복 PR #4)이 화면에 영원히 「열림」으로 남았다.
@@ -2524,3 +2528,710 @@ GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, 
   TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand, in this order; not executed by the migration) ─────────────────────────
+-- Later stage-3 migrations (20261020_01 … 20261021_03) must be rolled back first; their blocks say how.
+-- DROP FUNCTION IF EXISTS payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text);
+-- DROP TABLE IF EXISTS paypal_webhook_events;
+-- DROP TABLE IF EXISTS payment_actions;
+-- DROP TABLE IF EXISTS paypal_orders;
+-- DROP TABLE IF EXISTS products;
+-- DROP TABLE IF EXISTS bot_members;
+-- COMMENT ON COLUMN responses.response_type IS 'mention | keyword | question | kakao | ai | operator | loop_closed | system';
+-- DROP INDEX IF EXISTS idx_bots_single_demo;
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_refund_limits_check;
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_paypal_env_check;
+-- ALTER TABLE bots
+--   DROP COLUMN IF EXISTS is_demo, DROP COLUMN IF EXISTS propose_only, DROP COLUMN IF EXISTS currency,
+--   DROP COLUMN IF EXISTS refund_per_customer_30d, DROP COLUMN IF EXISTS refund_daily_cap_cents,
+--   DROP COLUMN IF EXISTS refund_auto_days, DROP COLUMN IF EXISTS refund_auto_max_cents,
+--   DROP COLUMN IF EXISTS paypal_paused, DROP COLUMN IF EXISTS paypal_webhook_id, DROP COLUMN IF EXISTS paypal_scopes,
+--   DROP COLUMN IF EXISTS paypal_failed_reason, DROP COLUMN IF EXISTS paypal_failed_at, DROP COLUMN IF EXISTS paypal_verified_at,
+--   DROP COLUMN IF EXISTS paypal_env, DROP COLUMN IF EXISTS paypal_secret_last4, DROP COLUMN IF EXISTS paypal_secret_encrypted,
+--   DROP COLUMN IF EXISTS paypal_client_id;
+-- NOTIFY pgrst, 'reload schema';
+
+
+-- ═══════════════════════════ 20261020_01_payment_verifications.sql ═══════════════════════════
+
+-- 2026-10-20 PayPal stage 3 (2/6) — the "verified payment" of a widget conversation (design v2 §2).
+--
+-- find_my_payment(order_id, email) only succeeds when BOTH match what the server knows about the
+-- order (our paypal_orders row, or GET /v2/checkout/orders when the row has no payer yet). The match
+-- is recorded here, server-side, so the later tools (get_payment_status, request_refund) act only on
+-- a payment this conversation proved it owns — never on something the model, or a prompt-injected
+-- visitor, merely claims. One conversation may verify several orders; one order may be verified from
+-- several conversations (same buyer, two browsers), so the key is the pair.
+--
+-- Additive only. RLS on + zero policies = anon blocked; every app path uses service_role.
+
+CREATE TABLE IF NOT EXISTS payment_verifications (
+  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  bot_id          UUID NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+  order_id        TEXT NOT NULL,                       -- PayPal order id the visitor typed, upper-cased
+  capture_id      TEXT,                                -- NULL until the order is captured; refunds need it
+  payer_email     TEXT NOT NULL,                       -- lower-cased; becomes the guardrail's customer_key
+  amount_cents    INTEGER NOT NULL CHECK (amount_cents > 0),
+  currency        TEXT NOT NULL,
+  captured_at     TIMESTAMPTZ,
+  verified_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (conversation_id, order_id)
+);
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_conv ON payment_verifications(conversation_id, verified_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_bot  ON payment_verifications(bot_id, verified_at DESC);
+ALTER TABLE payment_verifications ENABLE ROW LEVEL SECURITY;
+
+-- responses.response_type gains 'payment_agent' (stage 3, 1/6): a conversational reply written by the
+-- payment agent. The widget shows it as an ordinary AI bubble; the router reads it as "the previous
+-- reply came from the payment agent". 'payment' stays the server-fixed money sentence + card.
+COMMENT ON COLUMN responses.response_type IS
+  'mention | keyword | question | kakao | ai | operator | loop_closed | system | payment | payment_agent';
+
+-- ── payment_actions: the 'unknown' status ─────────────────────────────────────────────────
+-- We asked PayPal to move money and did not learn the answer: the request timed out or was
+-- aborted mid-flight, the connection dropped, PayPal answered 5xx, or our own settle write failed
+-- after a success. Marking such a row `failed` would be a lie with consequences — `failed` frees
+-- the one-live-action-per-capture slot and drops out of the daily and per-customer sums, so the
+-- next "refund me" would open a NEW action with a NEW PayPal-Request-Id and could refund twice.
+-- `unknown` keeps the reservation: it is live for the unique index and the RPC's sums, and a retry
+-- MUST reuse the row's id as PayPal-Request-Id (PayPal then answers from its idempotency cache).
+-- Only reconciliation (GET the refund / the capture; task 3's reaper) moves it to executed/failed.
+ALTER TABLE payment_actions DROP CONSTRAINT IF EXISTS payment_actions_status_check;
+ALTER TABLE payment_actions ADD CONSTRAINT payment_actions_status_check
+  CHECK (status IN ('pending', 'executing', 'unknown', 'executed', 'failed', 'rejected', 'expired'));
+
+DROP INDEX IF EXISTS idx_payment_actions_live_target;
+CREATE UNIQUE INDEX idx_payment_actions_live_target
+  ON payment_actions(bot_id, kind, target_id)
+  WHERE status IN ('pending', 'executing', 'unknown', 'executed');
+
+-- Same RPC as 20261019_01 with 'unknown' added to the three live sets (existing-action check,
+-- daily sum, per-customer count). Task 3 revises the decision itself (UTC day, NULL customer key,
+-- amount ≤ capture total); nothing else changes here.
+CREATE OR REPLACE FUNCTION payment_action_open_refund(
+  p_bot_id             uuid,
+  p_conversation_id    uuid,
+  p_capture_id         text,
+  p_amount_cents       integer,
+  p_currency           text,
+  p_captured_at        timestamptz,
+  p_capture_has_refund boolean,
+  p_has_dispute        boolean,
+  p_customer_key       text,
+  p_reason             text
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  b                bots%ROWTYPE;
+  v_existing       payment_actions%ROWTYPE;
+  v_row            payment_actions%ROWTYPE;
+  v_daily_cents    integer;
+  v_customer_count integer;
+  v_checks         jsonb;
+  v_auto           boolean;
+BEGIN
+  IF p_amount_cents IS NULL OR p_amount_cents <= 0 THEN
+    RAISE EXCEPTION 'refund amount must be explicit and positive (omitting it would mean a full refund on PayPal)';
+  END IF;
+  IF p_capture_id IS NULL OR length(p_capture_id) = 0 THEN
+    RAISE EXCEPTION 'capture id required';
+  END IF;
+
+  SELECT * INTO b FROM bots WHERE id = p_bot_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'bot % not found', p_bot_id;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('payment_actions:' || p_bot_id::text));
+
+  SELECT * INTO v_existing
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND target_id = p_capture_id
+     AND status IN ('pending', 'executing', 'unknown', 'executed')
+   LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_build_object('created', false, 'auto', v_existing.origin = 'auto', 'action', to_jsonb(v_existing));
+  END IF;
+
+  SELECT COALESCE(SUM(amount_cents), 0) INTO v_daily_cents
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND status IN ('executing', 'unknown', 'executed')
+     AND created_at >= date_trunc('day', now());
+
+  SELECT COUNT(*) INTO v_customer_count
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND status IN ('pending', 'executing', 'unknown', 'executed')
+     AND p_customer_key IS NOT NULL AND customer_key = lower(p_customer_key)
+     AND created_at >= now() - interval '30 days';
+
+  v_checks := jsonb_build_object(
+    'amount_within_max', p_amount_cents <= b.refund_auto_max_cents,
+    'within_days',       p_captured_at IS NOT NULL AND p_captured_at >= now() - make_interval(days => b.refund_auto_days),
+    'no_prior_refund',   NOT COALESCE(p_capture_has_refund, true),
+    'currency_matches',  p_currency IS NOT NULL AND upper(p_currency) = upper(b.currency),
+    'daily_cap_ok',      v_daily_cents + p_amount_cents <= b.refund_daily_cap_cents,
+    'customer_cap_ok',   v_customer_count < b.refund_per_customer_30d,
+    'no_dispute',        NOT COALESCE(p_has_dispute, true),
+    'not_propose_only',  NOT b.propose_only,
+    'not_paused',        NOT b.paypal_paused
+  );
+  v_auto := NOT EXISTS (SELECT 1 FROM jsonb_each(v_checks) WHERE value = 'false'::jsonb);
+
+  INSERT INTO payment_actions
+    (bot_id, conversation_id, kind, target_id, amount_cents, currency, customer_key, origin, status, reason, guardrail)
+  VALUES
+    (p_bot_id, p_conversation_id, 'refund', p_capture_id, p_amount_cents, upper(p_currency),
+     lower(p_customer_key),
+     CASE WHEN v_auto THEN 'auto' ELSE 'approval' END,
+     CASE WHEN v_auto THEN 'executing' ELSE 'pending' END,
+     p_reason, v_checks)
+  RETURNING * INTO v_row;
+
+  RETURN jsonb_build_object('created', true, 'auto', v_auto, 'action', to_jsonb(v_row), 'checks', v_checks);
+END
+$$;
+
+REVOKE ALL ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text)
+  TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_01 … _03 are rolled back. Rows in status 'unknown' must be reconciled first
+-- (the narrower CHECK below refuses them); do not close them as 'failed' to make the constraint fit.
+-- DROP TABLE IF EXISTS payment_verifications;
+-- COMMENT ON COLUMN responses.response_type IS 'mention | keyword | question | kakao | ai | operator | loop_closed | system | payment';
+-- DROP INDEX IF EXISTS idx_payment_actions_live_target;
+-- CREATE UNIQUE INDEX idx_payment_actions_live_target ON payment_actions(bot_id, kind, target_id)
+--   WHERE status IN ('pending', 'executing', 'executed');
+-- ALTER TABLE payment_actions DROP CONSTRAINT IF EXISTS payment_actions_status_check;
+-- ALTER TABLE payment_actions ADD CONSTRAINT payment_actions_status_check
+--   CHECK (status IN ('pending', 'executing', 'executed', 'failed', 'rejected', 'expired'));
+-- Then re-create payment_action_open_refund from 20261019_01 (the 10-argument version).
+-- NOTIFY pgrst, 'reload schema';
+
+
+-- ═══════════════════════════ 20261021_01_refund_guardrail_v2.sql ═══════════════════════════
+
+-- 2026-10-21 PayPal stage 3 (3/6) — guardrail RPC v2, approval transition, demo-bot sandbox check.
+-- Items ny deferred from the stage-1 review (briefing, task 3):
+--  1) the daily cap counts a UTC day. `date_trunc('day', now())` truncates in the SESSION time zone,
+--     so the same rows fell into different "days" depending on who connected.
+--  2) an unknown customer (NULL / blank customer_key) is no longer an automatic pass: the per-customer
+--     cap cannot be checked, so the request waits for approval.
+--  3) the requested amount must not exceed the capture total — enforced in SQL with a new argument,
+--     not only in TypeScript.
+--  4) the demo bot can only ever be in the sandbox: bots.is_demo ⇒ paypal_env = 'sandbox'.
+--  5) payment_action_decide(): the operator's approve/reject as ONE conditional update
+--     (… WHERE status = 'pending' RETURNING). Zero rows back = somebody already decided.
+-- The 'unknown' status and its reservation semantics arrived with 20261020_01.
+
+-- ── 0. reconciliation bookkeeping ─────────────────────────────────────────────────────────
+-- The reaper visits executing/unknown rows. A row it visited and could not finish (PayPal still
+-- PENDING, unreachable, bot without PayPal) must yield to rows it has not visited yet, or fifty old
+-- stragglers would hide every newer row forever. Attempt time is the fairness cursor; the count is
+-- for the operator's eyes.
+ALTER TABLE payment_actions ADD COLUMN IF NOT EXISTS reconcile_attempts     INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE payment_actions ADD COLUMN IF NOT EXISTS reconcile_attempted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_payment_actions_stuck
+  ON payment_actions(reconcile_attempted_at NULLS FIRST, updated_at)
+  WHERE status IN ('executing', 'unknown');
+
+-- The send gate. Called BEFORE every POST to PayPal (first attempt or retry), in one locked step:
+--   allowed = the row is still sendable (executing | unknown). A row another caller has since closed
+--             (failed, executed, rejected, expired) or that is not yet approved (pending) is refused —
+--             the caller's snapshot is stale and nothing is sent.
+--   first   = no attempt had started before this one (sent_at was NULL). A definite 4xx reply to the
+--             FIRST attempt is the answer; to a retry it says nothing about the original (PayPal answers a
+--             replay of a completed request from its idempotency cache, so an error is about this request).
+--   Also records sent_at (once, never cleared) and send_attempts (+1). If the write fails nothing is sent.
+-- The matching failure write (store.settleAction onlyIfFirstAttempt) only applies while send_attempts = 1,
+-- so a first attempt whose reply arrives after a second attempt started cannot close the row.
+ALTER TABLE payment_actions ADD COLUMN IF NOT EXISTS sent_at       TIMESTAMPTZ;
+ALTER TABLE payment_actions ADD COLUMN IF NOT EXISTS send_attempts INTEGER NOT NULL DEFAULT 0;
+
+DROP FUNCTION IF EXISTS payment_action_mark_sent(uuid);
+CREATE OR REPLACE FUNCTION payment_action_mark_sent(p_action_id uuid) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_row payment_actions%ROWTYPE;
+BEGIN
+  SELECT * INTO v_row FROM payment_actions WHERE id = p_action_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'action % not found', p_action_id;
+  END IF;
+  IF v_row.status NOT IN ('executing', 'unknown') THEN
+    RETURN jsonb_build_object('allowed', false, 'first', false, 'status', v_row.status);
+  END IF;
+  UPDATE payment_actions
+     SET sent_at = COALESCE(sent_at, now()),
+         send_attempts = send_attempts + 1
+   WHERE id = p_action_id;
+  RETURN jsonb_build_object('allowed', true, 'first', v_row.sent_at IS NULL, 'status', v_row.status);
+END
+$$;
+REVOKE ALL ON FUNCTION payment_action_mark_sent(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_action_mark_sent(uuid) TO service_role;
+
+-- One statement, no read-modify-write: attempts + 1, attempted_at = now(). updated_at is left alone —
+-- it is the "stuck since" clock and must not move because somebody looked.
+CREATE OR REPLACE FUNCTION payment_action_touch_reconcile(p_action_id uuid) RETURNS void
+LANGUAGE sql
+AS $$
+  UPDATE payment_actions
+     SET reconcile_attempts = reconcile_attempts + 1,
+         reconcile_attempted_at = now()
+   WHERE id = p_action_id;
+$$;
+REVOKE ALL ON FUNCTION payment_action_touch_reconcile(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_action_touch_reconcile(uuid) TO service_role;
+
+-- ── 4. demo bot stays in the sandbox ──────────────────────────────────────────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'bots_demo_sandbox_check') THEN
+    ALTER TABLE bots ADD CONSTRAINT bots_demo_sandbox_check CHECK (NOT is_demo OR paypal_env = 'sandbox');
+  END IF;
+END $$;
+
+-- ── 1–3. guardrail RPC v2 ─────────────────────────────────────────────────────────────────
+-- New signature (11 args: + p_capture_total_cents). The 10-arg v1 is dropped so no caller can keep
+-- using the pre-UTC, no-total version by accident.
+DROP FUNCTION IF EXISTS payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text);
+
+CREATE OR REPLACE FUNCTION payment_action_open_refund(
+  p_bot_id              uuid,
+  p_conversation_id     uuid,
+  p_capture_id          text,
+  p_amount_cents        integer,
+  p_currency            text,
+  p_captured_at         timestamptz,
+  p_capture_has_refund  boolean,
+  p_has_dispute         boolean,
+  p_customer_key        text,
+  p_reason              text,
+  p_capture_total_cents integer
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  b                bots%ROWTYPE;
+  v_existing       payment_actions%ROWTYPE;
+  v_row            payment_actions%ROWTYPE;
+  v_daily_cents    integer;
+  v_customer_count integer;
+  v_checks         jsonb;
+  v_auto           boolean;
+  v_customer_key   text;
+  v_utc_day_start  timestamptz;
+BEGIN
+  IF p_amount_cents IS NULL OR p_amount_cents <= 0 THEN
+    RAISE EXCEPTION 'refund amount must be explicit and positive (omitting it would mean a full refund on PayPal)';
+  END IF;
+  IF p_capture_total_cents IS NULL OR p_capture_total_cents <= 0 THEN
+    RAISE EXCEPTION 'capture total required (the server reads it from PayPal before asking for a refund)';
+  END IF;
+  IF p_amount_cents > p_capture_total_cents THEN
+    RAISE EXCEPTION 'refund amount % exceeds the capture total %', p_amount_cents, p_capture_total_cents;
+  END IF;
+  IF p_capture_id IS NULL OR length(p_capture_id) = 0 THEN
+    RAISE EXCEPTION 'capture id required';
+  END IF;
+
+  SELECT * INTO b FROM bots WHERE id = p_bot_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'bot % not found', p_bot_id;
+  END IF;
+
+  -- NULL when blank: a blank key must neither match other rows nor pass the customer check.
+  v_customer_key := NULLIF(lower(btrim(p_customer_key)), '');
+  -- The start of the current UTC day, as an absolute instant — independent of the session time zone.
+  v_utc_day_start := date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+
+  PERFORM pg_advisory_xact_lock(hashtext('payment_actions:' || p_bot_id::text));
+
+  SELECT * INTO v_existing
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND target_id = p_capture_id
+     AND status IN ('pending', 'executing', 'unknown', 'executed')
+   LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_build_object('created', false, 'auto', v_existing.origin = 'auto', 'action', to_jsonb(v_existing));
+  END IF;
+
+  SELECT COALESCE(SUM(amount_cents), 0) INTO v_daily_cents
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND status IN ('executing', 'unknown', 'executed')
+     AND created_at >= v_utc_day_start;
+
+  SELECT COUNT(*) INTO v_customer_count
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND status IN ('pending', 'executing', 'unknown', 'executed')
+     AND v_customer_key IS NOT NULL AND customer_key = v_customer_key
+     AND created_at >= now() - interval '30 days';
+
+  v_checks := jsonb_build_object(
+    'amount_within_max', p_amount_cents <= b.refund_auto_max_cents,
+    'within_days',       p_captured_at IS NOT NULL AND p_captured_at >= now() - make_interval(days => b.refund_auto_days),
+    'no_prior_refund',   NOT COALESCE(p_capture_has_refund, true),
+    'currency_matches',  p_currency IS NOT NULL AND upper(p_currency) = upper(b.currency),
+    'daily_cap_ok',      v_daily_cents + p_amount_cents <= b.refund_daily_cap_cents,
+    'customer_known',    v_customer_key IS NOT NULL,
+    'customer_cap_ok',   v_customer_count < b.refund_per_customer_30d,
+    'no_dispute',        NOT COALESCE(p_has_dispute, true),
+    'not_propose_only',  NOT b.propose_only,
+    'not_paused',        NOT b.paypal_paused
+  );
+  v_auto := NOT EXISTS (SELECT 1 FROM jsonb_each(v_checks) WHERE value = 'false'::jsonb);
+
+  INSERT INTO payment_actions
+    (bot_id, conversation_id, kind, target_id, amount_cents, currency, customer_key, origin, status, reason, guardrail)
+  VALUES
+    (p_bot_id, p_conversation_id, 'refund', p_capture_id, p_amount_cents, upper(p_currency),
+     v_customer_key,
+     CASE WHEN v_auto THEN 'auto' ELSE 'approval' END,
+     CASE WHEN v_auto THEN 'executing' ELSE 'pending' END,
+     p_reason, v_checks)
+  RETURNING * INTO v_row;
+
+  RETURN jsonb_build_object('created', true, 'auto', v_auto, 'action', to_jsonb(v_row), 'checks', v_checks);
+END
+$$;
+
+REVOKE ALL ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text, integer)
+  TO service_role;
+
+-- ── 5. the operator's decision, exactly once ──────────────────────────────────────────────
+-- approve: pending → executing (origin stays 'approval'; the caller then calls PayPal with
+--          PayPal-Request-Id = id, exactly like the auto path, and settles the row).
+-- reject:  pending → rejected (slot freed).
+-- Returns { updated: boolean, action }. updated=false carries the row as it is now, so the caller can
+-- say "already approved by X" / "already rejected" instead of acting twice. Ownership (is this user the
+-- bot's owner or an approver?) is the caller's check; this function only guards the transition.
+CREATE OR REPLACE FUNCTION payment_action_decide(
+  p_action_id uuid,
+  p_bot_id    uuid,
+  p_decision  text,
+  p_user_id   uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_row payment_actions%ROWTYPE;
+BEGIN
+  IF p_decision NOT IN ('approve', 'reject') THEN
+    RAISE EXCEPTION 'decision must be approve or reject, got %', p_decision;
+  END IF;
+
+  UPDATE payment_actions
+     SET status     = CASE WHEN p_decision = 'approve' THEN 'executing' ELSE 'rejected' END,
+         decided_by = p_user_id,
+         decided_at = now(),
+         updated_at = now()
+   WHERE id = p_action_id AND bot_id = p_bot_id AND status = 'pending'
+   RETURNING * INTO v_row;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object('updated', true, 'action', to_jsonb(v_row));
+  END IF;
+
+  SELECT * INTO v_row FROM payment_actions WHERE id = p_action_id AND bot_id = p_bot_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'action % not found for bot %', p_action_id, p_bot_id;
+  END IF;
+  RETURN jsonb_build_object('updated', false, 'action', to_jsonb(v_row));
+END
+$$;
+
+REVOKE ALL ON FUNCTION payment_action_decide(uuid, uuid, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_action_decide(uuid, uuid, text, uuid) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_02 and _03 are rolled back. Rows in 'executing'/'unknown' lose their send-gate
+-- bookkeeping (sent_at, send_attempts): reconcile them to a final status before dropping the columns.
+-- DROP FUNCTION IF EXISTS payment_action_decide(uuid, uuid, text, uuid);
+-- DROP FUNCTION IF EXISTS payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text, integer);
+-- Then re-create payment_action_open_refund from 20261020_01 (the 10-argument version).
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_demo_sandbox_check;
+-- DROP FUNCTION IF EXISTS payment_action_touch_reconcile(uuid);
+-- DROP FUNCTION IF EXISTS payment_action_mark_sent(uuid);
+-- DROP INDEX IF EXISTS idx_payment_actions_stuck;
+-- ALTER TABLE payment_actions
+--   DROP COLUMN IF EXISTS send_attempts, DROP COLUMN IF EXISTS sent_at,
+--   DROP COLUMN IF EXISTS reconcile_attempted_at, DROP COLUMN IF EXISTS reconcile_attempts;
+-- NOTIFY pgrst, 'reload schema';
+
+
+-- ═══════════════════════════ 20261021_02_refund_attention.sql ═══════════════════════════
+
+-- 2026-10-21 PayPal stage 3 (4/6) — the inbox badge for refunds that wait, kept consistent in the database.
+--
+-- "Needs a person" (conversations.escalated_at) is raised when a refund request lands in `pending` and
+-- lowered when the operator decides — but only while nothing else in that conversation still waits.
+-- Doing the check in application code (SELECT then UPDATE) left two holes (step-4 review): a window of
+-- the newest N rows is not an existence check, and a refund opened between the SELECT and the UPDATE was
+-- erased. Both writes therefore move here, under the SAME per-bot advisory lock the guardrail RPC takes,
+-- so "open a pending refund + raise the badge" and "lower the badge if nothing is pending" serialise.
+--
+-- Additive: payment_action_open_refund keeps its 11-argument signature (v2); only the pending branch gains
+-- the conversations UPDATE.
+
+CREATE OR REPLACE FUNCTION payment_action_open_refund(
+  p_bot_id              uuid,
+  p_conversation_id     uuid,
+  p_capture_id          text,
+  p_amount_cents        integer,
+  p_currency            text,
+  p_captured_at         timestamptz,
+  p_capture_has_refund  boolean,
+  p_has_dispute         boolean,
+  p_customer_key        text,
+  p_reason              text,
+  p_capture_total_cents integer
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  b                bots%ROWTYPE;
+  v_existing       payment_actions%ROWTYPE;
+  v_row            payment_actions%ROWTYPE;
+  v_daily_cents    integer;
+  v_customer_count integer;
+  v_checks         jsonb;
+  v_auto           boolean;
+  v_customer_key   text;
+  v_utc_day_start  timestamptz;
+BEGIN
+  IF p_amount_cents IS NULL OR p_amount_cents <= 0 THEN
+    RAISE EXCEPTION 'refund amount must be explicit and positive (omitting it would mean a full refund on PayPal)';
+  END IF;
+  IF p_capture_total_cents IS NULL OR p_capture_total_cents <= 0 THEN
+    RAISE EXCEPTION 'capture total required (the server reads it from PayPal before asking for a refund)';
+  END IF;
+  IF p_amount_cents > p_capture_total_cents THEN
+    RAISE EXCEPTION 'refund amount % exceeds the capture total %', p_amount_cents, p_capture_total_cents;
+  END IF;
+  IF p_capture_id IS NULL OR length(p_capture_id) = 0 THEN
+    RAISE EXCEPTION 'capture id required';
+  END IF;
+
+  SELECT * INTO b FROM bots WHERE id = p_bot_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'bot % not found', p_bot_id;
+  END IF;
+
+  v_customer_key := NULLIF(lower(btrim(p_customer_key)), '');
+  v_utc_day_start := date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+
+  PERFORM pg_advisory_xact_lock(hashtext('payment_actions:' || p_bot_id::text));
+
+  SELECT * INTO v_existing
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND target_id = p_capture_id
+     AND status IN ('pending', 'executing', 'unknown', 'executed')
+   LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_build_object('created', false, 'auto', v_existing.origin = 'auto', 'action', to_jsonb(v_existing));
+  END IF;
+
+  SELECT COALESCE(SUM(amount_cents), 0) INTO v_daily_cents
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND status IN ('executing', 'unknown', 'executed')
+     AND created_at >= v_utc_day_start;
+
+  SELECT COUNT(*) INTO v_customer_count
+    FROM payment_actions
+   WHERE bot_id = p_bot_id AND kind = 'refund' AND status IN ('pending', 'executing', 'unknown', 'executed')
+     AND v_customer_key IS NOT NULL AND customer_key = v_customer_key
+     AND created_at >= now() - interval '30 days';
+
+  v_checks := jsonb_build_object(
+    'amount_within_max', p_amount_cents <= b.refund_auto_max_cents,
+    'within_days',       p_captured_at IS NOT NULL AND p_captured_at >= now() - make_interval(days => b.refund_auto_days),
+    'no_prior_refund',   NOT COALESCE(p_capture_has_refund, true),
+    'currency_matches',  p_currency IS NOT NULL AND upper(p_currency) = upper(b.currency),
+    'daily_cap_ok',      v_daily_cents + p_amount_cents <= b.refund_daily_cap_cents,
+    'customer_known',    v_customer_key IS NOT NULL,
+    'customer_cap_ok',   v_customer_count < b.refund_per_customer_30d,
+    'no_dispute',        NOT COALESCE(p_has_dispute, true),
+    'not_propose_only',  NOT b.propose_only,
+    'not_paused',        NOT b.paypal_paused
+  );
+  v_auto := NOT EXISTS (SELECT 1 FROM jsonb_each(v_checks) WHERE value = 'false'::jsonb);
+
+  INSERT INTO payment_actions
+    (bot_id, conversation_id, kind, target_id, amount_cents, currency, customer_key, origin, status, reason, guardrail)
+  VALUES
+    (p_bot_id, p_conversation_id, 'refund', p_capture_id, p_amount_cents, upper(p_currency),
+     v_customer_key,
+     CASE WHEN v_auto THEN 'auto' ELSE 'approval' END,
+     CASE WHEN v_auto THEN 'executing' ELSE 'pending' END,
+     p_reason, v_checks)
+  RETURNING * INTO v_row;
+
+  -- A refund that waits for a person raises the inbox badge in the SAME transaction, under the lock.
+  -- Only escalated_at: handoff_requested_at is the visitor's own "talk to a human" and is not ours to set.
+  IF NOT v_auto AND p_conversation_id IS NOT NULL THEN
+    UPDATE conversations SET escalated_at = now() WHERE id = p_conversation_id AND bot_id = p_bot_id;
+  END IF;
+
+  RETURN jsonb_build_object('created', true, 'auto', v_auto, 'action', to_jsonb(v_row), 'checks', v_checks);
+END
+$$;
+
+REVOKE ALL ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text, integer)
+  TO service_role;
+
+-- Lowers the badge after a decision — in one statement, under the same per-bot lock, and only when
+-- (a) no refund of this conversation is still pending (a complete existence check, not a window) and
+-- (b) the visitor has not asked for a human themselves (handoff_requested_at is the superset marker).
+-- Returns true when the badge came down.
+CREATE OR REPLACE FUNCTION conversation_clear_refund_attention(p_conversation_id uuid, p_bot_id uuid) RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('payment_actions:' || p_bot_id::text));
+  UPDATE conversations c
+     SET escalated_at = NULL
+   WHERE c.id = p_conversation_id
+     AND c.bot_id = p_bot_id
+     AND c.handoff_requested_at IS NULL
+     AND c.escalated_at IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM payment_actions a
+        WHERE a.conversation_id = c.id AND a.status = 'pending'
+     )
+  RETURNING c.id INTO v_id;
+  RETURN v_id IS NOT NULL;
+END
+$$;
+
+REVOKE ALL ON FUNCTION conversation_clear_refund_attention(uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION conversation_clear_refund_attention(uuid, uuid) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_03 is rolled back. The badge then has no database writer: raise and clear it from
+-- application code again. conversations.escalated_at itself is untouched by this migration and stays.
+-- DROP FUNCTION IF EXISTS conversation_clear_refund_attention(uuid, uuid);
+-- Then re-create payment_action_open_refund from 20261021_01 (same 11-argument signature, no
+-- conversations UPDATE in the pending branch).
+-- NOTIFY pgrst, 'reload schema';
+
+
+-- ═══════════════════════════ 20261021_03_payment_announcements.sql ═══════════════════════════
+
+-- 2026-10-21 PayPal stage 3 (5/6) — the sentence a visitor reads about a refund, written by the database:
+-- once per (row, status), and only while the row IS in that status.
+--
+-- Step-5 review: writing the `payment` line as a separate best-effort INSERT after the status change left
+-- three holes — a failed insert was never retried (money refunded, the visitor still reads "waiting"); a
+-- stale caller could announce `unknown` twice; a delayed "being processed" could land AFTER "sent to
+-- PayPal". All three close when the decision moves here, under the action's row lock:
+--   payment_action_announce(action, status, body) → true when it wrote the line; false when
+--     (a) the row is not in that status any more (a stale caller's sentence is dropped), or
+--     (b) that status was already announced for this row (payment_announcements primary key), or
+--     (c) the row has no conversation to speak into.
+--   payment_actions_unannounced(limit) → rows whose current status has no line yet; the daily reaper
+--     writes them. Nothing about money is retried to recover a sentence.
+--
+-- Rows that exist before this migration were never announced in-conversation; they are marked as announced
+-- (including rows still pending/unknown at that moment) so the reaper does not address old conversations
+-- retroactively. Such a backfilled row has response_id NULL: that means "suppressed", not "delivered".
+
+CREATE TABLE IF NOT EXISTS payment_announcements (
+  action_id   UUID NOT NULL REFERENCES payment_actions(id) ON DELETE CASCADE,
+  status      TEXT NOT NULL,
+  response_id UUID REFERENCES responses(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (action_id, status)
+);
+ALTER TABLE payment_announcements ENABLE ROW LEVEL SECURITY;
+
+INSERT INTO payment_announcements (action_id, status)
+SELECT id, status
+  FROM payment_actions
+ WHERE status IN ('pending', 'unknown', 'executed', 'failed', 'rejected')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE FUNCTION payment_action_announce(p_action_id uuid, p_status text, p_body text) RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  a             payment_actions%ROWTYPE;
+  v_response_id uuid;
+BEGIN
+  IF p_body IS NULL OR length(btrim(p_body)) = 0 THEN
+    RAISE EXCEPTION 'announcement body required';
+  END IF;
+  IF p_status IS NULL OR p_status NOT IN ('pending', 'unknown', 'executed', 'failed', 'rejected') THEN
+    RAISE EXCEPTION 'status % is never announced', p_status;
+  END IF;
+
+  -- The row lock orders this against the status UPDATEs: a settle that moves the row waits for a running
+  -- announce, and an announce for a status the row has already left returns false.
+  SELECT * INTO a FROM payment_actions WHERE id = p_action_id FOR UPDATE;
+  IF NOT FOUND OR a.conversation_id IS NULL THEN
+    RETURN false;
+  END IF;
+  IF a.status <> p_status THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO payment_announcements (action_id, status) VALUES (p_action_id, p_status)
+  ON CONFLICT DO NOTHING;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO responses (bot_id, conversation_id, response_type, response_body, delivered_at)
+  VALUES (a.bot_id, a.conversation_id, 'payment', p_body, now())
+  RETURNING id INTO v_response_id;
+  UPDATE payment_announcements SET response_id = v_response_id
+   WHERE action_id = p_action_id AND status = p_status;
+  RETURN true;
+END
+$$;
+
+REVOKE ALL ON FUNCTION payment_action_announce(uuid, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_action_announce(uuid, text, text) TO service_role;
+
+CREATE OR REPLACE FUNCTION payment_actions_unannounced(p_limit integer DEFAULT 50) RETURNS SETOF payment_actions
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT a.*
+    FROM payment_actions a
+   WHERE a.kind = 'refund'
+     AND a.conversation_id IS NOT NULL
+     AND a.status IN ('pending', 'unknown', 'executed', 'failed', 'rejected')
+     AND NOT EXISTS (SELECT 1 FROM payment_announcements n WHERE n.action_id = a.id AND n.status = a.status)
+   ORDER BY a.updated_at ASC
+   LIMIT GREATEST(COALESCE(p_limit, 50), 1);
+$$;
+
+REVOKE ALL ON FUNCTION payment_actions_unannounced(integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION payment_actions_unannounced(integer) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- The `payment` lines already written to `responses` stay (they are conversation history); only the
+-- once-per-(row, status) bookkeeping and the two functions go.
+-- DROP FUNCTION IF EXISTS payment_actions_unannounced(integer);
+-- DROP FUNCTION IF EXISTS payment_action_announce(uuid, text, text);
+-- DROP TABLE IF EXISTS payment_announcements;
+-- NOTIFY pgrst, 'reload schema';

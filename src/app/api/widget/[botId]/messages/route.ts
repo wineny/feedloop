@@ -9,8 +9,22 @@ import { NextRequest, after } from 'next/server';
 // 30초를 먹은 뒤에도 대기+묶기가 이 안에 든다. 기본값에 기대지 않는다.
 export const maxDuration = 300;
 import { getBotConfigFromDB } from '@/lib/bot/core';
-import { callLlm, extractResult, type BotConfig, type LlmResult } from '@/lib/bot/handler';
+import { callLlm, extractResult, recordLlmFailure, type BotConfig, type LlmResult } from '@/lib/bot/handler';
 import { getSystemPrompt } from '@/lib/bot/prompts';
+// 결제 경로(설계 v2 §2). 봇에 PayPal 이 연결돼 있고 라우터(규칙, LLM 없음)가 「결제 얘기」라고
+// 하면 callLlm 대신 결제 에이전트(generateText + tools)로 간다. callLlm 은 카카오·텔레그램도
+// 쓰므로 건드리지 않는다 — 갈라지는 자리는 이 라우트 하나다.
+import { resolveModel, type ResolvedModel } from '@/lib/llm/provider';
+import { resolvePayPalBot } from '@/lib/paypal/bot';
+import type { PayPalClient } from '@/lib/paypal/client';
+import { hasOpenPaymentAction } from '@/lib/paypal/actions';
+import { NO_PAYMENT_ROUTE, routePayment } from '@/lib/paypal/router';
+import { paymentAgentPrompt, paymentAgentSystemPrompt, runPaymentAgent } from '@/lib/paypal/agent';
+import { PAYMENT_AGENT_FALLBACK, PAYMENT_NOTICES, type ReplyNotices } from '@/lib/paypal/notices';
+import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
+import { appOrigin } from '@/lib/paypal/checkout';
+import { supabasePaymentsStore } from '@/lib/paypal/store';
+import { createVisitorTools, formatProductList } from '@/lib/paypal/visitor-tools';
 // HOLDING_NOTICE 는 AI 가 답을 못 낸 경우(출력이 깨졌거나, 근거가 없어 스스로 넘겼거나)의
 // 안내다. 문구가 holding.ts 한 곳에서 오는 이유: 프롬프트가 시키는 문장과 서버가 쓰는 문장이
 // 갈라지면 방문자는 같은 상황에서 두 가지 말을 듣는다.
@@ -72,7 +86,7 @@ import { markWidgetConnected } from '@/lib/widget/connected';
 import { formatContextForPrompt, sanitizeWidgetContext } from '@/lib/widget/context';
 import { settleMessageShot } from '@/lib/widget/shots';
 import { withReplyBudget } from '@/lib/llm/usage';
-import { emailOwnerNewConversation } from '@/lib/email/notify';
+import { emailOwnerNewConversation, emailOwnerRefundApproval } from '@/lib/email/notify';
 
 /** Origin 헤더 저장 상한. 차단이 아니라 사후 판별용이라 넉넉히 자르기만 한다(§B-7). */
 const MAX_ORIGIN_CHARS = 200;
@@ -102,6 +116,15 @@ const LIMIT_NOTICE = '말씀 잘 받았어요! 오늘은 자동 답변이 어려
 // 올려야 풀린다) 이쪽은 한 시간이면 저절로 풀린다. 「오늘은 어려워」라고 하면 거짓말이 된다.
 // 이것도 저장하지 않는다.
 const RATE_NOTICE = '말씀 잘 받았어요! 지금 문의가 몰려 자동 답변은 잠시 쉬고 있어요. 팀이 직접 읽고 답 드릴게요 🙌';
+// 기존 경로의 안내 네 가지 + 늦은 답 실패 때 저장하는 답변. 결제 경로는 같은 자리마다 영어 문장
+// (lib/paypal/notices.ts)을 쓴다 — 아래 `notices` 가 경로별로 고른다. 한국어 문구 자체는 그대로다.
+const DEFAULT_NOTICES: ReplyNotices = {
+  slow: SLOW_NOTICE,
+  rate: RATE_NOTICE,
+  limit: LIMIT_NOTICE,
+  holding: HOLDING_NOTICE,
+  holdingMessage: HOLDING_MESSAGE,
+};
 
 export const OPTIONS = widgetOptions;
 
@@ -202,7 +225,10 @@ export async function POST(
   // «이미 저장된» 메시지에 답을 못 한다(I-23 과 같은 모양의 사고).
   // F1 — 「이미 접수된 문제」 목록도 같은 묶음에서 읽는다. 왕복 하나가 늘지만 «직렬»로는
   // 안 늘어난다. 실패하면 빈 목록 — 대조가 안 될 뿐 즉답은 종전대로 나간다.
-  const [loadedConfig, timeline, extendables, knownGroups] = await Promise.all([
+  // 결제 경로 재료 둘도 같은 묶음이다 — 「봇에 PayPal 연결됨?」과 「이 대화에 열린 환불 건?」.
+  // 둘 다 실패하면 결제 경로를 안 타고 기존 경로로 간다(답은 나간다). 결제 얘기였다면 사람이
+  // 받은편지함에서 이어받는다.
+  const [loadedConfig, timeline, extendables, knownGroups, , paypalBot, hasOpenAction] = await Promise.all([
     getBotConfigFromDB(botId).catch((err): BotConfig | null => {
       console.error(`[widget/${botId}] config load failed:`, err);
       return null;
@@ -225,8 +251,29 @@ export async function POST(
     touchConversation(conversation.id).catch((err) => {
       console.error(`[widget/${botId}] touch failed:`, err);
     }),
+    resolvePayPalBot(botId).catch((err) => {
+      console.error(`[widget/${botId}] paypal bot lookup failed:`, err instanceof Error ? err.message : err);
+      return null;
+    }),
+    hasOpenPaymentAction(conversation.id).catch((err) => {
+      console.error(`[widget/${botId}] open payment action lookup failed:`, err instanceof Error ? err.message : err);
+      return false;
+    }),
   ]);
   const config = loadedConfig; // const 여야 아래 클로저에서 좁혀진다
+
+  // 결제 경로 판정. 칩만 누른 턴은 «시작 신호»라 결제 얘기일 수 없다. PayPal 이 안 붙은 봇은
+  // 라우터를 아예 안 돈다 — 그 봇의 「환불」은 평범한 CS 질문이고 기존 경로가 지식으로 답한다.
+  const paymentRoute = !chipOnly && paypalBot?.ok
+    ? routePayment({ text: bodyText, recentTurns: timeline, currentMessageId: messageId, hasOpenAction })
+    : NO_PAYMENT_ROUTE;
+  if (paymentRoute.route) console.log(`[widget/${botId}] payment route: ${paymentRoute.reason}`);
+  // 결제 에이전트의 답은 'ai' 가 아니라 'payment_agent' 로 저장한다. 위젯엔 같은 말풍선이지만,
+  // 라우터가 「직전 답이 결제 에이전트」를 이 값으로 알아본다(다음 턴 "abc@x.com" 이 결제 경로에 남는 근거).
+  const replyResponseType = paymentRoute.route ? PAYMENT_AGENT_RESPONSE_TYPE : 'ai';
+  // 결제 경로의 방문자 문구는 전부 영어다(설계 §10) — 느림·시간당 상한·일일 예산·설정 없음·늦은 답 실패까지.
+  // 에이전트가 답을 못 내는 경우만이 아니라 에이전트를 «못 부른» 경우도 결제 얘기였으면 영어로 안내한다.
+  const notices = paymentRoute.route ? PAYMENT_NOTICES : DEFAULT_NOTICES;
 
   // 새 대화 알림 — 이 대화의 «첫 진짜 메시지»면 봇 소유자에게 메일 한 통(2026-09-23 ny 결정).
   // 칩만 누른 턴은 말이 아니라 신호라 건너뛰고, 그 뒤 처음 적은 말이 첫 메시지다. 여기 판정은
@@ -313,11 +360,92 @@ export async function POST(
     }
   };
 
+  /**
+   * 결제 에이전트 턴. 결과는 기존 LlmResult 모양으로 돌려 아래 저장·늦은 답·배지 코드를 그대로 탄다.
+   *
+   * 실패(키·provider·타임아웃)는 던지지 않고 «영어 고정 문장 + escalate» 로 돌린다 — 기존 경로의
+   * null 폴백은 한국어 안내(HOLDING_NOTICE)라 결제 화면엔 맞지 않고, escalate 가 받은편지함 배지를
+   * 켜 사람이 이어받게 한다. 키 실패 4분류 기록은 callLlm 과 같은 함수(recordLlmFailure)로 남긴다.
+   *
+   * 도구는 방문자 도구 4개(lib/paypal/visitor-tools.ts)뿐이다 — 이 (봇, 대화) 에 묶인 래퍼라
+   * 모델이 남의 주문·남의 봇·상품표에 없는 금액을 말할 길이 없다. 툴킷 원형은 주지 않는다.
+   * 상품 목록은 프롬프트에 싣는다(create_checkout 의 product_id 를 모델이 고르게).
+   */
+  const replyWithPaymentAgent = async (cfg: BotConfig, paypalClient: PayPalClient): Promise<LlmResult> => {
+    let resolved: ResolvedModel | null = null;
+    try {
+      const store = supabasePaymentsStore();
+      // 상품표를 못 읽어도 환불 대화는 되어야 한다 — 빈 목록이면 프롬프트에서 그 블록만 빠진다.
+      const products = await store.listActiveProducts(botId).catch((err) => {
+        console.error(`[widget/${botId}] product list failed:`, err instanceof Error ? err.message : err);
+        return [];
+      });
+      resolved = await resolveModel(cfg);
+      const outcome = await runPaymentAgent({
+        model: resolved.model,
+        tools: createVisitorTools({
+          botId,
+          conversationId: conversation.id,
+          store,
+          paypal: paypalClient,
+          origin: appOrigin,
+          // A refund the guardrail would not run: one mail to the owner (design §4), after the response.
+          // The inbox badge is NOT set here — the guardrail RPC raises escalated_at in the same
+          // transaction that writes the pending row (20261021_02), so "pending exists" and "badge up"
+          // can never disagree. Never `escalate` on the result either: holding.ts would overwrite the
+          // agent's answer. A failed mail cannot fail the visitor's answer.
+          onPendingApproval: (action) => {
+            after(
+              emailOwnerRefundApproval({ botId, conversationId: conversation.id, action }).then((outcome) => {
+                if (!outcome.sent && outcome.reason !== 'not_configured') {
+                  console.warn(`[widget/${botId}] refund approval mail not sent: ${outcome.reason}`);
+                }
+              }),
+            );
+          },
+        }),
+        system: paymentAgentSystemPrompt({ serviceName: bot.service_name, productList: formatProductList(products) }),
+        prompt: paymentAgentPrompt({
+          text: bodyText,
+          recentTurns: timeline,
+          currentMessageId: messageId,
+          serviceName: bot.service_name,
+        }),
+      });
+      if (outcome.text === null) {
+        console.warn(
+          `[widget/${botId}] payment agent ended without text: steps=${outcome.steps} finish=${outcome.finishReason}`,
+        );
+      }
+      return {
+        response: outcome.text ?? PAYMENT_AGENT_FALLBACK,
+        insight: null,
+        escalate: outcome.text === null,
+        extends: null,
+        matchesExistingGroup: null,
+        parsed: true,
+      };
+    } catch (err) {
+      await recordLlmFailure(cfg, resolved, err);
+      return {
+        response: PAYMENT_AGENT_FALLBACK,
+        insight: null,
+        escalate: true,
+        extends: null,
+        matchesExistingGroup: null,
+        parsed: true,
+      };
+    }
+  };
+
   // `rateHold` 면 LLM 을 아예 부르지 않는다. 일일 예산도 올리지 않는다 —
   // 부르지 않은 호출을 시도로 세면 시간당 상한이 일일 예산을 대신 태운다.
+  // 결제 경로도 같은 예산 안이다 — 도구 루프는 메시지당 provider 호출이 최대 4번이라 더 비싸다.
+  // paypalBot.ok 는 paymentRoute.route 의 전제라 여기서 다시 좁히기만 한다(TS 가 둘의 관계를 모른다).
+  const paypalClient = paypalBot?.ok ? paypalBot.bot.client : null;
   const budget = config && !rateHold
     ? await withReplyBudget(botId, config, (): Promise<LlmResult> =>
-        (async () => {
+        paymentRoute.route && paypalClient ? replyWithPaymentAgent(config, paypalClient) : (async () => {
           // 같은 예산을 SDK 안쪽까지 밀어 넣는다. 아래 Promise.race 는 «기다리기»만
           // 멈출 뿐 provider 요청은 계속 돈다 — 그 요청도 결국 운영자 돈이고,
           // 끝날 때까지 서버리스 함수가 정리되지 못한다.
@@ -382,15 +510,15 @@ export async function POST(
     if (rateHold) {
       // 봇 시간당 상한 — 예산 초과와 같은 종류다(트래픽 문제이지 지식 문제가 아니다).
       // 그래서 「담당자 확인 필요」을 찍지 «않는다». 대화는 미읽음으로 남아 받은편지함에 뜬다.
-      notice = RATE_NOTICE;
+      notice = notices.rate;
     } else if (budget && !budget.allowed) {
       // 상한 초과 — 「담당자 확인 필요」을 찍지 «않는다». 그 배지는 "지식에 없어 사람이
       // 이어받아야 한다"는 뜻인데 여기는 예산 문제다. 섞으면 운영자가 지식을 고치러 간다.
       // 대화는 미읽음으로 남아 받은편지함에 그대로 뜬다 — 놓치지 않는다.
-      notice = LIMIT_NOTICE;
+      notice = notices.limit;
     } else {
       // 설정을 못 읽어 부르지 못했다. 이건 답이 안 나간 것이므로 사람이 이어받는다.
-      notice = HOLDING_NOTICE;
+      notice = notices.holding;
       after(markConversationEscalated(conversation.id));
     }
   } else {
@@ -413,7 +541,7 @@ export async function POST(
           botId,
           conversationId: conversation.id,
           triggerMessageId: messageId,
-          responseType: 'ai',
+          responseType: replyResponseType,
           body: result.response,
           delivered: true,
         });
@@ -423,7 +551,7 @@ export async function POST(
       // AI 가 답을 못 냈으면 받은편지함에 「담당자 확인 필요」으로 올린다.
       if (needsEscalation(result)) after(markConversationEscalated(conversation.id));
       after(settleInsight(result).then((receipt) => groupAfterSettle(result, receipt)));
-      notice = result.response ? null : HOLDING_NOTICE;
+      notice = result.response ? null : notices.holding;
     } else {
       // 늦은 경우 — 안내 문구는 **저장하지 않고** 이번 응답에만 실어 보낸다.
       // 진짜 답변은 뒤늦게 저장되어 위젯의 다음 폴링에 뜬다. 늦게도 답이 없으면(30초 초과·provider
@@ -433,7 +561,7 @@ export async function POST(
       // 말풍선이 마지막이면 「상담원 연결」 칩을 붙인다. SLOW/LIMIT/RATE 같은 «안내(notice)» 를
       // 저장하지 않는 규칙과는 다른 층이다: 이건 안내가 아니라 답이다.
       // (안내까지 저장하면 말풍선이 둘로 남는다)
-      notice = SLOW_NOTICE;
+      notice = notices.slow;
       // 저장은 «정확히 한 번». then 이 저장한 뒤의 단계(settleInsight 등)가 던져 catch 로 와도
       // 다시 저장하지 않고, replying 자체가 reject 해 then 을 건너뛴 경우에만 catch 가 저장한다.
       let lateSaved = false;
@@ -443,7 +571,7 @@ export async function POST(
           botId,
           conversationId: conversation.id,
           triggerMessageId: messageId,
-          responseType: 'ai',
+          responseType: replyResponseType,
           body,
           delivered: true,
         });
@@ -452,7 +580,7 @@ export async function POST(
         replying
           .then(async (late) => {
             // late 객체는 건드리지 않는다 — needsEscalation(late) 는 response null 을 보고 배지를 켠다.
-            await saveLate(late.response ?? HOLDING_MESSAGE);
+            await saveLate(late.response ?? notices.holdingMessage);
             const receipt = await settleInsight(late);
             // 늦은 것과 못 답한 것은 다르다. 늦게라도 답이 나왔으면 사람이 이어받을 일이 없다 —
             // 그래서 타임아웃 자체가 아니라 «늦게 도착한 결과»로 판정한다.
@@ -463,7 +591,7 @@ export async function POST(
           .catch(async (err) => {
             console.error(`[widget/${botId}] late reply failed:`, err);
             if (!lateSaved) {
-              await saveLate(HOLDING_MESSAGE).catch((e) =>
+              await saveLate(notices.holdingMessage).catch((e) =>
                 console.error(`[widget/${botId}] late holding save failed:`, e),
               );
             }

@@ -69,7 +69,11 @@ vi.mock('@/lib/supabase', () => ({
 // 라우트 테스트는 인가를 여기서 끊는다 — next-auth 세션을 끌고 들어오지 않게.
 const { resolveOwnedBots } = vi.hoisted(() => ({ resolveOwnedBots: vi.fn() }));
 // inbox routes use resolveAccessibleBots (owner or approver) since 20261019_01; one stub serves both names
-vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots, resolveAccessibleBots: resolveOwnedBots }));
+vi.mock('@/lib/auth/ownership', () => ({
+  resolveOwnedBots,
+  resolveAccessibleBots: resolveOwnedBots,
+  OWNER_ONLY_ERROR: 'Only the bot owner can do this. Approvers can approve or reject refund requests.',
+}));
 
 type Mod = typeof import('@/lib/bot/conversations');
 
@@ -86,7 +90,7 @@ beforeEach(() => {
   botRows = [];
   updateCalls.length = 0;
   insertCalls.length = 0;
-  resolveOwnedBots.mockResolvedValue({ ok: true, userId: 'u1', botIds: ['bot-1'] });
+  resolveOwnedBots.mockResolvedValue({ ok: true, userId: 'u1', botIds: ['bot-1'], role: 'owner' });
 });
 
 describe('listConversations — 미읽음 판정', () => {
@@ -374,6 +378,43 @@ describe('POST /api/inbox/[id]/reply — 채널톡은 받지 않는다', () => {
     expect(status).toBe(200);
     expect(body.delivered).toBe(true);
     expect(insertCalls.filter((c) => c.table === 'responses')).toHaveLength(1);
+  });
+});
+
+// ── 승인자는 답장·닫기를 못 한다 (PayPal 3단계 6/6) ──────────────────────────
+//
+// bot_members 의 승인자(데모 봇의 심사위원)는 받은편지함을 보고 환불을 승인·거절할 수만 있다.
+// 방문자에게 말을 걸거나 대화를 닫는 것은 소유자의 일이다.
+
+describe('승인자(role=approver)는 reply·close 에서 403', () => {
+  beforeEach(() => {
+    resolveOwnedBots.mockResolvedValue({ ok: true, userId: 'judge-1', botIds: ['bot-1'], role: 'approver' });
+  });
+
+  it('reply: 403, responses 에 아무것도 쓰지 않는다', async () => {
+    convRows = [{ ...CHANNEL_CONV, id: 'web-conv-1', source: 'web' }];
+
+    const { status, body } = await postReply('web-conv-1');
+    expect(status).toBe(403);
+    expect(body.error).toMatch(/Only the bot owner/);
+    expect(insertCalls.filter((c) => c.table === 'responses')).toHaveLength(0);
+    expect(updateCalls).toHaveLength(0);
+  });
+
+  it('close: 403, 대화 상태를 바꾸지 않는다', async () => {
+    convRows = [CHANNEL_CONV];
+
+    const { status, body } = await postClose(CHANNEL_CONV.id);
+    expect(status).toBe(403);
+    expect(body.error).toMatch(/Only the bot owner/);
+    expect(updateCalls.filter((u) => u.patch.status === 'closed')).toHaveLength(0);
+  });
+
+  it('role 이 없는 옛 응답 모양도 소유자로 보지 않는다 (안전한 쪽)', async () => {
+    resolveOwnedBots.mockResolvedValue({ ok: true, userId: 'u1', botIds: ['bot-1'] });
+    convRows = [CHANNEL_CONV];
+    const { status } = await postClose(CHANNEL_CONV.id);
+    expect(status).toBe(403);
   });
 });
 

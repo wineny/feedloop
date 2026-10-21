@@ -15,6 +15,7 @@ import { createPublicKey, createVerify, X509Certificate } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { PayPalApiError, type PayPalCapture, type PayPalClient } from './client';
 import { applyCapturedOrder, captureCheckout } from './capture';
+import { isStuckAction, reconcileAction } from './refund';
 import type { PaymentsStore } from './store';
 
 export const CERT_HOSTS = new Set(['api.paypal.com', 'api.sandbox.paypal.com']);
@@ -173,13 +174,40 @@ export function parseWebhookEvent(raw: Buffer): WebhookEvent | null {
   return e as WebhookEvent;
 }
 
-/** Events we store now and act on later (stage 4: refunds, disputes). */
+const PAYPAL_API_HOSTS = new Set(['api.paypal.com', 'api-m.paypal.com', 'api.sandbox.paypal.com', 'api-m.sandbox.paypal.com']);
+
+/**
+ * The capture id behind a refund resource: its `up` link, https://api(-m)(.sandbox).paypal.com/v2/payments/captures/{id}.
+ * Anything else (another host, another path, no link) → null. Exported for tests.
+ */
+export function captureIdFromRefundResource(resource: unknown): string | null {
+  const links = (resource as { links?: unknown } | null)?.links;
+  if (!Array.isArray(links)) return null;
+  for (const link of links) {
+    const l = link as { rel?: unknown; href?: unknown };
+    if (l?.rel !== 'up' || typeof l.href !== 'string') continue;
+    let url: URL;
+    try {
+      url = new URL(l.href);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'https:' || !PAYPAL_API_HOSTS.has(url.hostname)) continue;
+    const m = /^\/v2\/payments\/captures\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** Events we store now and act on later (reversals, disputes). */
 export const RECORD_ONLY = /^(PAYMENT\.CAPTURE\.REFUNDED|PAYMENT\.CAPTURE\.REVERSED|CUSTOMER\.DISPUTE\..+)$/;
 
 export type HandleOutcome =
   | { kind: 'captured' | 'already_captured' | 'pending' | 'failed' }
   | { kind: 'ignored'; reason: string }
-  | { kind: 'recorded' };
+  | { kind: 'recorded' }
+  /** A stuck refund action for this capture was reconciled (its new status in `outcome`). */
+  | { kind: 'reconciled'; outcome: string };
 
 export interface WebhookDeps {
   store: PaymentsStore;
@@ -252,6 +280,23 @@ export async function handleWebhookEvent(
     }
     const failed = await deps.store.updateOrder(orderId, botId, ['created', 'approved'], { status: 'failed' });
     return failed ? { kind: 'failed' } : { kind: 'ignored', reason: `order ${row.status}` };
+  }
+
+  if (event.event_type === 'PAYMENT.CAPTURE.REFUNDED') {
+    // The resource is a REFUND (resource.id = refund id); its capture is the `up` link
+    // (https://developer.paypal.com/api/payments/v2/captures-refund/ — capture_refunded callback).
+    // If we have a refund action for that capture whose answer we never saw (executing/unknown),
+    // this is the moment to finish it. reconcileAction re-reads PayPal (GET refund, or the idempotent
+    // re-POST); nothing here trusts the webhook body's amounts or status, and the link is only used
+    // as a lookup key after its host and path were validated.
+    const captureId = captureIdFromRefundResource(event.resource);
+    if (!captureId) return { kind: 'recorded' };
+    const action = await deps.store.latestRefundAction(botId, captureId);
+    if (action && isStuckAction(action)) {
+      const outcome = await reconcileAction(deps, action);
+      return { kind: 'reconciled', outcome: outcome.status };
+    }
+    return { kind: 'recorded' };
   }
 
   if (RECORD_ONLY.test(event.event_type)) return { kind: 'recorded' };

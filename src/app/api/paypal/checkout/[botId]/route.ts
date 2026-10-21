@@ -41,6 +41,8 @@ const ERROR_STATUS: Record<CheckoutError, number> = {
   paypal_failed: 502,
   bad_approve_url: 502,
   store_failed: 500,
+  // Only the agent passes a cancellation signal; this page never does, so this is unreachable here.
+  canceled: 400,
 };
 
 const ERROR_TEXT: Record<CheckoutError, string> = {
@@ -51,6 +53,7 @@ const ERROR_TEXT: Record<CheckoutError, string> = {
   paypal_failed: 'PayPal did not accept the order. Please try again.',
   bad_approve_url: 'PayPal did not return a checkout link. Please try again.',
   store_failed: 'We could not save your order. Please try again.',
+  canceled: 'The checkout was cancelled before PayPal was contacted.',
 };
 
 function error(message: string, status: number) {

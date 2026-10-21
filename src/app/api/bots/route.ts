@@ -26,10 +26,11 @@ export async function GET() {
   }
   // 연결 시각 셋(widget/channel_connected_at·last_active_at)은 대시보드 「피드백 채널」이
   // /bots 와 같은 판정을 내리기 위한 값이다(I-35). 타임스탬프뿐이고 암호문 컬럼은 여기 넣지 않는다.
+  // user_id 는 is_owner 를 셈하는 데만 쓰고 응답에서 뺀다 — 승인자에게 남의 계정 id 를 보여 줄 이유가 없다.
   const { data: bots, error } = await supabase
     .from("bots")
     .select(
-      "id, service_name, bot_username, status, platform, pr_mode, created_at, widget_connected_at, channel_connected_at, last_active_at",
+      "id, user_id, service_name, bot_username, status, platform, pr_mode, created_at, widget_connected_at, channel_connected_at, last_active_at",
     )
     .in("id", ids)
     .order("created_at", { ascending: false });
@@ -38,7 +39,10 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch bots" }, { status: 500 });
   }
 
-  return NextResponse.json({ bots: bots ?? [] });
+  const rows = (bots ?? []) as ({ user_id?: string | null } & Record<string, unknown>)[];
+  return NextResponse.json({
+    bots: rows.map(({ user_id, ...rest }) => ({ ...rest, is_owner: user_id === session.user.id })),
+  });
 }
 
 // 봇 등록의 기본 채널은 웹 위젯이다.

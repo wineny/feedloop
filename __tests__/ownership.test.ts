@@ -47,9 +47,22 @@ describe('resolveAccessibleBots', () => {
     expect(await resolveAccessibleBots()).toEqual({ ok: true, userId: 'u1', botIds: [OWNED, MEMBER] });
   });
 
-  it('lets an approver into a bot they do not own', async () => {
+  it('lets an approver into a bot they do not own, and says so (role)', async () => {
     const { resolveAccessibleBots } = await import('@/lib/auth/ownership');
-    expect(await resolveAccessibleBots(MEMBER)).toEqual({ ok: true, userId: 'u1', botIds: [MEMBER] });
+    expect(await resolveAccessibleBots(MEMBER)).toEqual({ ok: true, userId: 'u1', botIds: [MEMBER], role: 'approver' });
+    expect(await resolveAccessibleBots(OWNED)).toEqual({ ok: true, userId: 'u1', botIds: [OWNED], role: 'owner' });
+  });
+
+  it('a membership row for a bot the user also owns does not demote them', async () => {
+    tables.bot_members = { data: [{ bot_id: OWNED }], error: null };
+    const { resolveAccessibleBots, listAccessibleBots } = await import('@/lib/auth/ownership');
+    expect(await resolveAccessibleBots(OWNED)).toMatchObject({ ok: true, role: 'owner' });
+    expect(await listAccessibleBots('u1')).toEqual({ owned: [OWNED], approver: [] });
+  });
+
+  it('listAccessibleBots splits owned from approver-only ids', async () => {
+    const { listAccessibleBots } = await import('@/lib/auth/ownership');
+    expect(await listAccessibleBots('u1')).toEqual({ owned: [OWNED], approver: [MEMBER] });
   });
 
   it('403 for a bot the user neither owns nor approves', async () => {

@@ -7,6 +7,20 @@ export function centsToValue(cents: number): string {
   return `${whole}.${rest}`;
 }
 
+/**
+ * "29.00" → 2900, the inverse of centsToValue for values PayPal sends back. Integer math on the
+ * string; null for anything that is not `digits[.digits{0,2}]` (a malformed amount must never
+ * become a refund amount).
+ */
+export function valueToCents(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
+  if (!m) return null;
+  const whole = Number(m[1]);
+  const frac = Number((m[2] ?? '').padEnd(2, '0'));
+  return whole * 100 + frac;
+}
+
 /** 900 USD → "$9", 2950 USD → "$29.50". For display only. */
 export function formatMoney(cents: number, currency: string): string {
   return new Intl.NumberFormat('en-US', {

@@ -308,6 +308,9 @@
     '.card p{margin:0;font-size:13px;line-height:1.55;color:#191d1b;white-space:pre-wrap;word-break:break-word}',
     '.card a{color:var(--fl-accent-strong,#F2645C);font-size:13px;font-weight:700;text-decoration:none}',
     '.card a:hover{text-decoration:underline}',
+    // 결제 카드 — 되돌림 카드와 같은 틀, 흰 바탕. 버튼은 .pri 알약을 그대로 쓴다
+    '.card.pay{background:#fff;border-color:#e6e2e1}',
+    '.card.pay a.pri{align-self:flex-start;display:inline-block;text-decoration:none;color:var(--fl-accent-fg,#fff);margin-top:2px}',
     '.cf{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px}',
     '.cf span{font-size:12.5px;color:#6e6968}',
     '.cf .chip{padding:5px 11px}',
@@ -548,6 +551,37 @@
     return card;
   }
 
+  /**
+   * 결제 카드(PayPal 3단계). 본문은 서버 고정 영어 문장이고, 마지막 줄이 https URL 이면 결제 링크다.
+   * 버튼은 호스트가 paypal.com 일 때만 만든다 — 링크는 서버 데이터지만 한 번 더 거른다(설계 §5).
+   */
+  function paymentCard(body) {
+    var card = el('div', 'card pay');
+    var head = el('div', 'ch');
+    head.appendChild(el('b', null, 'PayPal'));
+    card.appendChild(head);
+    var lines = String(body).split('\n');
+    var last = lines[lines.length - 1];
+    var url = null;
+    if (/^https:\/\/\S+$/.test(last)) {
+      try {
+        var h = new URL(last).hostname;
+        if (h === 'paypal.com' || /\.paypal\.com$/.test(h)) url = last;
+      } catch { /* not a URL: shown as text */ }
+      if (url) lines.pop();
+    }
+    var text = lines.join('\n').trim();
+    if (text) card.appendChild(el('p', null, text));
+    if (url) {
+      var a = el('a', 'pri', 'Pay with PayPal');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      card.appendChild(a);
+    }
+    return card;
+  }
+
   /** 확인 줄. 서버가 준 값이 정본이고, 응답을 기다리는 동안만 로컬로 잠근다. */
   function confirmRow(id, conf) {
     var row = el('div', 'cf');
@@ -781,6 +815,10 @@
         body.appendChild(systemCard(it.body, it.id, it.confirmation));
       } else if (it.kind === 'notice') {
         body.appendChild(el('div', 'ok', it.body));
+        prev = null;
+        return;
+      } else if (it.kind === 'payment') {
+        body.appendChild(paymentCard(it.body));
         prev = null;
         return;
       } else {

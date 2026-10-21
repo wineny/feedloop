@@ -63,12 +63,21 @@ describe('GET /api/bots', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('lists owned and approver bots by id', async () => {
+  it('lists owned and approver bots by id, each saying is_owner, without the owner id', async () => {
     listAccessibleBotIds.mockResolvedValue(['bot-owned', 'bot-demo']);
-    results.push({ data: [{ id: 'bot-owned', service_name: 'Mine' }, { id: 'bot-demo', service_name: 'Feedloop' }], error: null });
+    results.push({
+      data: [
+        { id: 'bot-owned', user_id: 'judge-1', service_name: 'Mine' },
+        { id: 'bot-demo', user_id: 'someone-else', service_name: 'Feedloop' },
+      ],
+      error: null,
+    });
     const { status, body } = await get();
     expect(status).toBe(200);
-    expect(body.bots).toHaveLength(2);
+    expect(body.bots).toEqual([
+      { id: 'bot-owned', service_name: 'Mine', is_owner: true },
+      { id: 'bot-demo', service_name: 'Feedloop', is_owner: false },
+    ]);
     expect(calls[0].table).toBe('bots');
     expect(calls[0].methods).toContainEqual(['in', 'id', ['bot-owned', 'bot-demo']]);
   });

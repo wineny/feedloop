@@ -15,7 +15,8 @@ function db() {
 
 // 'system' 은 되돌림(loop_closed) 카드다 — 이름이 먼저 그쪽에 쓰였다.
 // 'notice' 는 그 뒤에 생긴 «가운데 안내 칩»(방문자가 담당자를 부른 기록 등, response_type='system').
-export type TimelineKind = 'user' | 'ai' | 'operator' | 'system' | 'notice';
+/** `payment` = a server-fixed sentence about money (PayPal stage 3); the widget draws it as a card. */
+export type TimelineKind = 'user' | 'ai' | 'operator' | 'system' | 'notice' | 'payment';
 
 /** 되돌림을 받은 방문자가 「그래서 고쳐졌나」에 답한 값. */
 export type ResolutionConfirmation = 'fixed' | 'not_fixed';
@@ -32,6 +33,12 @@ export interface TimelineItem {
    * 두 번 눌러도 사고는 안 나지만, 답한 사람에게 같은 질문을 또 하는 화면은 답을 안 받은 것과 같다.
    */
   confirmation?: ResolutionConfirmation | null;
+  /**
+   * The raw `responses.response_type` of our replies. Only `getRecentTurns` sets it (prompt
+   * context), never `getTimeline` (the widget payload stays as it was). The payment router reads
+   * it to tell a payment-agent reply from an ordinary AI one — both collapse to kind 'ai'.
+   */
+  responseType?: string;
 }
 
 export interface Conversation {
@@ -55,12 +62,13 @@ export interface Conversation {
   channel_person_id: string | null;
 }
 
-/** 우리가 보낸 것의 종류를 말풍선 5종으로 접는다. */
+/** 우리가 보낸 것의 종류를 말풍선 6종으로 접는다. */
 function responseKind(responseType: string): TimelineKind {
   if (responseType === 'operator') return 'operator';
   if (responseType === 'loop_closed') return 'system';
   if (responseType === 'system') return 'notice';
-  return 'ai'; // ai · mention · keyword · question · kakao
+  if (responseType === 'payment') return 'payment';
+  return 'ai'; // ai · mention · keyword · question · kakao · payment_agent
 }
 
 /**
@@ -461,6 +469,7 @@ export async function getRecentTurns(
       kind: responseKind(r.response_type),
       body: r.response_body,
       at: r.sent_at,
+      responseType: r.response_type,
     })),
   ];
 

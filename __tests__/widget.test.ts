@@ -103,11 +103,14 @@ describe('getTimeline', () => {
       { id: 'r5', response_type: 'mention', response_body: 'e', sent_at: '2026-09-06T10:04:00Z', delivered_at: 'x' },
       // 「담당자에게 물어보기」 기록 — 되돌림 카드(system)가 아니라 가운데 안내 칩(notice)
       { id: 'r6', response_type: 'system', response_body: 'f', sent_at: '2026-09-06T10:05:00Z', delivered_at: 'x' },
+      // PayPal 3단계 — 서버 고정 문장은 결제 카드(payment), 결제 에이전트의 말은 AI 말풍선
+      { id: 'r7', response_type: 'payment', response_body: 'g', sent_at: '2026-09-06T10:06:00Z', delivered_at: 'x' },
+      { id: 'r8', response_type: 'payment_agent', response_body: 'h', sent_at: '2026-09-06T10:07:00Z', delivered_at: 'x' },
     ];
 
     const items = await getTimeline('conv-1');
 
-    expect(items.map((i) => i.kind)).toEqual(['ai', 'operator', 'system', 'ai', 'ai', 'notice']);
+    expect(items.map((i) => i.kind)).toEqual(['ai', 'operator', 'system', 'ai', 'ai', 'notice', 'payment', 'ai']);
   });
 
   it('아직 전달 안 된 응답은 타임라인에 넣지 않는다', async () => {

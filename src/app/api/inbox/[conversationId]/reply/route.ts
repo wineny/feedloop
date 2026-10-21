@@ -6,7 +6,7 @@
 // 채널톡은 답장 창구가 데스크 하나뿐이다 — 여기서는 받지 않고 그쪽 링크를 돌려준다.
 
 import { NextResponse } from 'next/server';
-import { resolveAccessibleBots } from '@/lib/auth/ownership';
+import { OWNER_ONLY_ERROR, resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getChannelDeskUrl } from '@/lib/bot/channel-registration';
 import {
   clearConversationEscalated,
@@ -31,6 +31,11 @@ export async function POST(
   const auth = await resolveAccessibleBots(conversation.bot_id);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  // 승인자(bot_members)는 받은편지함을 «보고» 환불을 승인·거절할 수만 있다. 방문자에게 말을 거는 것은
+  // 소유자의 일이다 — 본문을 읽기 전에 끊어 저장 경로에 닿지 않게 한다(3단계 6/6).
+  if (auth.role !== 'owner') {
+    return NextResponse.json({ error: OWNER_ONLY_ERROR }, { status: 403 });
   }
 
   // 채널톡은 답을 데스크에서 한다(§3-(d) A). 답장 창구가 둘이 되면 「누가 이미 답했나」가
