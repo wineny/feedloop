@@ -6,7 +6,7 @@
 // 채널톡은 답장 창구가 데스크 하나뿐이다 — 여기서는 받지 않고 그쪽 링크를 돌려준다.
 
 import { NextResponse } from 'next/server';
-import { OWNER_ONLY_ERROR, resolveAccessibleBots } from '@/lib/auth/ownership';
+import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getChannelDeskUrl } from '@/lib/bot/channel-registration';
 import {
   clearConversationEscalated,
@@ -14,6 +14,7 @@ import {
   saveConversationResponse,
 } from '@/lib/bot/conversations';
 import { describeReplyDelivery, emailResponse } from '@/lib/email/notify';
+import { apiText } from '@/lib/http/api-text';
 
 const MAX_REPLY_CHARS = 2000;
 
@@ -25,7 +26,7 @@ export async function POST(
 
   const conversation = await getConversationOwner(conversationId);
   if (!conversation) {
-    return NextResponse.json({ error: '대화를 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'conversationNotFound') }, { status: 404 });
   }
 
   const auth = await resolveAccessibleBots(conversation.bot_id);
@@ -35,7 +36,7 @@ export async function POST(
   // 승인자(bot_members)는 받은편지함을 «보고» 환불을 승인·거절할 수만 있다. 방문자에게 말을 거는 것은
   // 소유자의 일이다 — 본문을 읽기 전에 끊어 저장 경로에 닿지 않게 한다(3단계 6/6).
   if (auth.role !== 'owner') {
-    return NextResponse.json({ error: OWNER_ONLY_ERROR }, { status: 403 });
+    return NextResponse.json({ error: apiText(req, 'ownerOnly') }, { status: 403 });
   }
 
   // 채널톡은 답을 데스크에서 한다(§3-(d) A). 답장 창구가 둘이 되면 「누가 이미 답했나」가
@@ -45,7 +46,7 @@ export async function POST(
   if (conversation.source === 'channel') {
     const deskUrl = await getChannelDeskUrl(conversation.bot_id, conversation.external_user_id);
     return NextResponse.json(
-      { error: '채널톡 대화는 채널톡 데스크에서 답장합니다', deskUrl },
+      { error: apiText(req, 'channelTalkReplyElsewhere'), deskUrl },
       { status: 409 },
     );
   }
@@ -54,16 +55,16 @@ export async function POST(
   try {
     payload = await req.json();
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   const text = typeof payload.text === 'string' ? payload.text.trim() : '';
   if (!text) {
-    return NextResponse.json({ error: '답장 내용이 비어 있습니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'replyEmpty') }, { status: 400 });
   }
   if (text.length > MAX_REPLY_CHARS) {
     return NextResponse.json(
-      { error: `답장은 ${MAX_REPLY_CHARS}자까지 보낼 수 있습니다` },
+      { error: apiText(req, 'replyTooLong', { max: MAX_REPLY_CHARS }) },
       { status: 400 },
     );
   }
@@ -79,7 +80,7 @@ export async function POST(
   });
 
   if (!id) {
-    return NextResponse.json({ error: '답장을 저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'replySaveFailed') }, { status: 500 });
   }
 
   // 사람이 답했으니 「담당자 확인 필요」은 해소다. 저장이 «성공한 뒤에만» 지운다.

@@ -1,0 +1,11 @@
+{
+  "feed": {
+    "prCreated": "PR #{number} 자동 생성",
+    "autoFixRun": "자동 수정 실행",
+    "classified": "분류: {category}",
+    "fixCreated": "수정안 생성 완료",
+    "status": "상태: {status}",
+    "notified": "반영 알림 보냄",
+    "notifyPending": "반영 알림 대기"
+  }
+}

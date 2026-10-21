@@ -54,7 +54,9 @@ export interface ChannelValues {
   bot_name: string;
 }
 
-export type ChannelInputResult = { ok: true; values: ChannelValues } | { ok: false; error: string };
+type Failure = { ok: false; error: string; code: string; vars?: Record<string, string | number> };
+
+export type ChannelInputResult = { ok: true; values: ChannelValues } | Failure;
 
 const CHANNEL_LIMITS = {
   access_key: 200,
@@ -67,13 +69,14 @@ const CHANNEL_LIMITS = {
 function trimmedString(
   raw: unknown,
   label: string,
+  field: string,
   max: number,
-): { ok: true; value: string | null } | { ok: false; error: string } {
+): { ok: true; value: string | null } | Failure {
   if (raw === undefined || raw === null) return { ok: true, value: null };
-  if (typeof raw !== 'string') return { ok: false, error: `${label} 은(는) 문자열이어야 합니다` };
+  if (typeof raw !== 'string') return { ok: false, error: `${label} 은(는) 문자열이어야 합니다`, code: 'notString', vars: { field } };
   const trimmed = raw.trim();
   if (!trimmed) return { ok: true, value: null };
-  if (trimmed.length > max) return { ok: false, error: `${label} 은(는) ${max}자까지 입력할 수 있습니다` };
+  if (trimmed.length > max) return { ok: false, error: `${label} 은(는) ${max}자까지 입력할 수 있습니다`, code: 'tooLong', vars: { field, max } };
   return { ok: true, value: trimmed };
 }
 
@@ -92,31 +95,31 @@ function trimmedString(
  */
 export function validateChannelInput(body: unknown): ChannelInputResult {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return { ok: false, error: '잘못된 요청 형식입니다' };
+    return { ok: false, error: '잘못된 요청 형식입니다', code: 'badRequest' };
   }
   const input = body as Record<string, unknown>;
 
-  const key = trimmedString(input.access_key, '액세스 키', CHANNEL_LIMITS.access_key);
+  const key = trimmedString(input.access_key, '액세스 키', 'accessKey', CHANNEL_LIMITS.access_key);
   if (!key.ok) return key;
-  if (!key.value) return { ok: false, error: '액세스 키를 입력해 주세요' };
+  if (!key.value) return { ok: false, error: '액세스 키를 입력해 주세요', code: 'required', vars: { field: 'accessKey' } };
 
-  const secret = trimmedString(input.access_secret, '액세스 시크릿', CHANNEL_LIMITS.access_secret);
+  const secret = trimmedString(input.access_secret, '액세스 시크릿', 'accessSecret', CHANNEL_LIMITS.access_secret);
   if (!secret.ok) return secret;
-  if (!secret.value) return { ok: false, error: '액세스 시크릿을 입력해 주세요' };
+  if (!secret.value) return { ok: false, error: '액세스 시크릿을 입력해 주세요', code: 'required', vars: { field: 'accessSecret' } };
 
-  const slug = trimmedString(input.channel_slug, '채널 주소', CHANNEL_LIMITS.channel_slug);
+  const slug = trimmedString(input.channel_slug, '채널 주소', 'channelSlug', CHANNEL_LIMITS.channel_slug);
   if (!slug.ok) return slug;
-  if (!slug.value) return { ok: false, error: '채널 주소를 입력해 주세요' };
+  if (!slug.value) return { ok: false, error: '채널 주소를 입력해 주세요', code: 'required', vars: { field: 'channelSlug' } };
   if (!CHANNEL_SLUG_RE.test(slug.value)) {
-    return { ok: false, error: '채널 주소는 영문 소문자·숫자·하이픈만 쓸 수 있습니다' };
+    return { ok: false, error: '채널 주소는 영문 소문자·숫자·하이픈만 쓸 수 있습니다', code: 'channelSlugFormat' };
   }
 
-  const channelId = trimmedString(input.channel_id, '채널 ID', CHANNEL_LIMITS.channel_id);
+  const channelId = trimmedString(input.channel_id, '채널 ID', 'channelId', CHANNEL_LIMITS.channel_id);
   if (!channelId.ok) return channelId;
 
-  const botName = trimmedString(input.bot_name, '봇 이름', CHANNEL_LIMITS.bot_name);
+  const botName = trimmedString(input.bot_name, '봇 이름', 'botName', CHANNEL_LIMITS.bot_name);
   if (!botName.ok) return botName;
-  if (!botName.value) return { ok: false, error: '봇 이름을 입력해 주세요' };
+  if (!botName.value) return { ok: false, error: '봇 이름을 입력해 주세요', code: 'required', vars: { field: 'botName' } };
 
   return {
     ok: true,
@@ -140,18 +143,18 @@ export const VERIFY_TOKEN_RE = /^[A-Za-z0-9_-]{8,128}$/;
 
 export type VerifyTokenInputResult =
   | { ok: true; value: string | null }
-  | { ok: false; error: string };
+  | Failure;
 
 export function validateVerifyTokenInput(body: unknown): VerifyTokenInputResult {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return { ok: false, error: '잘못된 요청 형식입니다' };
+    return { ok: false, error: '잘못된 요청 형식입니다', code: 'badRequest' };
   }
   const raw = (body as Record<string, unknown>).verify_token;
-  const token = trimmedString(raw, '웹훅 토큰', 128);
+  const token = trimmedString(raw, '웹훅 토큰', 'webhookToken', 128);
   if (!token.ok) return token;
   if (!token.value) return { ok: true, value: null };
   if (!VERIFY_TOKEN_RE.test(token.value)) {
-    return { ok: false, error: '웹훅 토큰은 영문·숫자·하이픈·밑줄 8~128자입니다. 채널톡이 보여준 값을 그대로 붙여넣어 주세요' };
+    return { ok: false, error: '웹훅 토큰은 영문·숫자·하이픈·밑줄 8~128자입니다. 채널톡이 보여준 값을 그대로 붙여넣어 주세요', code: 'webhookTokenFormat' };
   }
   return { ok: true, value: token.value };
 }

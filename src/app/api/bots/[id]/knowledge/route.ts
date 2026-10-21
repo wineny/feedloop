@@ -10,6 +10,7 @@ import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { validateKnowledgeInput } from '@/lib/bot/knowledge';
 import { invalidateBotCache } from '@/lib/bot/core';
+import { apiText, apiValidation } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,12 +28,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   const parsed = validateKnowledgeInput(body);
   if (!parsed.ok) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
+    return NextResponse.json({ error: apiValidation(req, parsed) }, { status: 400 });
   }
 
   const { data, error } = await getServiceRoleClient()
@@ -43,7 +44,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: '저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'saveFailed') }, { status: 500 });
   }
 
   // ⚠️ appearance 라우트에는 이 무효화가 없다(위젯 config 가 CDN 캐시를 따로 쓴다).

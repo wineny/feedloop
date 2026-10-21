@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { invalidateBotCache } from '@/lib/bot/core';
+import { apiText } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ const ACTIVE_RUN_STATUSES = ['running', 'in_progress'] as const;
 //
 // `user_id` 를 WHERE 에 한 번 더 건다. 소유 확인은 위에서 끝났지만 삭제는 되돌릴 수 없어
 // 검사와 실행 사이의 창(소유권이 바뀌는 일은 없지만)을 DB 에서 한 번 더 닫는다.
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const auth = await resolveOwnedBots(id);
@@ -50,11 +51,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   if (runError) {
     console.error(`[bots/${id}] active run check failed:`, runError.message);
-    return NextResponse.json({ error: '삭제 전 확인에 실패했습니다. 다시 시도해 주세요' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'deleteCheckFailed') }, { status: 500 });
   }
   if ((count ?? 0) > 0) {
     return NextResponse.json(
-      { error: '수정안을 만드는 중이에요. 끝난 뒤 다시 시도해 주세요' },
+      { error: apiText(req, 'fixInProgress') },
       { status: 409 },
     );
   }
@@ -62,7 +63,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   // 「화면에서 선택하기」 스크린샷(I-55) — DB CASCADE 는 Storage 객체를 안 지운다. 봇 행이 사라지면
   // 경로를 알 길이 없으니 «먼저» 비운다. 못 비우면 봇도 안 지운다(다시 누르면 된다).
   if (!(await removeBotShots(id))) {
-    return NextResponse.json({ error: '저장된 화면 이미지를 지우지 못했습니다. 다시 시도해 주세요' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'shotsDeleteFailed') }, { status: 500 });
   }
 
   const { data, error } = await db
@@ -74,10 +75,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   if (error) {
     console.error(`[bots/${id}] delete failed:`, error.message);
-    return NextResponse.json({ error: '삭제하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'deleteFailed') }, { status: 500 });
   }
   if (!data || data.length === 0) {
-    return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
   }
 
   // 위젯·웹훅이 메모리에 물고 있던 봇 설정을 버린다 — 안 그러면 이 인스턴스에서는 지운 봇이 잠시 더 답한다.
@@ -107,11 +108,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   if (!isPrMode(body.pr_mode)) {
-    return NextResponse.json({ error: 'pr_mode 는 approve 또는 auto 여야 합니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'prModeInvalid') }, { status: 400 });
   }
 
   const db = getServiceRoleClient();
@@ -128,7 +129,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ?.channel_access_key_encrypted;
     if (connected) {
       return NextResponse.json(
-        { error: '채널톡이 연결된 서비스는 승인 모드만 쓸 수 있어요' },
+        { error: apiText(req, 'channelTalkApproveOnly') },
         { status: 400 },
       );
     }
@@ -142,7 +143,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: '저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'saveFailed') }, { status: 500 });
   }
 
   return NextResponse.json(data);

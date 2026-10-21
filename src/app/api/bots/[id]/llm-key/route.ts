@@ -17,6 +17,8 @@ import { isLlmProvider, validateModelId, type LlmProvider } from '@/lib/llm/mode
 import { checkKeyFormat, verifyKey, keyLast4, effectiveModelId, failureReasonText } from '@/lib/llm/key';
 import { resolveLimit } from '@/lib/llm/usage';
 import { limitForDisplay } from '@/lib/llm/limits';
+import { apiText, apiValidation } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +71,7 @@ interface BotKeyRow {
  * 화면이 받는 모양. **`llm_api_key_encrypted` 는 여기에 들어가지 않는다** —
  * 암호문이라도 내보내지 않는다. 있다/없다만 `hasKey` 로 알린다.
  */
-function present(bot: BotKeyRow) {
+function present(bot: BotKeyRow, req: Request) {
   const provider = isLlmProvider(bot.llm_provider) ? bot.llm_provider : null;
   return {
     provider,
@@ -81,7 +83,11 @@ function present(bot: BotKeyRow) {
     verifiedAt: bot.llm_key_verified_at,
     failedAt: bot.llm_key_failed_at,
     // 4분류 고정 문구. provider 에러 원문은 여기 들어오지 않는다(20260910_02).
-    failedReason: failureReasonText(bot.llm_key_failed_reason, provider ? effectiveModelId(provider, bot.llm_model) : bot.llm_model),
+    failedReason: failureReasonText(
+      bot.llm_key_failed_reason,
+      provider ? effectiveModelId(provider, bot.llm_model) : bot.llm_model,
+      localeFromRequest(req),
+    ),
     // 화면의 상한 안내 문구가 이 값을 쓴다. 숫자를 문자열에 박으면
     // 데모 봇(2000)이나 anthropic 운영자에게 거짓말을 하게 된다.
     // null = 한도 없음(운영자 키). Infinity 는 JSON 에 실리지 않는다.
@@ -107,16 +113,16 @@ async function loadBot(id: string): Promise<BotKeyRow | null> {
   return error || !data ? null : (data as unknown as BotKeyRow);
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const auth = await resolveOwnedBots(id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const bot = await loadBot(id);
-  if (!bot) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+  if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
 
-  return NextResponse.json(present(bot));
+  return NextResponse.json(present(bot, req));
 }
 
 /**
@@ -139,36 +145,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const parsed: unknown = await req.json();
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+      return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
     }
     body = parsed as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   const bot = await loadBot(id);
-  if (!bot) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+  if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
 
   const hasModelField = 'model' in body;
   const modelParsed = validateModelId(hasModelField ? body.model : undefined);
-  if (!modelParsed.ok) return NextResponse.json({ error: modelParsed.error }, { status: 400 });
+  if (!modelParsed.ok) return NextResponse.json({ error: apiValidation(req, modelParsed) }, { status: 400 });
 
   const wantsKey = 'key' in body && body.key !== null;
 
   // ── 모델만 변경
   if (!wantsKey) {
     if (!hasModelField) {
-      return NextResponse.json({ error: '변경할 항목이 없습니다' }, { status: 400 });
+      return NextResponse.json({ error: apiText(req, 'nothingToChange') }, { status: 400 });
     }
     if (!bot.llm_api_key_encrypted) {
       return NextResponse.json(
-        { error: '먼저 API 키를 등록해 주세요. 모델 설정은 등록한 키에 딸린 값이에요' },
+        { error: apiText(req, 'keyFirst') },
         { status: 400 },
       );
     }
     // 모델을 바꾸는 것은 「고쳐봤다」는 뜻이다. 지난 실패 표시를 지워 다음 호출이 다시 판정하게 한다
     // (호출 성공마다 지우면 메시지당 DB 왕복이 하나 는다 — 위젯 POST 는 메시지마다 이 경로를 탄다).
-    return await save(id, {
+    return await save(req, id, {
       llm_model: modelParsed.value,
       llm_key_failed_at: null,
       llm_key_failed_reason: null,
@@ -178,27 +184,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // ── 키 등록·교체
   if (!isLlmProvider(body.provider)) {
     return NextResponse.json(
-      { error: 'provider 는 gemini, anthropic, openai 중 하나여야 합니다' },
+      { error: apiText(req, 'providerInvalid') },
       { status: 400 },
     );
   }
   const provider: LlmProvider = body.provider;
 
   const format = checkKeyFormat(provider, body.key);
-  if (!format.ok) return NextResponse.json({ error: format.error }, { status: 400 });
+  if (!format.ok) return NextResponse.json({ error: apiValidation(req, format) }, { status: 400 });
   const key = body.key as string;
 
   // 형식이 맞는 «뒤»에 센다. 오탈자로 한 번 틀린 것까지 한도에 넣으면 사람이 손해를 본다.
   if (verifyRateExceeded(auth.userId)) {
     return NextResponse.json(
-      { error: '키 확인을 너무 자주 시도했어요. 잠시 후 다시 시도해 주세요' },
+      { error: apiText(req, 'keyCheckTooFrequent') },
       { status: 429 },
     );
   }
 
   // 실제로 통하는 키인지 provider 에 물어본다(무과금 목록 조회).
   // 실패하면 **DB 에 아무것도 남기지 않는다** — 반쯤 저장된 키는 첫 방문자 앞에서 죽는다.
-  const verified = await verifyKey(provider, key);
+  const verified = await verifyKey(provider, key, localeFromRequest(req));
   if (!verified.ok) {
     return NextResponse.json({ error: verified.error, kind: verified.kind }, { status: 400 });
   }
@@ -207,7 +213,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const providerChanged = bot.llm_provider !== provider;
   const nextModel = hasModelField ? modelParsed.value : providerChanged ? null : bot.llm_model;
 
-  return await save(id, {
+  return await save(req, id, {
     llm_provider: provider,
     llm_api_key_encrypted: encrypt(key),
     llm_key_last4: keyLast4(key),
@@ -227,13 +233,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
  * `llm_provider` 는 남긴다. 화면이 "지난번에 고른 것"을 기억하는 용도이고,
  * 키가 없으면 `resolveModel` 이 이 값을 보지 않는다.
  */
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const auth = await resolveOwnedBots(id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  return await save(id, {
+  return await save(req, id, {
     llm_api_key_encrypted: null,
     llm_key_last4: null,
     llm_key_verified_at: null,
@@ -243,7 +249,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   });
 }
 
-async function save(id: string, values: Record<string, unknown>) {
+async function save(req: Request, id: string, values: Record<string, unknown>) {
   const { data, error } = await getServiceRoleClient()
     .from('bots')
     .update(values)
@@ -254,9 +260,9 @@ async function save(id: string, values: Record<string, unknown>) {
   if (error || !data) {
     // error.message 를 그대로 내보내지 않는다 — update 값에 암호문이 섞여 있다.
     console.error(`[llm-key] save failed for ${id}:`, error?.message);
-    return NextResponse.json({ error: '저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'saveFailed') }, { status: 500 });
   }
 
   invalidateBotCache(id);
-  return NextResponse.json(present(data as unknown as BotKeyRow));
+  return NextResponse.json(present(data as unknown as BotKeyRow, req));
 }

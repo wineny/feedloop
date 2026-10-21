@@ -10,13 +10,14 @@ import { getServiceRoleClient } from '@/lib/supabase';
 import { loadOwnedRun, openPrProblem, crossOriginProblem, readJsonBounded } from '@/lib/auto-dev/run-access';
 import { closePr, getPrReview } from '@/lib/auto-dev/pr-review';
 import { parseCloseReasonPatch } from '@/lib/auto-dev/close-reason';
+import { apiText, apiValidation } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const access = await loadOwnedRun(id);
+  const access = await loadOwnedRun(id, req);
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const { run } = access;
 
@@ -26,12 +27,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = await readJsonBounded(req);
   if (!body.ok) return NextResponse.json({ error: body.error }, { status: body.status });
   const patch = parseCloseReasonPatch(body.value);
-  if (!patch.ok) return NextResponse.json({ error: patch.error }, { status: 400 });
+  if (!patch.ok) return NextResponse.json({ error: apiValidation(req, patch) }, { status: 400 });
   if (!patch.close_reason) {
-    return NextResponse.json({ error: '반영하지 않는 이유를 하나 골라 주세요' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'closeReasonRequired') }, { status: 400 });
   }
 
-  const problem = openPrProblem(run);
+  const problem = openPrProblem(run, req);
   if (problem) return NextResponse.json({ error: problem }, { status: 409 });
   const repoUrl = run.repoUrl as string;
   const prNumber = run.prNumber as number;
@@ -41,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const review = await getPrReview(repoUrl, prNumber, { botId: run.botId });
     if (review.merged) {
-      return NextResponse.json({ error: '이미 GitHub 에서 반영된 수정안이에요. 「반영됐는지 확인」으로 상태를 맞춰 주세요' }, { status: 409 });
+      return NextResponse.json({ error: apiText(req, 'alreadyShipped') }, { status: 409 });
     }
     if (review.state !== 'closed') {
       ({ branchDeleted } = await closePr(repoUrl, prNumber, {
@@ -50,7 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   } catch (err) {
     console.error('[runs/close] github failed', { runId: run.id, message: err instanceof Error ? err.message : String(err) });
-    return NextResponse.json({ error: 'GitHub 에서 PR 을 닫지 못했어요. 잠시 후 다시 시도해 주세요' }, { status: 502 });
+    return NextResponse.json({ error: apiText(req, 'closePrFailed') }, { status: 502 });
   }
 
   const db = getServiceRoleClient();
@@ -64,7 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (error || !data) {
     // GitHub 는 닫혔는데 DB 가 안 따라왔다 — 「머지 확인」이 closed_at 은 찍어 주지만 사유는 다시 골라야 한다
     console.error('[runs/close] update failed', { runId: run.id, message: error?.message });
-    return NextResponse.json({ error: 'PR 은 닫혔지만 사유를 저장하지 못했어요. 다시 골라 주세요' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'closeReasonSaveFailed') }, { status: 500 });
   }
   if (run.groupId) {
     await db.from('insight_groups').update({ status: 'open' }).eq('id', run.groupId).eq('status', 'pr_created');

@@ -19,7 +19,7 @@
 import { Octokit } from '@octokit/rest';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { decrypt } from '@/lib/utils/crypto';
-import { classifyGithubFailure, githubFailureMessage, type GithubFailureKind } from '@/lib/github/token';
+import { classifyGithubFailure, type GithubFailureKind } from '@/lib/github/token';
 import { installationOctokit, readGithubAppConfig } from '@/lib/github/app';
 import { parseRepoInfo } from '@/lib/github/repo-url';
 
@@ -60,7 +60,7 @@ async function loadBotAuthRow(botId: string): Promise<BotAuthRow | null> {
   const { data, error } = await getServiceRoleClient().from('bots').select(AUTH_SELECT).eq('id', botId).maybeSingle();
   if (error) {
     console.error('[github-auth] bot auth lookup failed', { botId, message: error.message });
-    throw new Error('GitHub 연결 설정을 읽지 못했어요. 잠시 후 다시 시도해 주세요');
+    throw new Error("Couldn't read the GitHub connection settings. Try again in a moment");
   }
   return (data as BotAuthRow | null) ?? null;
 }
@@ -107,11 +107,11 @@ export async function resolveGithubToken(botId?: string | null, row?: BotAuthRow
       // 암호문이 손상됐다(AES 키 교체 등). GitHub 이 거부한 게 아니라 «우리가 못 읽은» 것이라 사유를 가른다 —
       // 조치(다시 등록)는 같지만 실패 통계에 섞이면 안 된다
       await recordGithubFailure(botId, 'unreadable');
-      throw new Error('봇의 GitHub 토큰을 읽지 못했어요. 토큰을 다시 등록해 주세요');
+      throw new Error("Couldn't read the bot's GitHub token. Add the token again");
     }
   }
   const token = process.env.GITHUB_TOKEN;
-  if (!token) throw new Error('GITHUB_TOKEN이 설정되지 않았습니다');
+  if (!token) throw new Error('GITHUB_TOKEN is not set');
   return { token, source: 'platform' };
 }
 
@@ -165,12 +165,12 @@ export function githubStatusOf(err: unknown): number | null {
 
 /**
  * 봇 토큰으로 간 호출이 거부됐을 때만 적는다. 그 외(5xx·네트워크)는 일시 장애라 배지를 켜지 않는다.
- * 사유는 고정 문구 3분류만 — GitHub 에러 원문은 키 조각을 품을 수 있어 넣지 않는다.
+ * 사유는 분류 코드(`GithubFailureKind`)만 — GitHub 에러 원문은 키 조각을 품을 수 있어 넣지 않는다.
  */
 export async function recordGithubFailure(botId: string, kind: GithubFailureKind): Promise<void> {
   const { error } = await getServiceRoleClient()
     .from('bots')
-    .update({ github_token_failed_at: new Date().toISOString(), github_token_failed_reason: githubFailureMessage(kind) })
+    .update({ github_token_failed_at: new Date().toISOString(), github_token_failed_reason: kind })
     .eq('id', botId);
   if (error) console.error('[github-auth] failure record failed', { botId, message: error.message });
 }

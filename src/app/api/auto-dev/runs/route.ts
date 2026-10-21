@@ -12,6 +12,7 @@ import type { ValidationEvidence } from '@/lib/auto-dev/validation';
 import type { CloseReason } from '@/lib/auto-dev/close-reason';
 import { parseStoredExplanation, type RunExplanation } from '@/lib/auto-dev/explanation';
 import { personLabel } from '@/lib/channel/labels';
+import { apiText } from '@/lib/http/api-text';
 
 export interface RunReturn {
   conversationId: string;
@@ -120,7 +121,7 @@ export async function GET(req: NextRequest) {
       : Promise.resolve({ data: [] as { group_id: string; messages: unknown }[], error: null }),
   ]);
 
-  if (returnsRes.error || evidenceRes.error) return NextResponse.json({ error: '후속 확인과 근거를 읽지 못했습니다' }, { status: 500 });
+  if (returnsRes.error || evidenceRes.error) return NextResponse.json({ error: apiText(req, 'evidenceReadFailed') }, { status: 500 });
 
   // 묶음별 근거 — 인사이트 몇 건, 대화 몇 개
   const insightCount = new Map<string, number>();
@@ -176,7 +177,7 @@ export async function GET(req: NextRequest) {
       followUpError: r.follow_up_error,
       createdAt: r.created_at as string,
       durationMs: (r.duration_ms as number | null) ?? null,
-      title: group?.title ?? insight?.summary ?? '자동 수정 실행',
+      title: group?.title ?? insight?.summary ?? apiText(req, 'autoFixRun'),
       category: group?.category ?? insight?.category ?? null,
       repo: bot?.github_repo_url?.replace(/^https:\/\/github\.com\//, '').replace(/\/$/, '') ?? null,
       pr:

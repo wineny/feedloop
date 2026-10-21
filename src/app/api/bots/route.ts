@@ -6,6 +6,7 @@ import { KAKAO_TOKEN_PLACEHOLDER } from "@/lib/bot/kakao-placeholder";
 import { validateRegistrationInput } from "@/lib/bot/registration";
 import { MAX_BOTS_PER_USER } from "@/lib/llm/limits";
 import { listAccessibleBotIds } from "@/lib/auth/ownership";
+import { apiText, apiValidation } from '@/lib/http/api-text';
 
 // 계정당 봇 수 상한은 `lib/llm/limits.ts` 로 옮겼다(2026-09-18). 판정은 아래 POST 가 그대로 한다.
 // 옮긴 이유: 랜딩 「확장」 섹션이 같은 숫자를 그려야 하는데, 이 파일에서 가져가면
@@ -63,14 +64,14 @@ export async function POST(req: Request) {
     try {
       body = await req.json();
     } catch {
-      return NextResponse.json({ error: "잘못된 요청 형식입니다" }, { status: 400 });
+      return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
     }
 
     // 클라이언트 zod 는 우회되므로 서버가 다시 본다 — service_name 은 무인증 위젯 config 로 나가고,
     // github_repo_url 은 공용 GITHUB_TOKEN 이 향하는 곳이다(lib/bot/registration.ts 참고).
     const parsed = validateRegistrationInput(body);
     if (!parsed.ok) {
-      return NextResponse.json({ error: parsed.error }, { status: 400 });
+      return NextResponse.json({ error: apiValidation(req, parsed) }, { status: 400 });
     }
     const { service_name, service_description, service_url, github_repo_url, pr_mode } = parsed.values;
 
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
     }
     if ((botCount ?? 0) >= MAX_BOTS_PER_USER) {
       return NextResponse.json(
-        { error: `서비스는 계정당 ${MAX_BOTS_PER_USER}개까지 등록할 수 있어요. 안 쓰는 서비스를 정리하거나 팀에 문의해 주세요` },
+        { error: apiText(req, 'maxBots', { max: MAX_BOTS_PER_USER }) },
         { status: 400 },
       );
     }

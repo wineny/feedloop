@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { checkMergedRuns } from '@/lib/auto-dev/loop-closed';
+import { apiText } from '@/lib/http/api-text';
 
 export const maxDuration = 120;
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       skipped,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : '확인에 실패했습니다';
+    const message = err instanceof Error ? err.message : apiText(req, 'checkFailed');
     console.error('[loop/check-merged]', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -321,7 +321,7 @@ describe('callAutoDev', () => {
       mockOctokit.repos.get.mockRejectedValueOnce(Object.assign(new Error('Forbidden'), { status: 403 }));
       await expect(fresh.prepareCodeFix({ ...baseOptions, botId: 'bot-1' })).rejects.toThrow('Forbidden');
       expect(failureRecords).toHaveLength(1);
-      expect(failureRecords[0]).toMatchObject({ github_token_failed_reason: expect.stringContaining('거부') });
+      expect(failureRecords[0]).toMatchObject({ github_token_failed_reason: 'token_rejected' });
     } finally {
       botTokenRow.current = null;
     }

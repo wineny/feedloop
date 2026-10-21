@@ -17,16 +17,22 @@ export interface RegistrationValues {
 
 export type RegistrationResult =
   | { ok: true; values: RegistrationValues }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code: string; vars?: Record<string, string | number> };
 
 const LIMITS = { service_name: 60, service_description: 500, service_url: 500, github_repo_url: 200 } as const;
 
-function optionalString(raw: unknown, label: string, max: number): { ok: true; value: string | null } | { ok: false; error: string } {
+// label 은 한국어 문구, field 는 errors.fields 사전 키
+function optionalString(
+  raw: unknown,
+  label: string,
+  field: string,
+  max: number,
+): { ok: true; value: string | null } | { ok: false; error: string; code: string; vars: Record<string, string | number> } {
   if (raw === undefined || raw === null) return { ok: true, value: null };
-  if (typeof raw !== 'string') return { ok: false, error: `${label} 은(는) 문자열이어야 합니다` };
+  if (typeof raw !== 'string') return { ok: false, error: `${label} 은(는) 문자열이어야 합니다`, code: 'notString', vars: { field } };
   const trimmed = raw.trim();
   if (!trimmed) return { ok: true, value: null };
-  if (trimmed.length > max) return { ok: false, error: `${label} 은(는) ${max}자까지 입력할 수 있습니다` };
+  if (trimmed.length > max) return { ok: false, error: `${label} 은(는) ${max}자까지 입력할 수 있습니다`, code: 'tooLong', vars: { field, max } };
   return { ok: true, value: trimmed };
 }
 
@@ -41,25 +47,25 @@ function isHttpUrl(value: string): boolean {
 
 export function validateRegistrationInput(body: unknown): RegistrationResult {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return { ok: false, error: '잘못된 요청 형식입니다' };
+    return { ok: false, error: '잘못된 요청 형식입니다', code: 'badRequest' };
   }
   const input = body as Record<string, unknown>;
 
-  const name = optionalString(input.service_name, '서비스 이름', LIMITS.service_name);
+  const name = optionalString(input.service_name, '서비스 이름', 'serviceName', LIMITS.service_name);
   if (!name.ok) return name;
-  if (!name.value || name.value.length < 2) return { ok: false, error: '서비스 이름은 2글자 이상이어야 합니다' };
+  if (!name.value || name.value.length < 2) return { ok: false, error: '서비스 이름은 2글자 이상이어야 합니다', code: 'form.serviceNameMin' };
 
-  const desc = optionalString(input.service_description, '서비스 설명', LIMITS.service_description);
+  const desc = optionalString(input.service_description, '서비스 설명', 'serviceDescription', LIMITS.service_description);
   if (!desc.ok) return desc;
 
-  const url = optionalString(input.service_url, '서비스 URL', LIMITS.service_url);
+  const url = optionalString(input.service_url, '서비스 URL', 'serviceUrl', LIMITS.service_url);
   if (!url.ok) return url;
-  if (url.value && !isHttpUrl(url.value)) return { ok: false, error: '서비스 URL 형식이 올바르지 않습니다' };
+  if (url.value && !isHttpUrl(url.value)) return { ok: false, error: '서비스 URL 형식이 올바르지 않습니다', code: 'form.urlInvalid' };
 
-  const repo = optionalString(input.github_repo_url, 'GitHub 저장소 URL', LIMITS.github_repo_url);
+  const repo = optionalString(input.github_repo_url, 'GitHub 저장소 URL', 'githubRepoUrl', LIMITS.github_repo_url);
   if (!repo.ok) return repo;
   if (repo.value && !GITHUB_REPO_URL_RE.test(repo.value)) {
-    return { ok: false, error: 'GitHub 저장소 URL 은 https://github.com/<owner>/<repo> 형태여야 합니다' };
+    return { ok: false, error: 'GitHub 저장소 URL 은 https://github.com/<owner>/<repo> 형태여야 합니다', code: 'form.githubUrlInvalid' };
   }
 
   // approve|auto 외 값(누락 포함)은 안전한 기본값인 승인 모드로 접는다.

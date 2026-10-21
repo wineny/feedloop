@@ -72,7 +72,7 @@ describe('PATCH /api/bots/[id]/llm-key — 키 확인 속도 제한', () => {
 
     const sixth = await patchKey();
     expect(sixth.status).toBe(429);
-    expect(sixth.body.error).toContain('자주');
+    expect(sixth.body.error).toContain('Too many');
 
     // 막힌 요청은 provider 로 나가지도 않는다 — 그게 이 제한의 요점이다.
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(5);
@@ -109,11 +109,11 @@ describe('GET /api/bots/[id]/llm-key — failedReason 문장', () => {
   it('모델을 안 골랐으면 추천 기본 모델 ID 를 붙인다(옛 문장과 같다)', async () => {
     const { RECOMMENDED } = await import('@/lib/llm/models');
     const reason = await getReason({ llm_provider: 'openai', llm_model: null, llm_key_failed_reason: 'model_invalid' });
-    expect(reason).toBe(`모델 이름을 확인해 주세요: ${RECOMMENDED.openai}`);
+    expect(reason).toBe(`Check the model name: ${RECOMMENDED.openai}`);
   });
 
   it('고른 모델이 있으면 그 ID 를 붙인다', async () => {
     const reason = await getReason({ llm_provider: 'openai', llm_model: 'gpt-nope', llm_key_failed_reason: 'model_invalid' });
-    expect(reason).toBe('모델 이름을 확인해 주세요: gpt-nope');
+    expect(reason).toBe('Check the model name: gpt-nope');
   });
 });

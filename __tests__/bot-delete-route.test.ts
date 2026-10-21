@@ -65,7 +65,7 @@ describe('DELETE /api/bots/[id]', () => {
     results.push({ count: 1, error: null });
     const { status, body } = await del();
     expect(status).toBe(409);
-    expect(body.error).toContain('만드는 중');
+    expect(body.error).toContain('being created');
     expect(calls[0].table).toBe('auto_dev_runs');
     expect(calls[0].methods).toContainEqual(['in', 'status', ['running', 'in_progress']]);
     // 삭제 쿼리는 나가지 않았다

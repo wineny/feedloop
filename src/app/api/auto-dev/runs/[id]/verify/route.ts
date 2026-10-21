@@ -10,13 +10,14 @@ import { loadOwnedRun, openPrProblem, readJsonBounded } from '@/lib/auto-dev/run
 import { getPrReview, commentOnPr } from '@/lib/auto-dev/pr-review';
 import { verifyUnverifiedItem, buildVerdictComment } from '@/lib/auto-dev/verify-item';
 import { parseStoredExplanation } from '@/lib/auto-dev/explanation';
+import { apiText } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const access = await loadOwnedRun(id);
+  const access = await loadOwnedRun(id, req);
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const { run } = access;
 
@@ -24,21 +25,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!body.ok) return NextResponse.json({ error: body.error }, { status: body.status });
   const index = (body.value as { index?: unknown } | null)?.index;
   if (!Number.isInteger(index) || (index as number) < 0) {
-    return NextResponse.json({ error: 'index 는 0 이상의 정수여야 합니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'indexInvalid') }, { status: 400 });
   }
 
-  const problem = openPrProblem(run);
+  const problem = openPrProblem(run, req);
   if (problem) return NextResponse.json({ error: problem }, { status: 409 });
   if (!run.explanation) {
-    return NextResponse.json({ error: '이 실행에는 담당자용 설명이 없어 확인시킬 항목이 없어요' }, { status: 409 });
+    return NextResponse.json({ error: apiText(req, 'noExplanation') }, { status: 409 });
   }
   const item = run.explanation.unverified[index as number];
-  if (!item) return NextResponse.json({ error: '그 번호의 항목이 없어요' }, { status: 409 });
+  if (!item) return NextResponse.json({ error: apiText(req, 'noSuchItem') }, { status: 409 });
   if (item.verifiableBy !== 'code' || item.files.length === 0) {
-    return NextResponse.json({ error: '이 항목은 코드로 확인할 수 없어요. 제보자에게 묻거나 프리뷰에서 직접 봐 주세요' }, { status: 409 });
+    return NextResponse.json({ error: apiText(req, 'notVerifiable') }, { status: 409 });
   }
   if (item.verdict) {
-    return NextResponse.json({ error: '이미 확인한 항목이에요', explanation: run.explanation }, { status: 409 });
+    return NextResponse.json({ error: apiText(req, 'alreadyVerified'), explanation: run.explanation }, { status: 409 });
   }
 
   const repoUrl = run.repoUrl as string;
@@ -61,16 +62,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { data: saved, error } = await db.rpc('save_run_verdict', {
       p_run_id: run.id, p_index: index, p_expected_item: item, p_verdict: verdict,
     });
-    if (error) return NextResponse.json({ error: '확인은 했지만 결과를 저장하지 못했어요' }, { status: 500 });
-    if (!saved) return NextResponse.json({ error: '이미 확인했거나 항목이 변경됐어요' }, { status: 409 });
+    if (error) return NextResponse.json({ error: apiText(req, 'verifySaveFailed') }, { status: 500 });
+    if (!saved) return NextResponse.json({ error: apiText(req, 'verifyChanged') }, { status: 409 });
     const next = parseStoredExplanation(saved);
-    if (!next) return NextResponse.json({ error: '저장한 설명 형식을 확인하지 못했어요' }, { status: 500 });
+    if (!next) return NextResponse.json({ error: apiText(req, 'explanationFormat') }, { status: 500 });
 
     // 저장이 끝난 뒤에만 댓글 — 저장에 진 요청이 댓글만 두 번 남기지 않게
     const commented = await commentOnPr(repoUrl, prNumber, buildVerdictComment(item, verdict), { botId: run.botId });
     return NextResponse.json({ explanation: next, verdict, commented });
   } catch (err) {
     console.error('[runs/verify]', { runId: run.id, message: err instanceof Error ? err.message : String(err) });
-    return NextResponse.json({ error: '확인에 실패했어요. 잠시 후 다시 시도해 주세요' }, { status: 502 });
+    return NextResponse.json({ error: apiText(req, 'verifyFailed') }, { status: 502 });
   }
 }

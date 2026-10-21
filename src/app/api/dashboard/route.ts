@@ -20,6 +20,8 @@ import {
   FAILED_CONFIRMATION,
   type ConfirmationStats,
 } from '@/lib/dashboard/confirmation';
+import { serverT } from '@/i18n/server-messages';
+import { localeFromRequest } from '@/i18n/server-locale';
 
 /** 루프의 각 단계를 통과한 건수. 화면의 4칸과 1:1 대응한다. */
 export interface LoopStats {
@@ -344,14 +346,15 @@ export async function GET(req?: NextRequest) {
     };
   });
 
-  // 활동 피드 — 분류·PR 이벤트를 시간순으로 섞는다.
+  // 활동 피드 — 분류·PR 이벤트를 시간순으로 섞는다. 문구는 요청 언어로(messages/<locale>/server.json).
+  const feedT = serverT(localeFromRequest(req), 'server.feed');
   const summaryByInsight = new Map(insights.map((i) => [i.id, i.summary]));
   const events: LoopEvent[] = [
     ...insights.map<LoopEvent>((i) => ({
       id: `insight-${i.id}`,
       kind: 'classified',
       title: i.summary,
-      detail: `분류: ${i.category}`,
+      detail: feedT('classified', { category: i.category }),
       at: i.created_at,
     })),
     ...runs.map<LoopEvent>((r) => ({
@@ -359,11 +362,11 @@ export async function GET(req?: NextRequest) {
       kind: r.status === 'completed' && r.pr_url ? 'pr_created' : 'pr_failed',
       title:
         r.status === 'completed' && r.pr_number
-          ? `PR #${r.pr_number} 자동 생성`
-          : '자동 수정 실행',
+          ? feedT('prCreated', { number: r.pr_number })
+          : feedT('autoFixRun'),
       detail:
         (r.insight_id ? summaryByInsight.get(r.insight_id) : null) ??
-        (r.status === 'completed' ? '수정안 생성 완료' : `상태: ${r.status}`),
+        (r.status === 'completed' ? feedT('fixCreated') : feedT('status', { status: r.status })),
       at: r.created_at,
     })),
     ...responses
@@ -372,7 +375,7 @@ export async function GET(req?: NextRequest) {
         id: `return-${r.trigger_message_id ?? r.conversation_id}-${r.sent_at}`,
         kind: 'returned',
         title: r.response_body,
-        detail: r.delivered_at ? '반영 알림 보냄' : '반영 알림 대기',
+        detail: r.delivered_at ? feedT('notified') : feedT('notifyPending'),
         at: r.delivered_at ?? r.sent_at,
       })),
   ]

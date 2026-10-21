@@ -65,9 +65,9 @@ describe('classifyFailure / failureMessage — 사유 4분류', () => {
 
   it('문구에 모델명을 실어도 에러 원문은 안 싣는다', () => {
     expect(failureMessage('model_invalid', 'gemini-nope')).toContain('gemini-nope');
-    expect(failureMessage('key_rejected')).toBe('키가 거부됐어요');
-    expect(failureMessage('quota')).toBe('provider 한도에 걸렸어요');
-    expect(failureMessage('connection')).toBe('연결에 실패했어요');
+    expect(failureMessage('key_rejected')).toBe('The key was rejected');
+    expect(failureMessage('quota')).toBe('The provider limit was reached');
+    expect(failureMessage('connection')).toBe('The connection failed');
   });
 });
 

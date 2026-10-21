@@ -6,6 +6,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getServiceRoleClient } from '@/lib/supabase';
+import { apiTextInContext } from '@/lib/http/api-text';
 
 /** How a user stands to a bot: its owner (bots.user_id) or an approver added through bot_members. */
 export type BotRole = 'owner' | 'approver';
@@ -41,7 +42,7 @@ export async function resolveOwnedBots(requestedBotId?: string | null): Promise<
 
   if (requestedBotId) {
     if (!botIds.includes(requestedBotId)) {
-      return { ok: false, status: 403, error: '해당 봇에 대한 권한이 없습니다' };
+      return { ok: false, status: 403, error: await apiTextInContext('botForbidden') };
     }
     return { ok: true, userId: session.user.id, botIds: [requestedBotId] };
   }
@@ -74,7 +75,7 @@ export async function resolveAccessibleBots(requestedBotId?: string | null): Pro
 
   if (requestedBotId) {
     if (!botIds.includes(requestedBotId)) {
-      return { ok: false, status: 403, error: '해당 봇에 대한 권한이 없습니다' };
+      return { ok: false, status: 403, error: await apiTextInContext('botForbidden') };
     }
     // Owner wins over a stray membership row for a bot the user also owns.
     const role: BotRole = access.owned.includes(requestedBotId) ? 'owner' : 'approver';

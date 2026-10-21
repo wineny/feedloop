@@ -7,11 +7,12 @@
 import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
+import { apiText } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -30,7 +31,7 @@ export async function GET(
     .single();
 
   if (error || !bot) {
-    return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
   }
 
   return NextResponse.json({

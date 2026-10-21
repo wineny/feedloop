@@ -12,8 +12,10 @@ import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { encrypt } from '@/lib/utils/crypto';
-import { checkGithubTokenFormat, githubTokenLast4, verifyGithubToken } from '@/lib/github/token';
+import { checkGithubTokenFormat, githubTokenLast4, verifyGithubToken, githubFailureReasonText } from '@/lib/github/token';
 import { readJsonBounded } from '@/lib/auto-dev/run-access';
+import { apiText, apiValidation } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,15 +52,15 @@ interface BotTokenRow {
 }
 
 /** 화면이 받는 모양. **암호문은 여기에 들어가지 않는다.** 있다/없다만 `hasToken` 으로. */
-function present(bot: BotTokenRow) {
+function present(bot: BotTokenRow, req: Request) {
   return {
     repoUrl: bot.github_repo_url,
     hasToken: Boolean(bot.github_token_encrypted),
     tokenLast4: bot.github_token_last4,
     verifiedAt: bot.github_token_verified_at,
     failedAt: bot.github_token_failed_at,
-    // 3분류 고정 문구. GitHub 에러 원문은 여기 들어오지 않는다.
-    failedReason: bot.github_token_failed_reason,
+    // 분류 코드를 요청 언어 문구로. GitHub 에러 원문은 여기 들어오지 않는다.
+    failedReason: githubFailureReasonText(bot.github_token_failed_reason, localeFromRequest(req)),
     // 토큰이 없으면 공용 계정으로 시도한다 — 초대된 레포에서만 된다. 화면이 이 사실을 말한다
     platformFallback: Boolean(process.env.GITHUB_TOKEN),
     // 계정 전체 레포에 닿는 종류(classic·OAuth)인가. 경고가 새로고침에 사라지지 않게 DB 에서 읽는다(보안 재검토 R2)
@@ -71,14 +73,14 @@ async function loadBot(id: string): Promise<BotTokenRow | null> {
   return error || !data ? null : (data as unknown as BotTokenRow);
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const auth = await resolveOwnedBots(id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const bot = await loadBot(id);
-  if (!bot) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
-  return NextResponse.json(present(bot));
+  if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
+  return NextResponse.json(present(bot, req));
 }
 
 /** 토큰 등록·교체: `{ token }`. 형식 → 분당 5회 → GitHub 검증(레포 접근 + push) → 저장 */
@@ -92,31 +94,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!bounded.ok) return NextResponse.json({ error: bounded.error }, { status: bounded.status });
   const parsed = bounded.value;
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
   const body = parsed as Record<string, unknown>;
 
   const bot = await loadBot(id);
-  if (!bot) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+  if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
 
   const format = checkGithubTokenFormat(body.token);
-  if (!format.ok) return NextResponse.json({ error: format.error }, { status: 400 });
+  if (!format.ok) return NextResponse.json({ error: apiValidation(req, format) }, { status: 400 });
   const token = body.token as string;
 
   // 형식이 맞는 «뒤»에 센다. 오탈자로 한 번 틀린 것까지 한도에 넣으면 사람이 손해를 본다.
   if (verifyRateExceeded(auth.userId)) {
     return NextResponse.json(
-      { error: '토큰 확인을 너무 자주 시도했어요. 잠시 후 다시 시도해 주세요' },
+      { error: apiText(req, 'tokenCheckTooFrequent') },
       { status: 429 },
     );
   }
 
-  const verified = await verifyGithubToken(token, bot.github_repo_url);
+  const verified = await verifyGithubToken(token, bot.github_repo_url, localeFromRequest(req));
   if (!verified.ok) {
     return NextResponse.json({ error: verified.error, kind: verified.kind }, { status: 400 });
   }
 
-  return await save(id, {
+  return await save(req, id, {
     github_token_encrypted: encrypt(token),
     github_token_last4: githubTokenLast4(token),
     github_token_verified_at: new Date().toISOString(),
@@ -128,12 +130,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 /** 토큰을 지우고 공용 계정 폴백으로 되돌린다. */
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const auth = await resolveOwnedBots(id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  return await save(id, {
+  return await save(req, id, {
     github_token_encrypted: null,
     github_token_last4: null,
     github_token_verified_at: null,
@@ -143,12 +145,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   });
 }
 
-async function save(id: string, values: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+async function save(req: Request, id: string, values: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   const { data, error } = await getServiceRoleClient().from('bots').update(values).eq('id', id).select(SELECT).single();
   if (error || !data) {
     // error.message 를 그대로 내보내지 않는다 — update 값에 암호문이 섞여 있다.
     console.error(`[github-token] save failed for ${id}:`, error?.message);
-    return NextResponse.json({ error: '저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'saveFailed') }, { status: 500 });
   }
-  return NextResponse.json({ ...present(data as unknown as BotTokenRow), ...extra });
+  return NextResponse.json({ ...present(data as unknown as BotTokenRow, req), ...extra });
 }

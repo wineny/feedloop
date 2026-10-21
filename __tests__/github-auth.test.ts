@@ -101,13 +101,13 @@ describe('resolveGithubToken', () => {
   it('암호문이 손상됐으면 공용으로 흘리지 않고 «우리가 못 읽은» 사유로 적고 throw', async () => {
     maybeSingle.mockResolvedValue({ data: { github_token_encrypted: 'deadbeef:deadbeef:deadbeef' }, error: null });
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(mod.resolveGithubToken('bot-1')).rejects.toThrow('다시 등록');
-    expect(updated[0].patch).toMatchObject({ github_token_failed_reason: expect.stringContaining('읽지 못했어요') });
+    await expect(mod.resolveGithubToken('bot-1')).rejects.toThrow('Add the token again');
+    expect(updated[0].patch).toMatchObject({ github_token_failed_reason: 'unreadable' });
   });
   it('봇 행 조회가 «실패»하면 공용으로 흘리지 않고 throw — 배지도 안 켠다 (보안 리뷰 M1, fail-closed)', async () => {
     maybeSingle.mockResolvedValue({ data: null, error: { message: 'column github_token_encrypted does not exist' } });
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(mod.resolveGithubToken('bot-1')).rejects.toThrow('읽지 못했어요');
+    await expect(mod.resolveGithubToken('bot-1')).rejects.toThrow("Couldn't read");
     expect(updated).toHaveLength(0);
     expect(err).toHaveBeenCalled();
   });
@@ -124,7 +124,7 @@ describe('noteGithubError / clearGithubFailureIfAny', () => {
     await mod.noteGithubError('bot-1', 'bot', { status: 403 });
     expect(updated).toHaveLength(1);
     expect(updated[0].patch.github_token_failed_at).toBeTruthy();
-    expect(updated[0].patch.github_token_failed_reason).toContain('거부');
+    expect(updated[0].patch.github_token_failed_reason).toBe('token_rejected');
     await mod.noteGithubError('bot-1', 'platform', { status: 403 });
     await mod.noteGithubError('bot-1', 'bot', { status: 502 });
     await mod.noteGithubError(null, 'bot', { status: 401 });
@@ -136,9 +136,9 @@ describe('noteGithubError / clearGithubFailureIfAny', () => {
   });
   it('쓰기 시도의 403 은 no_push — 운영자가 고칠 건 Read/Write 토글이다 (코드 리뷰 HIGH)', async () => {
     await mod.noteGithubError('bot-1', 'bot', { status: 403 }, { write: true });
-    expect(updated[0].patch.github_token_failed_reason).toContain('push');
+    expect(updated[0].patch.github_token_failed_reason).toBe('no_push');
     await mod.noteGithubError('bot-1', 'bot', { status: 401 }, { write: true });
-    expect(updated[1].patch.github_token_failed_reason).toContain('거부');
+    expect(updated[1].patch.github_token_failed_reason).toBe('token_rejected');
   });
   it('성공 시 해제는 failed_at 이 있는 행만 UPDATE 한다 (성공마다 왕복하지 않게)', async () => {
     await mod.clearGithubFailureIfAny('bot-1', 'bot');

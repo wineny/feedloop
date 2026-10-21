@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { claimRun, executeClaimedRun, loadRun, one, type LoadedRun } from '@/lib/auto-dev/execute-run';
 import { autoDevErrorCode } from '@/lib/auto-dev/errors';
+import { apiText } from '@/lib/http/api-text';
 
 // Anthropic 스트리밍 생성 + Octokit 6~8회 왕복이 들어간다.
 // 기본값에 의존하지 않고 의도를 코드에 박는다.
@@ -16,13 +17,13 @@ type AutoDevEvent =
   | { type: 'error'; step: string; message: string; recoverable: boolean; status?: TerminalStatus; reason?: string };
 
 /** Keep the existing error event envelope so clients still close the stream. */
-function terminalEvent(run: LoadedRun): AutoDevEvent | null {
+function terminalEvent(req: Request, run: LoadedRun): AutoDevEvent | null {
   if (!['failed','stopped','unverifiable'].includes(run.status)) return null;
   const status = run.status as TerminalStatus;
   const fallback = {
-    failed: '이전 실행이 실패했습니다',
-    stopped: '이 실행은 중단되었습니다',
-    unverifiable: '이 실행은 검증할 수 없습니다',
+    failed: apiText(req, 'streamFailed'),
+    stopped: apiText(req, 'streamStopped'),
+    unverifiable: apiText(req, 'streamUnverifiable'),
   }[status];
   const reason = status === 'failed'
     ? run.error_message ?? run.stop_reason ?? fallback
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
   // 3. 이미 끝난 run 은 재실행하지 않고 저장된 결과만 재생한다.
   if (run.status === 'completed') {
     return replay([
-      { type: 'log', message: '이미 완료된 실행입니다. 저장된 결과를 표시합니다.' },
+      { type: 'log', message: apiText(req, 'streamAlreadyDone') },
       {
         type: 'complete',
         pr_url: run.pr_url ?? '',
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
     ]);
   }
 
-  const terminal = terminalEvent(run);
+  const terminal = terminalEvent(req, run);
   if (terminal && run.publication_status !== 'pending') return replay([terminal]);
 
   // 4. 실행권 획득 — 동시/중복 요청 중 하나만 통과한다 (execute-run.ts 참고).
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
       {
         type: 'error',
         step: 'already_running',
-        message: '이 실행은 이미 진행 중입니다. 중복 PR 을 막기 위해 다시 실행하지 않았습니다.',
+        message: apiText(req, 'streamInProgress'),
         recoverable: true,
       },
     ]);
@@ -126,7 +127,7 @@ export async function GET(req: NextRequest) {
       };
 
       try {
-        send({ type: 'log', message: '자동 수정 시작...' });
+        send({ type: 'log', message: apiText(req, 'streamStart') });
 
         // 실행·결과 저장은 크론과 같은 경로를 탄다. 여기서는 진행 로그만 흘려보낸다.
         const result = await executeClaimedRun(claimedRun, leaseToken, (message) => send({ type: 'log', message }),deadline);
@@ -142,7 +143,7 @@ export async function GET(req: NextRequest) {
         const step = autoDevErrorCode(err) === 'missing_target' ? 'validation' : 'pipeline';
         // executeClaimedRun persists the outcome before throwing; report that exact state.
         const persisted = await loadRun(runId).catch(() => null);
-        send((persisted && terminalEvent(persisted)) || { type: 'error', step, message, recoverable: false });
+        send((persisted && terminalEvent(req, persisted)) || { type: 'error', step, message, recoverable: false });
       } finally {
         finish();
       }

@@ -10,6 +10,7 @@ import { cleanupShots, type ShotCleanupResult } from '@/lib/widget/shots';
 import { resolvePayPalBot } from '@/lib/paypal/bot';
 import { sweepStuckActions, type SweepResult } from '@/lib/paypal/reconcile';
 import { supabasePaymentsStore } from '@/lib/paypal/store';
+import { apiText } from '@/lib/http/api-text';
 
 /**
  * PayPal refund reaper (stage 3): finishes payment_actions rows whose PayPal answer was lost
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
   // 이 라우트는 인증 없이 열려 있으면 아무나 되돌림을 트리거할 수 있다.
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET이 설정되지 않았습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'cronSecretMissing') }, { status: 500 });
   }
   if (req.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

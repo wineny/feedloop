@@ -43,28 +43,33 @@ export function isCloseReason(v: unknown): v is CloseReason {
 
 export type CloseReasonPatch =
   | { ok: true; close_reason: CloseReason | null; close_note: string | null }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code: string; vars?: Record<string, string | number> };
 
 /**
  * PATCH 본문 검증. `close_reason: null` 은 「미분류로 되돌림」이다.
  * 메모는 사유 없이 혼자 있을 수 없다 — 사유가 null 이면 메모도 지운다.
  */
 export function parseCloseReasonPatch(body: unknown): CloseReasonPatch {
-  if (!body || typeof body !== 'object') return { ok: false, error: '잘못된 요청 형식입니다' };
+  if (!body || typeof body !== 'object') return { ok: false, error: '잘못된 요청 형식입니다', code: 'badRequest' };
   const b = body as { close_reason?: unknown; close_note?: unknown };
 
-  if (!('close_reason' in b)) return { ok: false, error: 'close_reason 이 필요합니다' };
+  if (!('close_reason' in b)) return { ok: false, error: 'close_reason 이 필요합니다', code: 'closeReason.required' };
   if (b.close_reason !== null && !isCloseReason(b.close_reason)) {
-    return { ok: false, error: `close_reason 은 ${CLOSE_REASONS.join(', ')} 중 하나거나 null 이어야 합니다` };
+    return {
+      ok: false,
+      error: `close_reason 은 ${CLOSE_REASONS.join(', ')} 중 하나거나 null 이어야 합니다`,
+      code: 'closeReason.invalid',
+      vars: { allowed: CLOSE_REASONS.join(', ') },
+    };
   }
   const reason = b.close_reason as CloseReason | null;
 
   let note: string | null = null;
   if (b.close_note !== undefined && b.close_note !== null) {
-    if (typeof b.close_note !== 'string') return { ok: false, error: 'close_note 는 문자열이어야 합니다' };
+    if (typeof b.close_note !== 'string') return { ok: false, error: 'close_note 는 문자열이어야 합니다', code: 'closeReason.noteNotString' };
     const trimmed = b.close_note.trim();
     if (trimmed.length > CLOSE_NOTE_MAX) {
-      return { ok: false, error: `close_note 는 ${CLOSE_NOTE_MAX}자 이하여야 합니다` };
+      return { ok: false, error: `close_note 는 ${CLOSE_NOTE_MAX}자 이하여야 합니다`, code: 'closeReason.noteTooLong', vars: { max: CLOSE_NOTE_MAX } };
     }
     note = trimmed || null;
   }

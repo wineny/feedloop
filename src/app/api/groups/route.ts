@@ -9,6 +9,7 @@ import { getServiceRoleClient } from '@/lib/supabase';
 import { catchUpAutoGrouping, readGroupingStatus } from '@/lib/groups/auto-grouping';
 import { groupPriority, compareGroupPriority, type GroupPriority } from '@/lib/groups/priority';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
+import { apiText } from '@/lib/http/api-text';
 
 // 응답은 짧지만 after() 의 밀린 자동 묶기(catch-up)가 최대 100초 돈다.
 export const maxDuration = 120;
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
         .order('created_at', { ascending: false }),
     ]);
 
-    if (insightsRes.error || runsRes.error) return NextResponse.json({ error: '묶음 근거와 실행 기록을 읽지 못했습니다' }, { status: 500 });
+    if (insightsRes.error || runsRes.error) return NextResponse.json({ error: apiText(req, 'groupsReadFailed') }, { status: 500 });
     const insightCount = new Map<string, number>();
     const conversations = new Map<string, Set<string>>();
     for (const i of insightsRes.data ?? []) {
