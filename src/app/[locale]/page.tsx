@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { ProblemSection } from '@/components/landing/ProblemSection';
@@ -9,17 +10,15 @@ import { FaqSection } from '@/components/landing/FaqSection';
 import { FinalCTA } from '@/components/landing/FinalCTA';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 
-export const metadata: Metadata = {
-  title: 'Feedloop — 고객 피드백이 들어오는 즉시 수정이 시작되고, 완료되면 자동으로 알립니다',
-  description:
-    '고객 피드백이 들어오는 즉시 수정이 시작되고, 완료되면 보낸 분께 자동으로 알립니다. 설치는 5분이면 끝납니다.',
-  openGraph: {
-    title: 'Feedloop — 고객 피드백이 들어오는 즉시 수정이 시작되고, 완료되면 자동으로 알립니다',
-    description:
-      '고객 피드백이 들어오는 즉시 수정이 시작되고, 완료되면 보낸 분께 자동으로 알립니다. 설치는 5분이면 끝납니다.',
-    images: ['/og.png'],
-  },
-};
+export async function generateMetadata({ params }: PageProps<'/[locale]'>): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'meta' });
+  return {
+    title: t('title'),
+    description: t('description'),
+    openGraph: { title: t('title'), description: t('description'), images: ['/og.png'] },
+  };
+}
 
 export default function HomePage() {
   return (

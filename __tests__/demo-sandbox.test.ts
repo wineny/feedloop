@@ -60,9 +60,9 @@ function demoGateGuardsFetch(body: string): { hasGate: boolean; gateBeforeFetch:
 
 describe('연습용 화면 — 눌러도 서버로 나가지 않는다', () => {
   const cases: { file: string; fn: string; 무엇: string }[] = [
-    { file: 'src/app/inbox/page.tsx', fn: 'handleSendReply', 무엇: '답장 보내기' },
-    { file: 'src/app/inbox/page.tsx', fn: 'handleCloseConversation', 무엇: '대화 닫기' },
-    { file: 'src/app/dashboard/page.tsx', fn: 'handleCheckMerged', 무엇: '머지 확인' },
+    { file: 'src/app/[locale]/inbox/page.tsx', fn: 'handleSendReply', 무엇: '답장 보내기' },
+    { file: 'src/app/[locale]/inbox/page.tsx', fn: 'handleCloseConversation', 무엇: '대화 닫기' },
+    { file: 'src/app/[locale]/dashboard/page.tsx', fn: 'handleCheckMerged', 무엇: '머지 확인' },
     { file: 'src/components/dashboard/InsightGroups.tsx', fn: 'handleRunGrouping', 무엇: '지금 묶기' },
     { file: 'src/components/dashboard/InsightGroups.tsx', fn: 'handleCreatePr', 무엇: 'PR 만들기' },
     { file: 'src/components/dashboard/InsightGroups.tsx', fn: 'handleDismiss', 무엇: '묶음 닫기' },

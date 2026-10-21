@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { useDemoContext } from '@/lib/demo/DemoProvider';
 import { isPricingPath } from '@/lib/pricing/paths';
 

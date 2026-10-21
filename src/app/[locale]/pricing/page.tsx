@@ -3,6 +3,7 @@
 // Products and prices come from the `products` table of the demo bot (bots.is_demo), nothing else.
 
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { Check } from 'lucide-react';
 import { BuyButton } from '@/components/pricing/BuyButton';
 import { DemoWidget } from '@/components/pricing/DemoWidget';
@@ -13,10 +14,11 @@ import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Pricing — Feedloop',
-  description: 'Feedloop plans, paid once with PayPal. Support for every purchase runs through the Feedloop widget.',
-};
+export async function generateMetadata({ params }: PageProps<'/[locale]/pricing'>): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'meta' });
+  return { title: t('pricingTitle'), description: t('pricingDescription') };
+}
 
 export default async function PricingPage({ searchParams }: { searchParams: Promise<{ canceled?: string }> }) {
   const { canceled } = await searchParams;

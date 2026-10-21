@@ -9,7 +9,8 @@
 //     여기서는 「전체 서비스」가 뜻을 갖지 않으므로 목록에서 뺀다(목록으로 가는 길은 화면 안에 있다).
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { Settings2 } from 'lucide-react';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 import { ScopeDropdown } from '@/components/layout/ScopeDropdown';

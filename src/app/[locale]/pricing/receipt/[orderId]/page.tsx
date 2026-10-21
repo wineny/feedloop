@@ -2,6 +2,7 @@
 // paypal_orders row only (never PayPal from here): the return route and the webhook keep it current.
 
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
@@ -15,10 +16,11 @@ import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Receipt — Feedloop',
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata({ params }: PageProps<'/[locale]/pricing/receipt/[orderId]'>): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'meta' });
+  return { title: t('receiptTitle'), robots: { index: false, follow: false } };
+}
 
 const HEADLINE: Record<Receipt['status'], { title: string; body: string; tone: 'ok' | 'wait' | 'bad' }> = {
   captured: { title: 'Payment received', body: 'Thank you! Your plan is paid.', tone: 'ok' },

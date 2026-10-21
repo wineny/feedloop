@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 // 시안 서체 Pretendard — CDN 대신 npm 패키지로 self-host (심사 기간 외부 의존 최소화)
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
-import "./globals.css";
+import "../globals.css";
 import { Navigation } from "@/components/layout/Navigation";
 import { AppMain } from "@/components/layout/AppMain";
 import { AuthProvider } from "@/components/providers/AuthProvider";
@@ -10,11 +10,19 @@ import { BotScopeProvider } from "@/lib/scope/BotScopeProvider";
 import { DemoBanner } from "@/components/demo/DemoBanner";
 import { SelfWidget } from "@/components/layout/SelfWidget";
 import { PostHogGate } from "@/components/layout/PostHogGate";
-import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getTranslations } from "next-intl/server";
+import { NextIntlClientProvider, hasLocale } from "next-intl";
+import { getTranslations } from "next-intl/server";
+import { notFound } from "next/navigation";
+import { routing } from "@/i18n/routing";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("meta");
+// 언어별로 빌드 때 미리 그린다 — 주소에는 언어가 없고 proxy 가 이 경로로 rewrite 한다.
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({ params }: LayoutProps<"/[locale]">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "meta" });
   return {
     metadataBase: new URL("https://ai-feedloop.vercel.app"),
     title: t("title"),
@@ -22,12 +30,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const locale = await getLocale();
+export default async function RootLayout({ children, params }: LayoutProps<"/[locale]">) {
+  const { locale } = await params;
+  if (!hasLocale(routing.locales, locale)) notFound();
   return (
     <html lang={locale} className="h-full antialiased">
       <body className="min-h-full flex flex-col overflow-x-hidden">

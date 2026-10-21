@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { LogoMark } from '@/components/landing/Logo';
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { AuthButton } from '@/components/auth/AuthButton';
@@ -27,8 +27,8 @@ export function Navigation() {
   const isAuthenticated = status === 'authenticated';
 
   // 랜딩(/)은 자체 나브(LandingNav)를 렌더하므로 전역 나브를 숨긴다
-  // 랜딩은 자체 나브(LandingNav)가 있고, 로그인 화면은 워드마크만 보여준다
-  // PayPal 데모 가게(/pricing)는 영어 화면이라 자체 헤더(PricingHeader)를 쓴다
+  // 랜딩은 자체 나브(LandingNav)가 있고, 로그인 화면은 워드마크(+ 언어 전환)만 보여준다
+  // PayPal 데모 가게(/pricing)는 로그아웃 상태로 보는 가게 화면이라 자체 헤더(PricingHeader, 언어 전환 포함)를 쓴다
   if (pathname === '/' || pathname === '/login' || isPricingPath(pathname)) return null;
 
   return (
@@ -72,7 +72,10 @@ export function Navigation() {
         <div className="ml-auto flex min-w-0 max-w-[calc(100%_-_140px)] items-center gap-3 lg:ml-0 [&>div]:min-w-0 [&>div>span]:max-w-32 [&>div>span]:truncate [&_button]:shrink-0">
           {/* 서비스 셀렉터(I-27) — 봇이 둘 이상인 계정에서만 나타난다 */}
           {isAuthenticated && <BotScopeSelect />}
-          <LocaleSwitcher className="text-muted-foreground" />
+          {/* 이 줄의 `[&>div>span]:truncate`·`min-w-0` 은 봇 셀렉터용이다 — 한 겹 감싸 언어 전환은 줄지 않게 한다 */}
+          <div className="shrink-0">
+            <LocaleSwitcher className="text-muted-foreground" />
+          </div>
           <AuthButton />
         </div>
       </div>

@@ -1,10 +1,15 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { LoginCard } from '@/components/auth/LoginCard';
 
-export const metadata: Metadata = { title: '로그인 — Feedloop' };
+export async function generateMetadata({ params }: PageProps<'/[locale]/login'>): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'meta' });
+  return { title: t('loginTitle') };
+}
 
 /**
  * 우리 스킨의 로그인 화면. NextAuth 기본 /api/auth/signin (흰 바탕에 버튼 하나) 대신 쓴다 —

@@ -10,7 +10,7 @@
 // 없으므로 즉시 `ready` 라 대부분의 사용자는 이 왕복을 기다리지 않는다.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { useSession } from 'next-auth/react';
 import { readStoredScope, resolveScope, writeStoredScope, type ScopeBot } from './scope';
 

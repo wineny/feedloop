@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { LogoMark } from '@/components/landing/Logo';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { GoogleMark } from './GoogleMark';
 
 /**
@@ -34,6 +35,8 @@ export function LoginCard({ callbackUrl, error }: LoginCardProps) {
           <LogoMark size={26} className="text-[#F2645C]" />
           Feedloop
         </Link>
+        {/* 로그인 화면엔 전역 나브가 없다 — 언어 전환만 워드마크 밑에 둔다 */}
+        <LocaleSwitcher className="mt-3 text-muted-foreground" />
 
         <h1 className="mt-8 text-[22px] font-bold tracking-[-0.01em] text-foreground">로그인</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground" style={{ textWrap: 'pretty' }}>

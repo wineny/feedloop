@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties, MouseEvent, ReactNode } from 'react';
+import Link from 'next/link';
 import { signIn, useSession } from 'next-auth/react';
 import { PRIMARY_CTA_HREF, PRIMARY_CTA_LABEL } from './constants';
 
@@ -55,9 +56,9 @@ export function LoginLink({ className, onNavigate }: { className?: string; onNav
   }
   if (session?.user) {
     return (
-      <a href="/dashboard" className={className} onClick={onNavigate}>
+      <Link href="/dashboard" className={className} onClick={onNavigate}>
         내 대시보드
-      </a>
+      </Link>
     );
   }
   return (

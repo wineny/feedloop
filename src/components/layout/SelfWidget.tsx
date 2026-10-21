@@ -1,7 +1,7 @@
 'use client';
 
 import Script from 'next/script';
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { isPricingPath } from '@/lib/pricing/paths';
 
 /**
