@@ -52,8 +52,8 @@
   "replyPlaceholder": "Type a reply",
   "send": "Send",
   "replyNote": {
-    "kakao": "Kakao can't message first, so your reply is delivered the next time they send a message.",
-    "kakaoEmail": "Kakao can't message first, so your reply is delivered the next time they send a message. An email goes to {email} right away.",
+    "kakao": "KakaoTalk can't start a conversation, so your reply goes out the next time they message you.",
+    "kakaoEmail": "KakaoTalk can't start a conversation, so your reply goes out the next time they message you. An email goes to {email} right away.",
     "webEmail": "Your reply goes to the widget right away, and an email goes to {email} too.",
     "web": "Web widget replies are delivered right away. No email was left, so none is sent."
   },

@@ -177,6 +177,7 @@
       "items": "{count}<small>건</small>",
       "people": "{count}<small>명</small>",
       "noRepo": "저장소 없음",
+      "sep": "·",
       "picked": "<m>짚은 요소 </m><l>{label}</l><a> → </a><f>{files}</f><m> 이(가) 그려요</m>",
       "pickedUnconfirmed": "<m>짚은 요소 </m><l>{label}</l><m> · 저장소 원본에서 확인 못 함</m>",
       "pickedEvidence": "원본에서 확인: {evidence}",

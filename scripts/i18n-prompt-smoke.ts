@@ -64,7 +64,7 @@ async function main() {
   type BotConfig = import('../src/lib/bot/handler').BotConfig;
 
   const knowledge = renderKnowledge(
-    'Nulnul Tour is a slow-travel booking site for Seoul neighborhoods. Tours can be cancelled for a full refund up to 3 days before the start date.',
+    'Wander Korea is a slow-travel booking site for Seoul neighborhoods. Tours can be cancelled for a full refund up to 3 days before the start date.',
     [
       { q: 'How many coupons can I get per day?', a: 'One coupon per store per day.' },
       { q: '쿠폰은 하루에 몇 장 받을 수 있나요?', a: '같은 가게에서 하루 한 장이에요.' },
@@ -75,10 +75,10 @@ async function main() {
     mentionPatterns: [],
     feedbackKeywords: { negative: [], positive: [], question: [] },
     serviceProfile: {
-      botName: 'Nulnul Tour',
+      botName: 'Wander Korea',
       botTone: 'Friendly and casual. A few emoji are fine.',
-      serviceName: 'Nulnul Tour',
-      serviceUrl: 'https://nulnul-tour.example.com',
+      serviceName: 'Wander Korea',
+      serviceUrl: 'https://wanderkorea.example',
       serviceDescription: 'Slow-travel tour booking for Seoul neighborhoods',
       serviceCompany: '',
       targetUsers: 'beta testers',

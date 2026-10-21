@@ -35,7 +35,7 @@
   "runClassify": "Run AI triage",
   "stuck": "Some feedback is stuck in classification",
   "stuckCta": "Check and recover ›",
-  "modeNote": "<b>Fix PR mode · approval.</b> Fix PRs are prepared and a person ships them. Once a fix is confirmed shipped, everyone who raised that problem gets a notification.",
+  "modeNote": "<b>Fix PR mode: you approve each PR.</b> Fix PRs are prepared and a person ships them. Once a fix is confirmed shipped, everyone who raised that problem gets a notification.",
   "channels": {
     "title": "Feedback channels",
     "settings": "Bots",
@@ -90,7 +90,7 @@
     "classified": "AI triage",
     "prCreated": "Fix PR",
     "returned": "Notification",
-    "returnedCount": "“Fixed” went back to {count, plural, one {# person} other {# people}}",
+    "returnedCount": "“Fixed” sent to {count, plural, one {# person} other {# people}}",
     "returnedHint": "When a fix ships, it goes back to the person who reported it"
   },
   "onboarding": {

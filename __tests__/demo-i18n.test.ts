@@ -86,6 +86,38 @@ describe('가이드 데모 — 영어판에 한국어가 없다', () => {
     }
   });
 
+  it('영어 시연 가게는 Wander Korea 다(옛 이름 Nulnul 이 화면 사본·문구에 남지 않는다)', () => {
+    for (const page of ['mail', 'team-inbox', 'team-groups', 'team-pr', 'nulnul-map']) {
+      const html = fs.readFileSync(path.resolve(__dirname, `../public/demo/${page}/index.html`), 'utf8');
+      expect(html, page).not.toMatch(/nulnul/i);
+    }
+    const dict = fs.readFileSync(path.resolve(__dirname, '../messages/en/demo.json'), 'utf8');
+    const script = fs.readFileSync(path.resolve(__dirname, '../src/components/demo/guided/script.en.ts'), 'utf8');
+    expect(dict + script).not.toMatch(/nulnul/i);
+    expect(dict).toContain('Wander Korea');
+    expect(JSON.stringify(getDemoData('en'))).not.toMatch(/nulnul/i);
+  });
+
+  it('쿠폰 마감일은 지난 날짜가 아니고 요일이 그 날짜와 맞다(2027년 1월 이후)', () => {
+    const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+    const WEEKDAY_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const MONTH_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const read = (f: string) => fs.readFileSync(path.resolve(__dirname, `../public/demo/nulnul-map/${f}`), 'utf8');
+    const ko = [...read('index.ko.html').matchAll(/(\d+)월 (\d+)일 \(([월화수목금토일])\)/g)];
+    const en = [...read('index.html').matchAll(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d+) \((Sun|Mon|Tue|Wed|Thu|Fri|Sat)\)/g)];
+    expect(ko.length).toBeGreaterThan(0);
+    expect(en.length).toBe(ko.length);
+    for (const [, m, d, w] of ko) {
+      const date = new Date(Date.UTC(2027, Number(m) - 1, Number(d)));
+      expect(date.getTime(), `${m}/${d}`).toBeGreaterThanOrEqual(Date.UTC(2027, 0, 1));
+      expect(WEEKDAY[date.getUTCDay()], `${m}/${d}`).toBe(w);
+    }
+    for (const [, m, d, w] of en) {
+      const date = new Date(Date.UTC(2027, MONTH_EN.indexOf(m), Number(d)));
+      expect(WEEKDAY_EN[date.getUTCDay()], `${m} ${d}`).toBe(w);
+    }
+  });
+
   it('영어 연습용 데이터(getDemoData)에 한국어가 없다', () => {
     expect(hangul(JSON.stringify(getDemoData('en')))).toBe(0);
   });

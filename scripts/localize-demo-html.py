@@ -64,7 +64,7 @@ M = {
     '분류 상태 상세 미확인': 'Classification detail unavailable',
     '반영 1': 'Shipped 1',
     '반영 알림': 'Notification',
-    '4명에게 「반영됐어요」가 돌아갔어요': '“Fixed” went back to 4 people',
+    '4명에게 「반영됐어요」가 돌아갔어요': '“Fixed” sent to 4 people',
     '제보 → 반영 알림 평균': 'Avg. time from report to notification',
     '2.4일': '2.4 d',
     '반영 알림 4건 기준': 'Based on 4 notifications',
@@ -76,7 +76,7 @@ M = {
     '지금 묶기': 'Group now',
     '버그': 'Bug',
     '「쿠폰 받기」를 눌러도 쿠폰이 발급되지 않음': "Tapping “Get coupon” doesn't issue a coupon",
-    '전국 지도에서 제휴 가게의 「쿠폰 받기」를 눌러도 쿠폰이 받아지지 않는다는 제보. 모바일·PC 모두에서 보고됨.': 'Reports that tapping “Get coupon” on a partner shop in the nationwide map does not issue a coupon. Seen on both mobile and desktop.',
+    '전국 지도에서 제휴 가게의 「쿠폰 받기」를 눌러도 쿠폰이 받아지지 않는다는 제보. 모바일·PC 모두에서 보고됨.': 'Reports that tapping “Get coupon” on a partner shop on the Korea map does not issue a coupon. Seen on both mobile and desktop.',
     '35분 전': '35 min ago', '41분 전': '41 min ago', '46분 전': '46 min ago', '20분 전': '20 min ago',
     '6분 전': '6 min ago', '11분 전': '11 min ago', '17분 전': '17 min ago', '22분 전': '22 min ago', '48분 전': '48 min ago',
     '3분 전': '3 min ago', '14분 전': '14 min ago', '27분 전': '27 min ago', '39분 전': '39 min ago',
@@ -108,7 +108,7 @@ M = {
     '· PR #128 자동 생성': '· PR #128 created automatically',
     '· 401 인증 루프 — 세션 만료 후 무한 리다이렉트': '· 401 auth loop — endless redirect after the session expires',
     '· 다크모드 코드 블록 테마 충돌': '· Dark mode code block theme conflict',
-    '수정안 모드 · 승인.': 'Fix PR mode · approval.',
+    '수정안 모드 · 승인.': 'Fix PR mode: you approve each PR.',
     '수정안은 만들어두고 반영은 사람이 합니다. 반영이 확인되면 그 문제를 말한 사람 모두에게 반영 알림이 나갑니다.': 'Fix PRs are prepared and a person ships them. Once a fix is confirmed shipped, everyone who raised that problem gets a notification.',
     # ── team-pr ──
     '검토를 기다리는 수정안 ': 'Fix PRs waiting for review ',
@@ -127,7 +127,7 @@ M = {
     'PR 생성': 'PR created', '생성됨': 'Created',
     '배포 확인': 'Deploy check', '배포 미확인': 'Deploy unconfirmed',
     '사용자 확인': 'User confirmation', '해결 확인 대기': 'Waiting for confirmation',
-    '근거 피드백': 'Evidence feedback',
+    '근거 피드백': 'Supporting feedback',
     '건': 'items', '명': 'people',
     '프리뷰': 'Preview',
     '반영됨 · 배포는 따로 확인': 'Shipped · deploy is checked separately',
@@ -150,7 +150,7 @@ M = {
     '응답 없음': 'No answer',
     '대기 · 다음에 말을 걸 때 전달': 'Waiting · delivered the next time they message',
     '전달 전': 'Not delivered',
-    '카카오톡 대화는 상대가 다음에 말을 걸 때 답변 앞에 붙어 갑니다. 「아직 그대로예요」는 대화 탭에서 이어서 봅니다.': 'Kakao can’t message first, so the notice is attached to your next reply after they write. “Still the same” is followed up in the Inbox tab.',
+    '카카오톡 대화는 상대가 다음에 말을 걸 때 답변 앞에 붙어 갑니다. 「아직 그대로예요」는 대화 탭에서 이어서 봅니다.': 'KakaoTalk can’t start a conversation, so the notice goes out with your next reply after they message you. For “Still broken”, continue in the Inbox tab.',
     '실행 로그': 'Run log',
     '자동 수정 시작...': 'Starting auto-fix...',
     '저장소 파일 트리 조회 중...': 'Reading the repository file tree...',
@@ -163,8 +163,8 @@ M = {
     '실제 실행 결과는 위 검사 기록에서 확인하세요. 기록이 없으면 검증 미확인입니다. 반영, 배포, 사용자 해결 확인은 각각 다른 단계입니다.': 'See the check record above for actual run results. With no record, the check is unconfirmed. Shipping, deploying and user confirmation are separate steps.',
     '묶음': 'Group',
     # ── mail ──
-    '[널널투어] 말씀하신 문제를 고쳤어요': '[Nulnul Tour] We fixed the problem you reported',
-    '널널투어': 'Nulnul Tour',
+    '[널널투어] 말씀하신 문제를 고쳤어요': '[Wander Korea] We fixed the problem you reported',
+    '널널투어': 'Wander Korea',
     '이수진 님, 말씀하신 문제를 고쳤어요.': 'Emily, we fixed the problem you reported.',
     '고친 내용': 'What changed',
     '고친 시각': 'Fixed at',
@@ -179,18 +179,18 @@ M = {
     '✅ 잘 되는지 한 번만': '✅ One quick check',
     '바뀐 화면을 직접 확인해 보시고, 아직 그대로라면 같은 대화 창에서 알려주세요.': 'Take a look at the updated screen. If it is still the same, tell us in the same chat window.',
     '담당자가 바로 다시 봅니다. 잘 된다는 한마디도 큰 힘이 돼요.': 'The owner will look again right away. A quick “it works” helps too.',
-    '널널투어 에서 확인하기 →': 'Check it on Nulnul Tour →',
-    '본 메일은 널널투어 에 남기신 피드백의 처리 결과입니다. · Feedloop 이 대신 보냈어요': 'This email is the result of the feedback you left on Nulnul Tour. · Sent by Feedloop on its behalf',
+    '널널투어 에서 확인하기 →': 'Check it on Wander Korea →',
+    '본 메일은 널널투어 에 남기신 피드백의 처리 결과입니다. · Feedloop 이 대신 보냈어요': 'You are receiving this because you left feedback on Wander Korea. · Sent by Feedloop on behalf of Wander Korea',
     # ── nulnul-map ──
-    '전국 지도 | 널널투어': 'Nationwide map | Nulnul Tour',
-    '서비스 중인 지역과 준비 중인 도시를 전국 지도 한 장에서 확인해요.': 'See the regions we serve and the cities coming soon on one nationwide map.',
-    '주요 메뉴': 'Main menu', '홈': 'Home', '쿠폰': 'Coupons', '전국 지도': 'Nationwide map',
+    '전국 지도 | 널널투어': 'Korea map | Wander Korea',
+    '서비스 중인 지역과 준비 중인 도시를 전국 지도 한 장에서 확인해요.': 'See the regions we serve and the cities coming soon on one map of Korea.',
+    '주요 메뉴': 'Main menu', '홈': 'Home', '쿠폰': 'Coupons', '전국 지도': 'Korea map',
     '언어 선택': 'Language',
     '로그인': 'Log in', '구글로 계속하기': 'Continue with Google',
     '로그인 전에 받은 쿠폰도 계정에 함께 보관돼요': 'Coupons you claimed before logging in are saved to your account too',
     '지역을 누르면 그곳 관광지의 오늘 등급과 쿠폰이 펼쳐집니다 · 10곳 서비스 중': "Tap a region to see today's crowd level and coupons for its attractions · 10 regions live",
     '대한민국 전국 지도 — 서비스 중인 10개 지역과 준비 중인 12개 도시': 'Map of South Korea — 10 regions live, 12 cities coming soon',
-    '제주 · 실제보다 가까이 그림': 'Jeju · drawn closer than it really is',
+    '제주 · 실제보다 가까이 그림': 'Jeju (shown closer than it really is)',
     '보고 있는 지역': 'Selected region',
     '서비스 중 10곳': '10 live', '준비 중 12곳': '12 coming soon',
     '서울 종로 패널': 'Seoul Jongno panel',
@@ -221,10 +221,10 @@ M = {
     '한옥찻집 소슬': 'Soseul Hanok Teahouse',
     '경복궁 근처': 'Near Gyeongbokgung',
     '쌍화차 1+1 (2인 방문 시)': 'Buy one get one free on ssanghwa tea (parties of 2)',
-    '9월 21일 (월)': 'Sep 21 (Mon)',
+    '1월 4일 (월)': 'Jan 4 (Mon)',
     '쿠폰 받기': 'Get coupon',
     '대추차 주문 시 약과 2개 서비스': 'Two free yakgwa cookies with a jujube tea',
-    '10월 6일 (화)': 'Oct 6 (Tue)',
+    '1월 12일 (화)': 'Jan 12 (Tue)',
     '궁중다과점 연리': 'Yeonri Royal Sweets Shop',
     '궁중 다과 세트 10% 할인': '10% off the royal sweets set',
     '사진관 온재': 'Onjae Photo Studio',
@@ -233,7 +233,7 @@ M = {
     '한복 스냅 촬영 20% 할인': '20% off hanbok snap shoots',
     '북촌수제만두': 'Bukchon Handmade Dumplings',
     '만둣국 주문 시 군만두 2개 서비스': 'Two free fried dumplings with a dumpling soup',
-    '9월 28일 (월)': 'Sep 28 (Mon)',
+    '1월 11일 (월)': 'Jan 11 (Mon)',
     '더보기': 'Show more',
     '시범 데이터 가게와 쿠폰이 섞여 있어요. 시범 가게의 사진은 AI 생성 시범 이미지예요.': 'Sample shops and coupons are mixed in. Photos of sample shops are AI-generated sample images.',
     '쿠폰을 받았어요': 'Coupon claimed',
@@ -254,6 +254,9 @@ RAW = [
     ('<option value="ko" selected="">한국어</option><option value="en">English</option>',
      '<option value="ko">Korean</option><option value="en" selected="">English</option>'),
     ('<html lang="ko"', '<html lang="en"'),
+    ('FEEDBACK APPLIED', 'FIX SHIPPED'),
+    # 영어판은 실제 가게 주소(nulnul.vercel.app) 대신 예약 도메인을 보여 준다(2026-10-21 ny: 영어 시연 가게는 Wander Korea)
+    ('nulnul.vercel.app', 'wanderkorea.example'),
 ]
 
 
@@ -261,6 +264,9 @@ def tr(s: str) -> str:
     for a, b in RAW:
         s = s.replace(a, b)
     s = re.sub(r'피드백 (<b[^>]*>\d+</b>)건', r'Feedback \1', s)
+    # 근거 피드백 칸: `3건 · 3명` → `3 items from 3 people` (앱의 monitor.review.facts 와 같은 말)
+    s = re.sub(r'(\d+)<small([^>]*)>건</small><span([^>]*)>·</span>(\d+)<small([^>]*)>명</small>',
+               r'\1<small\2> items</small><span\3>from</span>\4<small\5> people</small>', s)
     s = re.sub(r'(</b>)명이 말했어요', r'\1 people raised it', s)
     s = s.replace('묶음 "「쿠폰 받기」를 눌러도 쿠폰이 발급되지 않음" 으로 수정안을 만듭니다',
                   'Creating a fix PR for the group "Tapping “Get coupon” doesn\'t issue a coupon"')
@@ -296,9 +302,9 @@ for d in ['mail', 'team-inbox', 'team-groups', 'team-pr', 'nulnul-map']:
     s = open(src, encoding='utf8').read()
     # specific compound sentences first (they contain mapped words)
     s = s.replace('남겨주신 피드백대로 널널투어 를 고쳤어요. 서비스에 반영되기까지는 조금 더 걸릴 수 있어요.<br>알려주셔서 고마워요 — 잘 되는지 대화 창에서 알려주세요.',
-                  'We changed Nulnul Tour based on the feedback you left. It can take a little longer to reach the live service.<br>Thanks for telling us — let us know in the chat window if it works.')
+                  'We changed Wander Korea based on the feedback you left. It may take a few more minutes to appear on the live site.<br>Thanks for telling us — let us know in the chat window if it works.')
     s = s.replace('보낸사람 <b style="color:#191d1b">널널투어</b> · 받는사람 sujin@example.com',
-                  'From <b style="color:#191d1b">Nulnul Tour</b> · To emily@example.com')
+                  'From <b style="color:#191d1b">Wander Korea</b> · To emily@example.com')
     s = s.replace('sujin@example.com', 'emily@example.com')
     s = tr(s)
     left = sorted(set(re.findall(r'[^<>"]*[가-힣][^<>"]*', s)))

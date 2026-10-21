@@ -38,7 +38,7 @@ export const copy: DemoCopy = {
   systemBooking: 'We shipped the fix for “guest count reset” that you reported. (PR #12)',
   statusText: 'Usually replies within a few minutes',
   groupTitle: 'Tapping “Get coupon” doesn\'t issue a coupon',
-  groupSummary: 'Reports that tapping “Get coupon” on a partner shop in the nationwide map does not issue a coupon. Seen on both mobile and desktop.',
+  groupSummary: 'Reports that tapping “Get coupon” on a partner shop on the Korea map does not issue a coupon. Seen on both mobile and desktop.',
   groupReason1: 'Can\'t get the coupon, so can\'t pay at the discounted price',
   groupDarkTitle: 'Code block theme breaks in dark mode',
   groupDarkSummary: 'Reports that after switching to dark mode, the code block background and text color overlap and can’t be read.',

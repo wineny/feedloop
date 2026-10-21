@@ -32,6 +32,9 @@
 | 대시보드 | dashboard | |
 | 위젯 모양 | widget appearance | |
 | 상담원 연결 | Talk to a person | 위젯 도구 버튼 |
+| Feedloop 열기 | Open Feedloop | 시연 위젯의 「고쳐졌다」 카드 버튼 |
+| 화면 조각 | screen element | 방문자가 화면에서 짚은 요소 |
+| 카카오톡 | KakaoTalk | 「Kakao」만 쓰지 않는다 |
 | 화면에서 선택하기 | Pick on screen | 위젯 도구 버튼 |
 | 예시 데이터 | sample data | |
 | 로그인 / 로그아웃 | Log in / Log out | 「Sign in with Google」은 Google 버튼 문구에만 |

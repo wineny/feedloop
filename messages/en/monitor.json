@@ -128,7 +128,7 @@
       "channelFailed": "{count, plural, one {# Channel Talk notification} other {# Channel Talk notifications}} not sent",
       "resend": "Resend notifications",
       "kakaoPending": "{count, plural, one {# KakaoTalk notification goes} other {# KakaoTalk notifications go}} out when that person next messages. It can't be pushed from here.",
-      "kakaoNote": "On KakaoTalk, the notice is added in front of the reply after the person next messages. For “Still broken”, continue in the Inbox tab."
+      "kakaoNote": "KakaoTalk can't start a conversation, so the notice goes out with your next reply after they message you. For “Still broken”, continue in the Inbox tab."
     },
     "confirm": {
       "fixed": "Yes, it works",
@@ -177,6 +177,7 @@
       "items": "{count, plural, one {# <small>item</small>} other {# <small>items</small>}}",
       "people": "{count, plural, one {# <small>person</small>} other {# <small>people</small>}}",
       "noRepo": "No repository",
+      "sep": "from",
       "picked": "<m>Picked element </m><l>{label}</l><a> → </a><f>{files}</f><m> renders it</m>",
       "pickedUnconfirmed": "<m>Picked element </m><l>{label}</l><m> · couldn't confirm in the repository source</m>",
       "pickedEvidence": "Confirmed in source: {evidence}",

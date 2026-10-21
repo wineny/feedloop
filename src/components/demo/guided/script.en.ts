@@ -7,7 +7,7 @@ import type { ScriptCopy } from './script';
  * or the walkthrough cannot find the spot to ring (`__tests__/demo-sandbox.test.ts` checks it).
  */
 export const copy: ScriptCopy = {
-  hello: 'Hi! This is Nulnul Tour. If a coupon or a booking gave you trouble, tell us here.',
+  hello: 'Hi! This is Wander Korea. If a coupon or a booking gave you trouble, tell us here.',
   report: "The coupon download isn't working",
   // The bot does not guess at causes; it hands the report to the team (`src/lib/bot/holding.ts`).
   reply:
@@ -19,9 +19,9 @@ export const copy: ScriptCopy = {
   prLines: ['View PR #128 on GitHub', 'PR #128 · 47s · 2 files'],
   recipients: ['Emily Carter', 'Visitor #b7c4'],
   delivered: 'Delivered',
-  mailSubject: '[Nulnul Tour] We fixed the problem you reported',
+  mailSubject: '[Wander Korea] We fixed the problem you reported',
   urls: {
-    map: 'nulnul.vercel.app/nationwide',
+    map: 'wanderkorea.example/map',
     inbox: 'ai-feedloop.vercel.app/inbox',
     groups: 'ai-feedloop.vercel.app/dashboard',
     pr: 'ai-feedloop.vercel.app/monitor',
@@ -47,7 +47,7 @@ export const copy: ScriptCopy = {
     },
     group: {
       title: 'A group is harder to ignore',
-      short: 'Bundle them into one group',
+      short: 'Group them together',
       hint: '',
       say: 'They become one piece of feedback',
       label: 'See this group turn into code',
@@ -63,7 +63,7 @@ export const copy: ScriptCopy = {
       title: 'One job for a person: decide to ship',
       short: 'A person decides to ship',
       hint: '',
-      say: 'Everyone who reported it is notified automatically',
+      say: 'Everyone who reported it is notified automatically once you ship',
       label: 'Ship it and tell the people who reported it',
     },
     returned: {

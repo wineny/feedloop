@@ -132,7 +132,7 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
           {t.rich('items', { count: run.evidence.insightCount, small: unit })}
           {run.evidence.conversationCount > 0 && (
             <>
-              <span className="mx-1.5 font-normal text-faint">·</span>
+              <span className="mx-1.5 font-normal text-faint">{t('sep')}</span>
               {t.rich('people', { count: run.evidence.conversationCount, small: unit })}
             </>
           )}
