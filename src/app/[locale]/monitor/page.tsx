@@ -8,12 +8,13 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { PageHero, PAGE_EMOJI } from '@/components/layout/PageHero';
 import { LoadingState, ErrorState } from '@/components/layout/PageState';
 import { RunDetail } from '@/components/monitor/RunDetail';
-import { RunBadge, runState, RUN_STATE_LABEL, type RunState } from '@/components/monitor/RunBadge';
+import { RunBadge, runState, type RunState } from '@/components/monitor/RunBadge';
 import { useDemoMode } from '@/lib/demo/useDemoMode';
 import { DemoHint } from '@/components/demo/DemoHint';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
@@ -22,8 +23,8 @@ import { ScopeNote } from '@/components/layout/BotScopeSelect';
 import { cn } from '@/lib/utils';
 import { Loader2, RefreshCw } from 'lucide-react';
 import type { RunItem } from '@/app/api/auto-dev/runs/route';
-import { CLOSE_REASON_LABEL } from '@/lib/auto-dev/close-reason';
 import { stopReasonLabel } from '@/lib/auto-dev/stop-reason-labels';
+import { dynamicT, type DynamicTranslate } from '@/i18n/dynamic';
 
 interface DemoMonitorData {
   runs: RunItem[];
@@ -32,56 +33,47 @@ interface DemoMonitorData {
 
 type Filter = 'all' | RunState;
 
-// 라벨은 배지와 한 곳(RUN_STATE_LABEL)에서 — 「반영됨」 어휘를 여기만 옛말로 남기지 않으려고
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'all', label: '전체' },
-  { value: 'open', label: RUN_STATE_LABEL.open },
-  { value: 'merged', label: '반영됨' },
-  { value: 'closed', label: '닫힘' },
-  { value: 'failed', label: '실패' },
-  { value: 'stopped', label: '중단' },
-  { value: 'unverifiable', label: '검증 불가' },
-];
+// 탭 이름은 배지와 같은 사전(`monitor.state.*`)에서 읽는다 — 「반영됨」 어휘를 여기만 옛말로 남기지 않으려고
+const FILTER_VALUES: Filter[] = ['all', 'open', 'merged', 'closed', 'failed', 'stopped', 'unverifiable'];
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: DynamicTranslate): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return '방금';
-  if (mins < 60) return `${mins}분 전`;
+  if (mins < 1) return t('now');
+  if (mins < 60) return t('minutes', { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}시간 전`;
+  if (hours < 24) return t('hours', { count: hours });
   const days = Math.floor(hours / 24);
-  return days === 1 ? '어제' : `${days}일 전`;
-}
-
-function duration(ms: number | null): string {
-  if (ms == null) return '';
-  return `${Math.round(ms / 1000)}초`;
+  return days === 1 ? t('yesterday') : t('days', { count: days });
 }
 
 /** 목록 행의 둘째 줄 — 상태마다 가장 쓸모 있는 한 줄 */
-function subline(run: RunItem): string {
+function subline(run: RunItem, t: DynamicTranslate): string {
   const state = runState(run);
-  if (state === 'running') return '수정안을 만들고 있어요…';
+  const duration = run.durationMs == null ? '' : t('duration.seconds', { seconds: Math.round(run.durationMs / 1000) });
+  if (state === 'running') return t('subline.running');
   if (state === 'failed' || state === 'stopped' || state === 'unverifiable') {
     // 코드(`root_cause_unknown`)는 채점 스크립트가 읽으니 그대로 두고 화면에서만 사람 말로 푼다.
     // 목록 둘째 줄은 360px 카드 안에서 truncate 라 RunDetail 처럼 코드까지 병기하면 잘린다 — 여기는 라벨만,
     // 코드는 오른쪽 RunDetail 이 보여 준다. 전문은 행의 title(hover)로 읽을 수 있다.
     const reason = run.stopReason
-      ? stopReasonLabel(run.stopReason)
-      : run.errorMessage ?? (state === 'failed' ? '실행 실패' : '수정 보류');
-    return [reason, duration(run.durationMs)].filter(Boolean).join(' · ');
+      ? stopReasonLabel(t, run.stopReason)
+      : run.errorMessage ?? (state === 'failed' ? t('subline.runFailed') : t('subline.onHold'));
+    return [reason, duration].filter(Boolean).join(' · ');
   }
   if (state === 'closed') {
-    const reason = run.pr?.closeReason ? CLOSE_REASON_LABEL[run.pr.closeReason] : '사유 미분류';
-    return `PR #${run.pr?.number} · 반영 안 함 · ${reason}`;
+    const reason = run.pr?.closeReason ? t(`closeReason.${run.pr.closeReason}.label`) : t('subline.noReason');
+    return t('subline.closed', { number: run.pr?.number ?? 0, reason });
   }
-  return [`PR #${run.pr?.number}`, duration(run.durationMs), run.filesChanged.length === 0 ? '파일 수 미확인' : `파일 ${run.filesChanged.length}개`]
+  return [t('subline.pr', { number: run.pr?.number ?? 0 }), duration, run.filesChanged.length === 0 ? t('subline.filesUnknown') : t('subline.files', { count: run.filesChanged.length })]
     .filter(Boolean)
     .join(' · ');
 }
 
 function MonitorContent() {
+  const t = useTranslations('monitor');
+  const td = dynamicT(t);
+  const tAgo = dynamicT(useTranslations('dashboard.groups.ago'));
   const searchParams = useSearchParams();
   const requestedRunId = searchParams.get('runId');
   const { status: authStatus } = useSession();
@@ -110,15 +102,15 @@ function MonitorContent() {
         setRuns([]);
         return;
       }
-      if (!res.ok) throw new Error(`API 오류: ${res.status}`);
+      if (!res.ok) throw new Error(t('errors.api', { status: res.status }));
       const json = await res.json();
       setRuns(json.runs ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '실행 기록을 불러오지 못했습니다');
+      setError(err instanceof Error ? err.message : t('errors.load'));
     } finally {
       setLoading(false);
     }
-  }, [botId]);
+  }, [botId, t]);
 
   // 스코프가 바뀌면 옛 목록을 새 스코프 이름 밑에 두지 않는다
   useEffect(() => {
@@ -153,9 +145,13 @@ function MonitorContent() {
   }, [list]);
 
   // 「전체」 + 건수 > 0 + 지금 고른 탭만 보인다. 고른 탭은 0이 돼도 남는다 — 누른 탭이 사라지면 안 된다
+  const FILTERS = useMemo(
+    () => FILTER_VALUES.map((value) => ({ value, label: value === 'all' ? t('filterAll') : dynamicT(t)(`state.${value}`) })),
+    [t],
+  );
   const visibleFilters = useMemo(
     () => FILTERS.filter((f) => f.value === 'all' || f.value === filter || counts[f.value] > 0),
-    [counts, filter],
+    [FILTERS, counts, filter],
   );
   const hiddenFilters = FILTERS.length - visibleFilters.length;
 
@@ -167,7 +163,7 @@ function MonitorContent() {
     // 연습용 화면 — GitHub 에 나갈 것이 없다. 예시 PR 은 머지 여부가 이미 정해져 있어
     // 「새로 머지된 건 없다」가 사실 그대로다. 대시보드의 같은 버튼과 말을 맞춘다.
     if (demo.isDemo) {
-      setMergeNotice('반영됐는지 확인했어요. 새로 반영된 건 없어요 (연습용 화면이라 예시는 그대로예요).');
+      setMergeNotice(t('merge.demo'));
       return;
     }
 
@@ -181,7 +177,7 @@ function MonitorContent() {
     const tick = setInterval(() => {
       const secs = Math.floor((Date.now() - started) / 1000);
       setMergeElapsed(secs);
-      if (secs >= 10) setMergeNotice(SLOW_MERGE_NOTICE);
+      if (secs >= 10) setMergeNotice(t('merge.slow'));
     }, 1000);
 
     try {
@@ -191,11 +187,11 @@ function MonitorContent() {
         body: JSON.stringify(scopedBody({}, botId)),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '확인에 실패했습니다');
-      setMergeNotice(mergeResultNotice(json));
+      if (!res.ok) throw new Error(json.error || t('errors.check'));
+      setMergeNotice(mergeResultNotice(json, t));
       await fetchRuns();
     } catch (err) {
-      setMergeNotice(err instanceof Error ? err.message : '확인에 실패했습니다');
+      setMergeNotice(err instanceof Error ? err.message : t('errors.check'));
     } finally {
       clearInterval(tick);
       setCheckingMerge(false);
@@ -217,23 +213,19 @@ function MonitorContent() {
     <div className="flex flex-col gap-10">
       <PageHero
         emoji={PAGE_EMOJI.monitor}
-        title="수정안"
+        title={t('title')}
         description={
           <>
             <ScopeNote />
-            {openCount > 0 ? (
-              <>
-                검토를 기다리는 수정안 <strong className="tabular-nums">{openCount}개</strong>
-              </>
-            ) : (
-              '검토를 기다리는 수정안이 없어요'
-            )}
+            {openCount > 0
+              ? t.rich('subtitleOpen', { count: openCount, strong: (chunks) => <strong className="tabular-nums">{chunks}</strong> })
+              : t('subtitleNone')}
           </>
         }
         actions={
           <Button variant="outline" onClick={handleCheckMerged} disabled={checkingMerge}>
             {checkingMerge ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-            {checkingMerge ? `확인 중… ${mergeElapsed}초` : '반영됐는지 확인'}
+            {checkingMerge ? t('checking', { seconds: mergeElapsed }) : t('checkMerged')}
           </Button>
         }
       />
@@ -242,14 +234,14 @@ function MonitorContent() {
           괄호 병기를 화면 곳곳에 뿌리지 않는다 — 글자가 두 배가 되고 위계가 무너진다. */}
       <div className="-mt-7 flex flex-col gap-1.5">
         <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
-          AI 가 만든 코드 수정안입니다 · GitHub 에서는 Pull request(PR) 로 열려요
+          {t('bridge')}
         </p>
         {mergeNotice && <p className="text-[12.5px] leading-[1.45] text-muted-foreground">{mergeNotice}</p>}
       </div>
 
       {list.length === 0 ? (
         <p className="py-6 text-sm leading-relaxed text-muted-foreground">
-          아직 실행 기록이 없습니다. 대시보드의 피드백 묶음에서 「수정안 만들기」를 누르면 여기에 쌓입니다.
+          {t('empty')}
         </p>
       ) : (
         <div className="grid items-start gap-10 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-12">
@@ -279,7 +271,7 @@ function MonitorContent() {
                   onClick={() => setShowAllFilters((v) => !v)}
                   className="-mb-px ml-auto inline-flex min-h-11 items-center whitespace-nowrap border-b-2 border-transparent text-[12.5px] font-medium text-faint transition-colors hover:text-muted-foreground"
                 >
-                  {showAllFilters ? '접기' : `더보기 ${hiddenFilters}`}
+                  {showAllFilters ? t('lessFilters') : t('moreFilters', { count: hiddenFilters })}
                 </button>
               )}
             </div>
@@ -302,7 +294,7 @@ function MonitorContent() {
 
             <ul>
               {filtered.length === 0 && (
-                <li className="px-5 py-5 text-sm text-muted-foreground">이 상태의 실행이 없어요.</li>
+                <li className="px-5 py-5 text-sm text-muted-foreground">{t('noRunsInState')}</li>
               )}
               {filtered.map((r, i) => {
                 const isSelected = selected?.id === r.id;
@@ -327,15 +319,15 @@ function MonitorContent() {
                               위로 띄우는 말풍선은 바로 윗줄의 상태 탭(전체·검토 대기·…)을 가린다. */}
                           {isJustMade && (
                             <span className="flex-none rounded-full bg-[#D13A2D] px-2 py-0.5 text-[11.5px] font-bold text-white">
-                              방금 만든 PR
+                              {t('justMade')}
                             </span>
                           )}
                           <span className="truncate">{r.title}</span>
                         </p>
-                        <p className="mt-1 truncate text-[12.5px] leading-[1.45] text-muted-foreground tabular-nums" title={subline(r)}>{subline(r)}</p>
+                        <p className="mt-1 truncate text-[12.5px] leading-[1.45] text-muted-foreground tabular-nums" title={subline(r, td)}>{subline(r, td)}</p>
                       </div>
                       <div className="flex flex-col items-end gap-1.5">
-                        <span className="text-[12.5px] text-faint tabular-nums">{timeAgo(r.createdAt)}</span>
+                        <span className="text-[12.5px] text-faint tabular-nums">{timeAgo(r.createdAt, tAgo)}</span>
                         <RunBadge state={runState(r)} />
                       </div>
                     </button>
@@ -365,10 +357,6 @@ function MonitorContent() {
   );
 }
 
-// 「머지 확인」이 오래 걸릴 때의 안내. 두 화면(대시보드·수정 PR)이 같은 문구를 쓰지만
-// 공용 훅으로 빼지 않는다 — 이 두 파일은 디자인 세션도 만지고 있어 충돌면을 넓히지 않는다.
-const SLOW_MERGE_NOTICE = 'PR 을 하나씩 GitHub 에 확인하고 있어요. 최대 2분 걸릴 수 있습니다.';
-
 interface MergeCheckResult {
   delivered?: number;
   merged?: number;
@@ -383,7 +371,9 @@ interface MergeCheckResult {
   failed?: number;
 }
 
-function mergeResultNotice(json: MergeCheckResult): string {
+type Translate = ReturnType<typeof useTranslations<'monitor'>>;
+
+function mergeResultNotice(json: MergeCheckResult, t: Translate): string {
   const delivered = json.delivered ?? 0;
   const merged = json.merged ?? 0;
   const deferred = json.deferred ?? 0;
@@ -391,18 +381,18 @@ function mergeResultNotice(json: MergeCheckResult): string {
   const failed = json.failed ?? 0;
 
   // 실패부터 말한다 — 다른 숫자에 묻히면 아무도 원인을 보러 가지 않는다.
-  if (failed > 0) return `${failed}건 확인 실패 · 실행 상세에서 원인을 확인하고 재시도하세요`;
+  if (failed > 0) return t('merge.failed', { count: failed });
 
   const parts = [
     delivered > 0
-      ? `${delivered}건을 유저에게 되돌렸습니다`
+      ? t('merge.delivered', { count: delivered })
       : merged > 0
         // 머지 ≠ 배포 ≠ 해결. 되돌림이 안 나갔다고 「끝났다」고 말하면 안 된다.
-        ? '이미 반영한 수정에는 알림이 나갔습니다 · 배포·해결 여부는 상세에서 확인하세요'
-        : '아직 반영한 수정이 없습니다',
+        ? t('merge.already')
+        : t('merge.none'),
   ];
-  if (deferred > 0) parts.push(`${deferred}건은 다음에 보냅니다`);
-  if (skipped > 0) parts.push(`${skipped}개 실행은 다음 확인에서 봅니다`);
+  if (deferred > 0) parts.push(t('merge.deferred', { count: deferred }));
+  if (skipped > 0) parts.push(t('merge.skipped', { count: skipped }));
   return parts.join(' · ');
 }
 

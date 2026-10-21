@@ -18,6 +18,9 @@ import type demo from '../../messages/en/demo.json';
 import type errors from '../../messages/en/errors.json';
 import type server from '../../messages/en/server.json';
 import type email from '../../messages/en/email.json';
+import type monitor from '../../messages/en/monitor.json';
+import type classify from '../../messages/en/classify.json';
+import type feedbackConfirm from '../../messages/en/feedbackConfirm.json';
 
 declare module 'next-intl' {
   interface AppConfig {
@@ -40,6 +43,9 @@ declare module 'next-intl' {
       errors: typeof errors;
       server: typeof server;
       email: typeof email;
+      monitor: typeof monitor;
+      classify: typeof classify;
+      feedbackConfirm: typeof feedbackConfirm;
     };
   }
 }

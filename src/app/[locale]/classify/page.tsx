@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { ClassificationTabs } from '@/components/classify/ClassificationTabs';
 import type { GroupRef, Insight } from '@/components/classify/types';
 import { Loader2, Sparkles } from 'lucide-react';
@@ -23,6 +23,8 @@ import { ScopeNote } from '@/components/layout/BotScopeSelect';
 import { isGroupable } from '@/lib/classify/taxonomy';
 
 interface RecoveryState { counts: Record<string, number>; failures: { id: string; classification_state: string; classification_attempts: number; classification_error: string | null }[] }
+
+type Translate = ReturnType<typeof useTranslations<'classify'>>;
 
 const EMPTY_GROUPS = new Map<string, GroupRef>();
 
@@ -44,36 +46,33 @@ function describeClassifyResult(json: {
   failedBots?: number;
   deferredBots?: number;
   limitedBots?: number;
-}): string {
+}, t: Translate): string {
   const done = json.classified ?? 0;
   const parts: string[] = [];
 
-  if (json.failed) parts.push(`${json.failed}건 분류 실패`);
-  if (json.exhausted) parts.push(`${json.exhausted}건 재시도 한도 도달 · 원인을 확인하고 다시 예약하세요`);
-  if (json.noInsight) parts.push(`${json.noInsight}건은 제보 생성 대상이 아니에요`);
-  if (json.deferred) parts.push('남은 처리는 보류되었습니다');
-  if (done > 0) parts.push(`${done}건을 분류했어요`);
+  if (json.failed) parts.push(t('result.failed', { count: json.failed }));
+  if (json.exhausted) parts.push(t('result.exhausted', { count: json.exhausted }));
+  if (json.noInsight) parts.push(t('result.noInsight', { count: json.noInsight }));
+  if (json.deferred) parts.push(t('result.deferred'));
+  if (done > 0) parts.push(t('result.done', { count: done }));
 
   if (json.failedBots) {
-    parts.push(
-      done > 0
-        ? `${json.failedBots}개 봇은 실패했어요 (API 키 설정을 확인해 주세요)`
-        : `분류에 실패했어요. API 키 설정을 확인해 주세요`,
-    );
+    parts.push(done > 0 ? t('result.failedBotsPartial', { count: json.failedBots }) : t('result.failedBotsAll'));
   }
-  if (json.limitedBots) parts.push(`${json.limitedBots}개 봇은 오늘 사용량을 다 썼어요`);
-  if (json.deferredBots) parts.push(`${json.deferredBots}개 봇은 다음에 이어서 처리해요`);
+  if (json.limitedBots) parts.push(t('result.limitedBots', { count: json.limitedBots }));
+  if (json.deferredBots) parts.push(t('result.deferredBots', { count: json.deferredBots }));
 
   if (parts.length === 0) {
     // 실패도 없고 분류한 것도 없다. 남은 게 있는지로 갈린다.
-    return json.pending ? `남은 ${json.pending}건을 분류하지 못했어요` : '분류할 새 피드백이 없어요';
+    return json.pending ? t('result.leftNone', { count: json.pending }) : t('result.nothingNew');
   }
-  if (done > 0 && json.pending) parts.push(`${json.pending}건이 남았어요`);
+  if (done > 0 && json.pending) parts.push(t('result.left', { count: json.pending }));
 
   return parts.join(' · ');
 }
 
 export default function ClassifyPage() {
+  const t = useTranslations('classify');
   const { status: authStatus } = useSession();
   const demo = useDemoMode<{ insights: Insight[] }>('classify');
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -99,7 +98,7 @@ export default function ClassifyPage() {
         fetch(scopedUrl('/api/classify', botId)),
         fetch(scopedUrl('/api/groups', botId)),
       ]);
-      if (!insightsRes.ok) throw new Error(`API 오류: ${insightsRes.status}`);
+      if (!insightsRes.ok) throw new Error(t('errors.api', { status: insightsRes.status }));
       const insightsJson = await insightsRes.json();
       setInsights(insightsJson.insights || []);
       setRecovery(insightsJson.recovery ?? { counts: {}, failures: [] });
@@ -112,11 +111,11 @@ export default function ClassifyPage() {
         setGrouping(groupsJson.grouping ?? null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '데이터를 불러오지 못했습니다');
+      setError(err instanceof Error ? err.message : t('errors.load'));
     } finally {
       setLoading(false);
     }
-  }, [botId]);
+  }, [botId, t]);
 
   const handleClassify = async () => {
     try {
@@ -127,12 +126,12 @@ export default function ClassifyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scopedBody({}, botId)),
       });
-      if (!res.ok) throw new Error(`분류 실패: ${res.status}`);
+      if (!res.ok) throw new Error(t('errors.classifyStatus', { status: res.status }));
       const json = await res.json();
-      setNotice(describeClassifyResult(json));
+      setNotice(describeClassifyResult(json, t));
       await fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '분류에 실패했습니다');
+      setError(err instanceof Error ? err.message : t('errors.classify'));
     } finally {
       setClassifying(false);
     }
@@ -150,14 +149,14 @@ export default function ClassifyPage() {
         body: JSON.stringify(scopedBody({}, botId)),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '묶기에 실패했습니다');
+      if (!res.ok) throw new Error(json.error || t('errors.group'));
       setNotice(
-        json.busy && !json.grouped ? '이미 자동으로 묶는 중이에요. 잠시 뒤 다시 읽어요'
-          : json.grouped ? `${json.grouped}건을 묶었어요` : '묶을 수 있는 피드백이 없어요',
+        json.busy && !json.grouped ? t('group.busy')
+          : json.grouped ? t('group.grouped', { count: json.grouped }) : t('group.nothing'),
       );
       await fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '묶기에 실패했습니다');
+      setError(err instanceof Error ? err.message : t('errors.group'));
     } finally {
       setRunningGrouping(false);
     }
@@ -169,10 +168,10 @@ export default function ClassifyPage() {
     try {
       const response = await fetch('/api/classify', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId }) });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error ?? '다시 예약하지 못했습니다');
+      if (!response.ok) throw new Error(json.error ?? t('errors.reschedule'));
       await fetchData();
-      setNotice('새 복구 주기를 예약했습니다. 미분류 메시지 분류로 실행할 수 있습니다.');
-    } catch (err) { setError(err instanceof Error ? err.message : '재시도 실패'); }
+      setNotice(t('rescheduled'));
+    } catch (err) { setError(err instanceof Error ? err.message : t('errors.retry')); }
     finally { setRetrying(null); }
   };
 
@@ -222,31 +221,27 @@ export default function ClassifyPage() {
   // 계정에서 「안 묶인 제보 120건 · 전체 50건」처럼 부분이 전체보다 커진다.
   // 목록이 상한에 닿았으면 「50건+」로 적어 «여기 보이는 게 전부가 아니다»를 말한다.
   const CLASSIFY_LIST_LIMIT = 50;
-  const shownLabel = shown.length >= CLASSIFY_LIST_LIMIT ? `${shown.length}건+` : `${shown.length}건`;
+  const shownLabel = t('total', { count: shown.length, plus: shown.length >= CLASSIFY_LIST_LIMIT ? 'yes' : 'no' });
 
   return (
     <div className="flex flex-col gap-10 sm:gap-12">
       <PageHero
         emoji={PAGE_EMOJI.classify}
-        title="피드백"
+        title={t('title')}
         description={
           <>
             <ScopeNote />
-            {shown.length === 0 ? (
-              '아직 분류된 제보가 없어요'
-            ) : ungrouped > 0 ? (
-              <>
-                아직 안 묶인 제보 <strong className="tabular-nums">{ungrouped}건</strong> · 전체 {shownLabel}
-              </>
-            ) : (
-              <>전체 <strong className="tabular-nums">{shownLabel}</strong> · 안 묶인 제보 없음</>
-            )}
+            {shown.length === 0
+              ? t('subtitleEmpty')
+              : ungrouped > 0
+                ? t.rich('subtitleUngrouped', { count: ungrouped, total: shownLabel, strong: (chunks) => <strong className="tabular-nums">{chunks}</strong> })
+                : t.rich('subtitleAllGrouped', { total: shownLabel, strong: (chunks) => <strong className="tabular-nums">{chunks}</strong> })}
           </>
         }
         actions={
           <Button onClick={handleClassify} disabled={classifying || demo.isDemo}>
             {classifying ? <Loader2 className="animate-spin" /> : <Sparkles />}
-            미분류 메시지 분류
+            {t('runClassify')}
           </Button>
         }
       />
@@ -259,22 +254,22 @@ export default function ClassifyPage() {
 
       {/* 복구 상태 — 카드 하나. 제목은 본문 크기(14/600)다. 이 화면의 주인공은 아래 목록이라
           20px 섹션 제목을 주면 보조 패널이 주인공과 같은 음량으로 말한다. */}
-      {!demo.isDemo && <section className="card-surface p-5 sm:p-6" aria-label="분류 복구 상태">
-        <h2 className="text-sm font-semibold">분류 복구</h2>
+      {!demo.isDemo && <section className="card-surface p-5 sm:p-6" aria-label={t('recovery.aria')}>
+        <h2 className="text-sm font-semibold">{t('recovery.title')}</h2>
         {/* 0 인 항목은 말하지 않는다. 늘 네 가지를 나열하면 평상시에 0 이 세 개씩 붙어
             390px 에서 두 줄로 접히고, 정작 중요한 「대기 3」이 그 안에 묻힌다. */}
         <p className="mt-1.5 text-sm text-muted-foreground tabular-nums">
           {[
-            recovery.counts.pending ? `대기 ${recovery.counts.pending}` : null,
-            recovery.counts.processing ? `처리 중 ${recovery.counts.processing}` : null,
-            recovery.counts.failed ? `실패 ${recovery.counts.failed}` : null,
-            recovery.counts.exhausted ? `한도 도달 ${recovery.counts.exhausted}` : null,
-          ].filter(Boolean).join(' · ') || '밀린 분류가 없어요'}
+            recovery.counts.pending ? t('recovery.pending', { count: recovery.counts.pending }) : null,
+            recovery.counts.processing ? t('recovery.processing', { count: recovery.counts.processing }) : null,
+            recovery.counts.failed ? t('recovery.failed', { count: recovery.counts.failed }) : null,
+            recovery.counts.exhausted ? t('recovery.exhausted', { count: recovery.counts.exhausted }) : null,
+          ].filter(Boolean).join(' · ') || t('recovery.none')}
         </p>
-        <p className="mt-1 text-[12.5px] leading-relaxed text-faint">실패는 제한된 횟수로 재시도합니다. 한도 도달 건은 원인을 확인한 뒤 새 복구 주기를 예약하세요. 오래된 순으로 최대 50건을 표시합니다.</p>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-faint">{t('recovery.note')}</p>
         {recovery.failures.map(failure => <div key={failure.id} className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-          <p className="min-w-0 text-[12.5px] text-muted-foreground">메시지 {failure.id.slice(0, 8)} · {failure.classification_attempts}회 · {failure.classification_error ?? '원인 미확인'}</p>
-          {failure.classification_state === 'exhausted' && <Button size="sm" variant="outline" disabled={retrying !== null} onClick={() => retryExhausted(failure.id)}>새 복구 주기 예약</Button>}
+          <p className="min-w-0 text-[12.5px] text-muted-foreground">{t('recovery.row', { id: failure.id.slice(0, 8), attempts: failure.classification_attempts, error: failure.classification_error ?? t('recovery.unknownCause') })}</p>
+          {failure.classification_state === 'exhausted' && <Button size="sm" variant="outline" disabled={retrying !== null} onClick={() => retryExhausted(failure.id)}>{t('recovery.reschedule')}</Button>}
         </div>)}
       </section>}
 
@@ -283,11 +278,13 @@ export default function ClassifyPage() {
         {/* 이 화면엔 [PR 만들기]가 없다(I-10 — 묶기가 자동이라 PR 은 묶음 단위로만 만든다).
             그 사실을 어디서도 말하지 않으면 운영자는 버튼을 찾다가 못 찾는다. */}
         <p className="text-sm leading-relaxed text-muted-foreground">
-          제보를 하나씩 보는 화면입니다. PR 은 대시보드의{' '}
-          <Link href="/dashboard" className="font-semibold text-brand-strong underline underline-offset-2">
-            피드백 묶음
-          </Link>
-          에서 만듭니다.
+          {t.rich('hint', {
+            link: (chunks) => (
+              <Link href="/dashboard" className="font-semibold text-brand-strong underline underline-offset-2">
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
         {!demo.isDemo && (
           <GroupingStatusLine

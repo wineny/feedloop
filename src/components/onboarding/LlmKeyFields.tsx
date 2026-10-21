@@ -179,7 +179,7 @@ export function ModelPicker({
           <option key={m.id} value={m.id}>
             {m.label}
             {m.id === RECOMMENDED[provider] ? ` · ${t('fields.recommended')}` : ''}
-            {m.note ? ` — ${dynamicT(t).has(`models.${modelKey(m.id)}`) ? dynamicT(t)(`models.${modelKey(m.id)}`) : m.note}` : ''}
+            {dynamicT(t).has(`models.${modelKey(m.id)}`) ? ` — ${dynamicT(t)(`models.${modelKey(m.id)}`)}` : ''}
           </option>
         ))}
         <option value={CUSTOM_MODEL}>{t('fields.custom')}</option>

@@ -9,6 +9,7 @@
 
 import type { PickedShotData } from '@/lib/widget/picked-shot';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { PrReview } from '@/lib/auto-dev/pr-review';
 import type { RunExplanation } from '@/lib/auto-dev/explanation';
 import type { PickedTarget } from '@/lib/auto-dev/picked-targets';
@@ -69,6 +70,10 @@ export function usePrReview(runId: string | null, enabled: boolean) {
   const [loading, setLoading] = useState(false);
   const [pollsLeft, setPollsLeft] = useState(BUILD_POLL_MAX);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 오류 기본 문구. 번역 함수가 렌더마다 바뀌어도 load 가 다시 만들어져 재조회하지 않게 ref 로 든다
+  const t = useTranslations('monitor.errors');
+  const fallback = useRef(t('prInfo'));
+  fallback.current = t('prInfo');
 
   const load = useCallback(async () => {
     if (!runId || !enabled) return;
@@ -76,11 +81,11 @@ export function usePrReview(runId: string | null, enabled: boolean) {
     try {
       const res = await fetch(`/api/auto-dev/runs/${runId}/pr`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'PR 정보를 읽지 못했어요');
+      if (!res.ok) throw new Error(json.error || fallback.current);
       setData(json as PrReviewResponse);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'PR 정보를 읽지 못했어요');
+      setError(err instanceof Error ? err.message : fallback.current);
     } finally {
       setLoading(false);
     }

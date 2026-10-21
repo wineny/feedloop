@@ -155,9 +155,7 @@ export async function verifyUnverifiedItem(input: VerifyInput): Promise<Unverifi
   return { ...verdict, checkedAt, files: sources.map((s) => s.path) };
 }
 
-export { VERDICT_LABEL } from './review-labels';
-
-/** GitHub 댓글의 판정 머리말 — GitHub 에 남는 글은 영어 고정(4단계). 화면 라벨은 review-labels.ts 의 VERDICT_LABEL. */
+/** GitHub 댓글의 판정 머리말 — GitHub 에 남는 글은 영어 고정(4단계). 화면 라벨은 사전 `monitor.verdict.<status>`. */
 const VERDICT_LABEL_EN: Record<UnverifiedVerdict['status'], string> = {
   fix_holds: 'the fix looks well-founded',
   fix_does_not_hold: 'the fix has a problem',

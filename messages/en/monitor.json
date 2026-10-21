@@ -1,0 +1,364 @@
+{
+  "title": "Fix PRs",
+  "subtitleOpen": "<strong>{count, plural, one {# fix PR} other {# fix PRs}}</strong> waiting for review",
+  "subtitleNone": "No fix PRs waiting for review",
+  "checkMerged": "Check for shipped fixes",
+  "checking": "Checking… {seconds}s",
+  "bridge": "Code fixes drafted by AI · on GitHub they open as pull requests (PRs)",
+  "empty": "No runs yet. Click “Create fix PR” on a feedback group in the dashboard and runs collect here.",
+  "noRunsInState": "No runs in this state.",
+  "moreFilters": "{count} more",
+  "lessFilters": "Show less",
+  "justMade": "PR just created",
+  "filterAll": "All",
+  "state": {
+    "running": "In progress",
+    "open": "Awaiting review",
+    "merged": "Shipped",
+    "closed": "Closed",
+    "failed": "Failed",
+    "stopped": "Stopped",
+    "unverifiable": "Can't verify"
+  },
+  "subline": {
+    "running": "Creating a fix…",
+    "runFailed": "Run failed",
+    "onHold": "Fix on hold",
+    "noReason": "No reason set",
+    "closed": "PR #{number} · Not shipped · {reason}",
+    "pr": "PR #{number}",
+    "filesUnknown": "File count unknown",
+    "files": "{count, plural, one {# file} other {# files}}"
+  },
+  "duration": {
+    "seconds": "{seconds}s",
+    "minutesSeconds": "{minutes}m {seconds}s"
+  },
+  "merge": {
+    "demo": "Checked whether fixes shipped. Nothing new shipped (this is a practice screen, so the examples stay as they are).",
+    "slow": "Checking PRs on GitHub one by one. This can take up to 2 minutes.",
+    "failed": "{count, plural, one {# PR} other {# PRs}} failed to check · open the run details to find the cause and retry",
+    "delivered": "Sent {count, plural, one {# notification} other {# notifications}} to the people who reported",
+    "already": "Notifications already went out for fixes that shipped · check deployment and resolution in the details",
+    "none": "No fixes have shipped yet",
+    "deferred": "{count, plural, one {# notification} other {# notifications}} will be sent next time",
+    "skipped": "{count, plural, one {# run} other {# runs}} will be checked next time"
+  },
+  "errors": {
+    "api": "API error: {status}",
+    "load": "Couldn't load the run history",
+    "check": "Check failed",
+    "save": "Couldn't save",
+    "redeliver": "Couldn't resend",
+    "shape": "The response wasn't in the expected shape",
+    "prInfo": "Couldn't read the PR details"
+  },
+  "detail": {
+    "viewOnGithub": "View PR #{number} on GitHub",
+    "dt": {
+      "validation": "Validation",
+      "prCreated": "PR created",
+      "deployment": "Deployment",
+      "userConfirm": "User confirmation",
+      "stopReason": "Stop reason",
+      "followUpError": "Follow-up error",
+      "evidence": "Supporting feedback",
+      "repo": "Repository",
+      "stopDetail": "Why it stopped",
+      "elapsed": "Time taken",
+      "closedNotShipped": "Closed, not shipped",
+      "reason": "Reason",
+      "shipped": "Shipped"
+    },
+    "validation": {
+      "passed": "Validation passed",
+      "failed": "Validation failed",
+      "stopped": "Validation stopped",
+      "unverifiable": "Not verified in isolation",
+      "unknown": "Validation not confirmed"
+    },
+    "pr": {
+      "created": "Created",
+      "publishing": "Checking the creation result · duplicate creation on hold",
+      "notYet": "Not created yet"
+    },
+    "deploy": {
+      "success": "Deployment reported success",
+      "failed": "Deployment failed",
+      "pending": "Deployment in progress",
+      "unknown": "Deployment not confirmed"
+    },
+    "deployReason": {
+      "environment_not_configured": "No deployment environment is connected",
+      "merge_sha_unknown": "Couldn't find the ship record"
+    },
+    "userConfirm": {
+      "unresolved": "Some replies say it's still broken",
+      "allFixed": "Every reporter confirmed the fix",
+      "waiting": "Waiting for confirmation"
+    },
+    "followUpHint": "{error} · you can check again with “Check for shipped fixes”",
+    "evidenceSummary": "Checks run and results · attempt {attempt}",
+    "evidenceCommit": "Base commit {base} · patch {patch}",
+    "checkLine": "{stage} · {id} · exit code {exitCode} · {durationMs}ms",
+    "checkBefore": "Before fix",
+    "checkAfter": "After fix",
+    "exitNone": "none",
+    "timedOut": " · timed out",
+    "noChecks": "No record of checks that ran.",
+    "evidenceItems": "<b>{count, plural, one {# item} other {# items}}</b>",
+    "evidencePeople": "<b>{count, plural, one {# person} other {# people}}</b>",
+    "noRepo": "No repository",
+    "running": "In progress",
+    "startedAt": "Started {when}",
+    "closedLine": "{when} · Closed without shipping. No notification goes out",
+    "shippedLine": "{when}",
+    "shippedNotified": " · {count, plural, one {# notification went} other {# notifications went}} out at {time}",
+    "notify": {
+      "title": "Notifications",
+      "sub": "Tells people the fix shipped. Deployment and resolution are checked separately",
+      "empty": "No notifications sent yet. Click “Check for shipped fixes” to detect the ship and send them.",
+      "delivered": "Delivered",
+      "waiting": "Waiting · delivered when they next message",
+      "beforeDelivery": "Not delivered",
+      "emailUnknown": " · Email delivery needs checking · resend on hold until the provider confirms",
+      "emailFailed": " · Email failed · can retry",
+      "emailSkipped": " · Email not sent · joined a repeat report",
+      "emailSent": " · Email sent",
+      "channelFailed": "{count, plural, one {# Channel Talk notification} other {# Channel Talk notifications}} not sent",
+      "resend": "Resend notifications",
+      "kakaoPending": "{count, plural, one {# KakaoTalk notification goes} other {# KakaoTalk notifications go}} out when that person next messages. It can't be pushed from here.",
+      "kakaoNote": "On KakaoTalk, the notice is added in front of the reply after the person next messages. For “Still broken”, continue in the Inbox tab."
+    },
+    "confirm": {
+      "fixed": "Yes, it works",
+      "notFixed": "Still broken",
+      "noReply": "No reply"
+    },
+    "closeReason": {
+      "aria": "Reason the fix wasn't shipped",
+      "hintEmpty": "Pick a reason and you'll see which mistakes repeat",
+      "unset": "No reason set",
+      "notePlaceholder": "Note (optional) — one line on what was wrong",
+      "noteAria": "Note on why the fix wasn't shipped"
+    },
+    "log": {
+      "title": "Run log",
+      "note": "Check the validation record above for the actual results. With no record, validation is unconfirmed. Shipping, deployment and user confirmation are separate steps.",
+      "idle": "Choose a run and its log flows here",
+      "prDone": "PR #{number} created!",
+      "disconnected": "The live connection dropped. Checking the saved run state again."
+    }
+  },
+  "retry": {
+    "nothing": "No notifications to send",
+    "sent": "Sent {count}",
+    "refused": "Channel Talk refused {count}",
+    "remaining": "{count} left. Press again, or they go out when the customer next messages",
+    "cantNow": "No notifications can be sent right now",
+    "exhausted": "{count} failed several times and won't be sent again. Check the Channel Talk connection and that the conversation is still open",
+    "skippedNonChannel": "{count} are on another channel and go out when the customer next messages"
+  },
+  "diff": {
+    "none": "No changed files.",
+    "status": {
+      "added": "New file",
+      "removed": "Deleted",
+      "renamed": "Renamed",
+      "modified": "Modified"
+    },
+    "patchTruncated": "The change is long, so only the beginning is shown. See the full diff on GitHub.",
+    "noPreview": "This file can't be previewed (it's binary or too large).",
+    "filesTruncated": "Over 100 files, so only some are shown. See all of them on GitHub."
+  },
+  "review": {
+    "facts": {
+      "evidence": "Supporting feedback",
+      "items": "{count, plural, one {# <small>item</small>} other {# <small>items</small>}}",
+      "people": "{count, plural, one {# <small>person</small>} other {# <small>people</small>}}",
+      "noRepo": "No repository",
+      "picked": "<m>Picked element </m><l>{label}</l><a> → </a><f>{files}</f><m> renders it</m>",
+      "pickedUnconfirmed": "<m>Picked element </m><l>{label}</l><m> · couldn't confirm in the repository source</m>",
+      "pickedEvidence": "Confirmed in source: {evidence}",
+      "preview": "Preview",
+      "previewShipped": "Shipped · deployment checked separately",
+      "previewOpen": "Open preview",
+      "reading": "Reading…",
+      "previewBuilding": "Building",
+      "previewNone": "No preview",
+      "previewAfterShip": "Whether a preview exists after shipping depends on the deployment service",
+      "previewLogin": "You need to be logged in to Vercel to open it",
+      "previewSoon": "A link appears when the deployment finishes",
+      "previewNoRepo": "This repository has no preview deployment",
+      "build": "Build",
+      "buildReadFailed": "Couldn't read",
+      "buildPassed": "Passed",
+      "buildFailed": "Failed",
+      "buildPending": "In progress",
+      "buildUnknown": "Unknown",
+      "buildUnavailable": "Couldn't ask for the build status — the token lacks Checks / Commit statuses permission, or GitHub refused. You'll ship without a check",
+      "noVercelWaiting": "Vercel isn't connected to this repository",
+      "noVercel": "Vercel isn't connected to this repository. Shipping isn't blocked",
+      "buildLog": "Build log"
+    },
+    "gate": {
+      "waiting": {
+        "title": "Waiting for automatic checks",
+        "tail": "It becomes ready for review once they pass",
+        "tailNoChecks": "With no checks to wait for, it becomes ready for review 10 minutes after the PR opens"
+      },
+      "failed": {
+        "title": "Automatic checks failed, so it stays a draft",
+        "checks": "Failed checks: "
+      },
+      "promoted": {
+        "title": "Passed the automatic checks and was marked ready for review",
+        "titleNoChecks": "There were no automatic checks to wait for, so it was marked ready for review 10 minutes after the PR opened"
+      },
+      "unsupported": {
+        "title": "This repository doesn't support draft PRs, so it was opened directly"
+      },
+      "human": {
+        "title": "No permission to read check results, so it wasn't changed automatically",
+        "tail": "Check it yourself and ship"
+      },
+      "manual": {
+        "title": "The owner turned this PR back into a draft",
+        "tail": "It won't be changed automatically"
+      },
+      "transient": {
+        "title": "Something went wrong, so it couldn't be changed automatically",
+        "tail": "Will check again shortly"
+      }
+    },
+    "unverified": {
+      "title": "Couldn't verify",
+      "wrongCause": "Don't ship, citing “Fix with the wrong cause”",
+      "filesRead": "Files read:",
+      "verifying": "Checking…",
+      "verify": "Ask the AI to check",
+      "askReporter": "Ask the reporter",
+      "how": {
+        "code": "Can be checked in code",
+        "reporter": "Can't be checked in code · only the reporter knows",
+        "human": "A person has to check it in the preview"
+      },
+      "reads": "Rereads <f>files</f> and reassesses · about 40 s",
+      "inboxQuestion": "In the Inbox tab: “{question}”",
+      "footer": "Check it in the preview before you ship."
+    },
+    "explanation": {
+      "title": "What this fix does",
+      "sourcePrBody": "No saved explanation, so this was extracted from the PR body",
+      "sourceAi": "The explanation the AI wrote while fixing the code",
+      "none": "This fix has no explanation. See “Changed code” below and the PR body on GitHub.",
+      "problem": "What was wrong",
+      "change": "What changed",
+      "effect": "Once shipped",
+      "noEffect": "Not in the explanation"
+    },
+    "changedCode": "Changed code",
+    "fileStats": "{count, plural, one {# file} other {# files}} · ",
+    "devNote": "For developers · click a file to expand",
+    "noFileInfo": "No changed-file info",
+    "githubReadFailed": "Couldn't read from GitHub — {error}",
+    "aiNote": "The AI's code judgment is advisory. Check the validation record above for the actual results.",
+    "ship": "Ship to the service",
+    "shipNoBuild": "Ship without a build check",
+    "shipping": "Shipping…",
+    "dontShip": "Don't ship",
+    "buildFailedHelp": "Check the <log>build log</log>. If it can't be fixed, choose “{reason}” under “{action}”. The button unlocks once the build passes again.",
+    "pollStopped": "It's been over 30 minutes, so automatic checking stopped. <retry>Check again</retry>",
+    "polling": "Checking again every minute.",
+    "shipSummary": "Ship PR #{number} to the service and send a notification to {people, plural, one {# reporter} other {# reporters}}. Deployment success and problem resolution are checked separately. Check email delivery results in the follow-up records. The GitHub ship record is attributed to the connected account.",
+    "close": {
+      "title": "Don't ship",
+      "desc": "Pick one reason and you'll see which mistakes the AI repeats. Nobody who left feedback is notified, and PR #{number} on GitHub is closed.",
+      "groupAria": "Reason for not shipping",
+      "noteAria": "Note on why it isn't shipped",
+      "back": "Go back",
+      "groupNote": "This feedback group returns to “open”. You can request a new fix later."
+    },
+    "notice": {
+      "shipped": "Shipped · {count, plural, one {# notification} other {# notifications}} ready",
+      "emailed": "{count, plural, one {# email} other {# emails}}",
+      "mergeMethod": "Shipped with the default method because of the repository settings",
+      "loopError": "Some notifications failed: {error}"
+    },
+    "errors": {
+      "ship": "Couldn't ship",
+      "close": "Couldn't close",
+      "verify": "Couldn't check"
+    },
+    "mergeReason": {
+      "transient": "Something went wrong, so shipping was paused. Please try again in a moment",
+      "checks_unavailable": "Shipping was paused because there's no permission to read check results. Check the check-read permission on GitHub and try again"
+    }
+  },
+  "mergeBlock": {
+    "merged": "This fix has already shipped",
+    "closed": "This fix was already closed on GitHub",
+    "build_failed": "Shipping is blocked because the build failed. Shipping in this state may break the service",
+    "build_pending": "The build is still running. You can ship once it finishes",
+    "conflict": "The original code changed in the meantime and conflicts with this fix. Resolve the conflict on GitHub before shipping",
+    "draft_waiting": "This draft is waiting for automatic checks. You can ship once it becomes ready for review",
+    "manual_draft": "The owner turned this PR back into a draft. Mark it ready for review on GitHub to ship"
+  },
+  "verdict": {
+    "fix_holds": "AI opinion · the reasoning for the fix looks sound",
+    "fix_does_not_hold": "AI opinion · the reasoning for the fix has problems",
+    "inconclusive": "AI opinion · can't tell"
+  },
+  "closeReason": {
+    "hallucinated_path": {
+      "label": "Invented a path or symbol that doesn't exist",
+      "hint": "References a nonexistent file, function or translation key, so the build breaks or a useless file appears (PR #1·#5 type)"
+    },
+    "wrong_causality": {
+      "label": "Fix with the wrong cause",
+      "hint": "Changed a real file, but it has nothing to do with the symptom or can never run (PR #6 type)"
+    },
+    "duplicate": {
+      "label": "Duplicate PR",
+      "hint": "A PR for the same problem already existed (PR #4 type)"
+    },
+    "superseded": {
+      "label": "Replaced by another PR",
+      "hint": "A person fixed it directly, or another PR solved the same problem"
+    },
+    "other": {
+      "label": "Other",
+      "hint": "A reason not listed above — write it in the note"
+    }
+  },
+  "stopReason": {
+    "root_cause_unknown": "The AI couldn't find the file that causes the problem — it reopened the file it pointed to once more but couldn't settle on where to fix",
+    "insufficient_evidence": "Not enough evidence — couldn't find code in the repository that matches the report",
+    "no_change": "The AI decided there was nothing to fix",
+    "reproduction_already_passes": "The reproduction check already passed before the fix, so there's nothing to fix",
+    "budget_exhausted": "Time or cost budget used up — a retry can pick a different candidate",
+    "deadline_exceeded": "Time limit exceeded",
+    "budget_unverifiable": "Model settings whose cost can't be calculated — needs an admin check",
+    "group_follow_up_hold": "On hold until the follow-up check on the previous PR in this group finishes",
+    "target_group_changed": "The target group changed during the run",
+    "execution_lease_lost": "Another run took over the same job, so this one stopped",
+    "publication_race_retry_required": "PR publishing overlapped — retry needed",
+    "validated_evidence_present": "A run with a passing validation record isn't resumed without validation",
+    "publication_reconciliation_binding_mismatch": "Stopped because the publish record and the fix don't match",
+    "validation_binding_mismatch": "Stopped because the validation record and the fix don't match",
+    "validation_profile_digest_mismatch": "Validation settings changed during the run",
+    "invalid_validation_profiles": "Validation settings have an invalid format",
+    "validation_profiles_absolute_path_required": "Validation settings paths must be absolute",
+    "repository_mismatch": "The repository changed during the run",
+    "foreign_publication_branch": "A branch with the same name already exists, so it wasn't overwritten",
+    "foreign_publication_pr": "A PR for the same branch already exists, so a new one wasn't opened",
+    "snapshot_too_large": "The repository is too large for isolated validation",
+    "snapshot_file_too_large": "A file over 1 MB blocks isolated validation",
+    "snapshot_tree_truncated": "The repository tree was cut off, so isolated validation couldn't run",
+    "snapshot_unsupported": "A file type that isolated validation doesn't support",
+    "unsafe_snapshot_path": "An unsafe path blocks isolated validation",
+    "unsafe_snapshot_symlink_or_submodule": "Symlinks or submodules block isolated validation",
+    "durable_publication_callbacks_required": "Internal error — publish record callback missing",
+    "durable_attempt_callbacks_required": "Internal error — attempt record callback missing"
+  }
+}

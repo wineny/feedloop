@@ -6,6 +6,8 @@ import { runGroupingNow } from '@/lib/groups/auto-grouping';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { runClassificationRecovery } from '@/lib/classify/recovery';
 import { apiText } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
+import type { Locale } from '@/i18n/routing';
 
 const IN_CHUNK = 100;
 export const maxDuration = 300;
@@ -156,7 +158,7 @@ export async function GET(req: NextRequest) {
   const counts = await Promise.all(states.map(state => db.from('messages').select('id', { count: 'exact', head: true }).in('bot_id', auth.botIds).eq('classification_state', state)));
   const failures = await db.from('messages').select('id, classification_state, classification_attempts, classification_error, detected_at').in('bot_id', auth.botIds).in('classification_state', ['failed', 'exhausted']).order('detected_at', { ascending: true }).limit(50);
   if (counts.some(result => result.error) || failures.error) return NextResponse.json({ error: apiText(req, 'triageRecoveryReadFailed') }, { status: 500 });
-  const insights = await withPickedShots(data || [], auth.botIds);
+  const insights = await withPickedShots(data || [], auth.botIds, localeFromRequest(req, 'operator'));
   return NextResponse.json({ insights, recovery: { counts: Object.fromEntries(states.map((state, index) => [state, counts[index].count ?? 0])), failures: failures.data ?? [] } });
 }
 
@@ -164,7 +166,7 @@ export async function GET(req: NextRequest) {
  * 「화면에서 선택하기」(I-55) — 짚은 요소가 있는 행에 `picked`(라벨·rect·뷰포트) + 10분 서명 URL 을 싣고,
  * 원본 context(html 뼈대·UA 등)는 목록 응답에서 뺀다. 소유 확인(resolveOwnedBots)을 지난 뒤에만 부른다.
  */
-async function withPickedShots<T extends { message_id: string; messages: unknown }>(rows: T[], botIds: string[]) {
+async function withPickedShots<T extends { message_id: string; messages: unknown }>(rows: T[], botIds: string[], locale: Locale) {
   const ctxOf = (r: T) => {
     const m = (Array.isArray(r.messages) ? r.messages[0] : r.messages) as { context?: unknown } | null;
     return m?.context ?? null;
@@ -175,7 +177,7 @@ async function withPickedShots<T extends { message_id: string; messages: unknown
     const context = ctxOf(r);
     const m = (Array.isArray(r.messages) ? r.messages[0] : r.messages) as ({ context?: unknown; detected_at?: string } & Record<string, unknown>) | null;
     const messages = m ? (({ context: _c, ...rest }) => (void _c, rest))(m) : m;
-    const picked = pickedFromContext(context, shots[r.message_id], m?.detected_at);
+    const picked = pickedFromContext(context, shots[r.message_id], m?.detected_at, locale);
     return { ...r, messages, picked };
   });
 }

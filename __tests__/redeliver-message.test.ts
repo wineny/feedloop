@@ -3,7 +3,9 @@ import {
   buildRetryMessage,
   countUndeliveredBySource,
   parseRunRetryOutcome,
+  RetryShapeError,
 } from '@/lib/monitor/redeliver-message';
+import { translator } from './helpers/intl';
 import type { RunReturn } from '@/app/api/auto-dev/runs/route';
 import type { RunRetryOutcome } from '@/lib/channel/redeliver';
 
@@ -33,8 +35,11 @@ const ZERO: RunRetryOutcome = {
   skippedNonChannel: 0,
 };
 
+// 문구는 사전 `monitor.retry.*` — 실제 영어 사전으로 읽는다.
+const t = translator('monitor.retry') as unknown as Parameters<typeof buildRetryMessage>[1];
+
 function msg(patch: Partial<RunRetryOutcome>) {
-  return buildRetryMessage({ ...ZERO, ...patch });
+  return buildRetryMessage({ ...ZERO, ...patch }, t);
 }
 
 describe('countUndeliveredBySource — 입구를 갈라 센다', () => {
@@ -66,53 +71,53 @@ describe('countUndeliveredBySource — 입구를 갈라 센다', () => {
 
 describe('buildRetryMessage — 다섯 칸이 전부 0 인 것은 오류가 아니다', () => {
   it('보낼 게 없었으면 그렇게 말한다', () => {
-    expect(buildRetryMessage(ZERO)).toEqual({
-      headline: '보낼 반영 알림이 없어요',
+    expect(buildRetryMessage(ZERO, t)).toEqual({
+      headline: 'No notifications to send',
       warning: null,
       note: null,
     });
   });
 
   it('「0건 실패」로 읽히지 않는다 — 없는 문제를 찾게 만들면 안 된다', () => {
-    const { headline, warning } = buildRetryMessage(ZERO);
-    expect(headline).not.toContain('실패');
+    const { headline, warning } = buildRetryMessage(ZERO, t);
+    expect(headline).not.toMatch(/fail/i);
     expect(warning).toBeNull();
   });
 });
 
 describe('buildRetryMessage — 이번 클릭의 결과', () => {
   it('전부 나갔으면 보낸 수만 말한다', () => {
-    expect(msg({ sent: 3 }).headline).toBe('3건 보냈어요');
+    expect(msg({ sent: 3 }).headline).toBe('Sent 3');
   });
 
   it('일부 실패하면 둘을 「 · 」로 이어 말한다', () => {
-    expect(msg({ sent: 2, failed: 1 }).headline).toBe('2건 보냈어요 · 1건은 채널톡이 거부했어요');
+    expect(msg({ sent: 2, failed: 1 }).headline).toBe('Sent 2 · Channel Talk refused 1');
   });
 
   it('거부한 주체를 밝힌다 — 「실패」로만 적으면 우리 쪽 버그처럼 읽힌다', () => {
-    expect(msg({ failed: 3 }).headline).toBe('3건은 채널톡이 거부했어요');
+    expect(msg({ failed: 3 }).headline).toBe('Channel Talk refused 3');
   });
 
   it('한 번에 5건 상한이라 남은 게 있으면 회수 경로 둘을 다 말한다', () => {
     const { headline } = msg({ sent: 5, remaining: 2 });
-    expect(headline).toContain('5건 보냈어요');
-    expect(headline).toContain('2건 남았어요');
+    expect(headline).toContain('Sent 5');
+    expect(headline).toContain('2 left');
     // 버튼만이 유일한 길이라고 오해하면 안 된다 — 고객이 말을 걸어도 나간다.
-    expect(headline).toContain('고객이 말을 걸면');
+    expect(headline).toContain('when the customer next messages');
   });
 });
 
 describe('buildRetryMessage — 고칠 것과 기다릴 것을 갈라 놓는다', () => {
   it('소진된 건은 경고로 뺀다 — 버튼을 더 눌러도 안 나간다', () => {
     const { warning } = msg({ sent: 1, exhausted: 2 });
-    expect(warning).toContain('2건');
-    expect(warning).toContain('더 보내지 않아요');
+    expect(warning).toContain('2 failed several times');
+    expect(warning).toContain("won't be sent again");
   });
 
   it('다른 채널 미전달은 실패가 아니라 정상 동작이다', () => {
     const { note, warning } = msg({ sent: 1, skippedNonChannel: 3 });
-    expect(note).toContain('3건');
-    expect(note).toContain('고객이 말 걸 때');
+    expect(note).toContain('3 are on another channel');
+    expect(note).toContain('when the customer next messages');
     // 경고 자리에 섞이면 운영자가 고치려 든다. 고칠 게 없는 건이다.
     expect(warning).toBeNull();
   });
@@ -127,8 +132,8 @@ describe('buildRetryMessage — 고칠 것과 기다릴 것을 갈라 놓는다'
   it('시도할 게 없었어도 이유가 있으면 「없어요」로 끝내지 않는다', () => {
     // 전부 소진됐거나 전부 다른 채널이면 sent·failed 가 0 이지만 할 말이 있다.
     const { headline, warning } = msg({ exhausted: 2 });
-    expect(headline).toBe('지금 보낼 수 있는 반영 알림이 없어요');
-    expect(warning).toContain('2건');
+    expect(headline).toBe('No notifications can be sent right now');
+    expect(warning).toContain('2 failed');
   });
 });
 
@@ -140,12 +145,8 @@ describe('parseRunRetryOutcome — 응답을 믿지 않고 확인한다', () => 
 
   it('칸 이름이 어긋나면 던진다 — 조용히 「보낼 게 없어요」로 뜨면 안 된다', () => {
     // 3칸 시절 응답. 그대로 통과시키면 다섯 칸이 undefined 라 「전부 0」 분기를 탄다.
-    expect(() => parseRunRetryOutcome({ sent: 1, failed: 0, considered: 1 })).toThrow(
-      '응답 형태가 예상과 달라요',
-    );
-    expect(() => parseRunRetryOutcome(null)).toThrow('응답 형태가 예상과 달라요');
-    expect(() => parseRunRetryOutcome({ ...ZERO, sent: '1' })).toThrow(
-      '응답 형태가 예상과 달라요',
-    );
+    expect(() => parseRunRetryOutcome({ sent: 1, failed: 0, considered: 1 })).toThrow(RetryShapeError);
+    expect(() => parseRunRetryOutcome(null)).toThrow(RetryShapeError);
+    expect(() => parseRunRetryOutcome({ ...ZERO, sent: '1' })).toThrow(RetryShapeError);
   });
 });

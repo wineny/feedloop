@@ -1,10 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { parseCloseReasonPatch, CLOSE_REASONS, CLOSE_REASON_LABEL, CLOSE_NOTE_MAX } from '@/lib/auto-dev/close-reason';
+import { parseCloseReasonPatch, CLOSE_REASONS, CLOSE_NOTE_MAX } from '@/lib/auto-dev/close-reason';
+import { translator } from './helpers/intl';
 
 describe('parseCloseReasonPatch', () => {
   it('사유 5종 전부 라벨이 있고 통과한다', () => {
     for (const r of CLOSE_REASONS) {
-      expect(CLOSE_REASON_LABEL[r]).toBeTruthy();
+      // 화면 라벨·설명은 사전에 있다(en·ko 둘 다)
+      for (const locale of ['en', 'ko'] as const) {
+        const t = translator('monitor.closeReason', locale);
+        expect(t(`${r}.label`)).toBeTruthy();
+        expect(t(`${r}.hint`)).toBeTruthy();
+      }
       expect(parseCloseReasonPatch({ close_reason: r })).toEqual({ ok: true, close_reason: r, close_note: null });
     }
   });

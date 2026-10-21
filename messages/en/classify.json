@@ -1,0 +1,76 @@
+{
+  "title": "Feedback",
+  "subtitleEmpty": "No classified reports yet",
+  "subtitleUngrouped": "<strong>{count, plural, one {# report} other {# reports}}</strong> not grouped yet · {total} total",
+  "subtitleAllGrouped": "<strong>{total}</strong> total · no ungrouped reports",
+  "total": "{plus, select, yes {{count}+ reports} other {{count, plural, one {# report} other {# reports}}}}",
+  "runClassify": "Triage unclassified messages",
+  "hint": "This screen shows reports one by one. Create PRs from <link>Feedback groups</link> on the dashboard.",
+  "errors": {
+    "api": "API error: {status}",
+    "load": "Couldn't load the data",
+    "classifyStatus": "Classification failed: {status}",
+    "classify": "Classification failed",
+    "group": "Grouping failed",
+    "reschedule": "Couldn't schedule again",
+    "retry": "Retry failed"
+  },
+  "result": {
+    "failed": "{count, plural, one {# item} other {# items}} failed to classify",
+    "exhausted": "{count, plural, one {# item} other {# items}} reached the retry limit · check the cause and schedule again",
+    "noInsight": "{count, plural, one {# item doesn't} other {# items don't}} need a report",
+    "deferred": "Remaining work is on hold",
+    "done": "Classified {count, plural, one {# item} other {# items}}",
+    "failedBotsPartial": "{count, plural, one {# bot} other {# bots}} failed (check the API key settings)",
+    "failedBotsAll": "Classification failed. Check the API key settings",
+    "limitedBots": "{count, plural, one {# bot} other {# bots}} used up today's quota",
+    "deferredBots": "{count, plural, one {# bot} other {# bots}} will continue next time",
+    "leftNone": "Couldn't classify the remaining {count}",
+    "nothingNew": "No new feedback to classify",
+    "left": "{count} left"
+  },
+  "group": {
+    "busy": "Already grouping automatically. Reloading shortly",
+    "grouped": "Grouped {count, plural, one {# item} other {# items}}",
+    "nothing": "No feedback can be grouped"
+  },
+  "rescheduled": "Scheduled a new recovery cycle. You can run it with “Triage unclassified messages”.",
+  "recovery": {
+    "aria": "Classification recovery status",
+    "title": "Classification recovery",
+    "pending": "Waiting {count}",
+    "processing": "Processing {count}",
+    "failed": "Failed {count}",
+    "exhausted": "Limit reached {count}",
+    "none": "Nothing backed up",
+    "note": "Failures are retried a limited number of times. For items that hit the limit, check the cause and schedule a new recovery cycle. Shows up to 50, oldest first.",
+    "row": "Message {id} · {attempts, plural, one {# attempt} other {# attempts}} · {error}",
+    "unknownCause": "Cause unknown",
+    "reschedule": "Schedule new recovery cycle"
+  },
+  "tabs": {
+    "aria": "Classified feedback",
+    "all": "All",
+    "empty": "No feedback classified in this category yet."
+  },
+  "row": {
+    "sentiment": {
+      "positive": "Positive",
+      "neutral": "Neutral",
+      "negative": "Negative"
+    },
+    "jevTitle": "The decision-only model Jev was at least 0.7 confident, so the classification is final",
+    "llmTitle": "Jev wasn't confident enough, so the LLM's judgment was used",
+    "followUpTurns": "+{count, plural, one {# follow-up turn} other {# follow-up turns}}",
+    "prShipped": "PR #{number} shipped",
+    "prOpen": "PR #{number} open",
+    "groupSize": "Group of {count}",
+    "groupClosed": "Group closed",
+    "groupingSoon": "Will be grouped automatically soon",
+    "notGroupedYet": "Not grouped yet",
+    "notGroupable": "Not groupable",
+    "needsPerson": "Needs a person",
+    "groupLink": "Group · {title}",
+    "viewConversation": "View conversation"
+  }
+}

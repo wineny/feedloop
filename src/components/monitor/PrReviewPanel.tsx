@@ -7,7 +7,8 @@
 // 몇 건, 커밋 저자, 브랜치 삭제)은 버튼 옆 한 문장에 전부 적는다.
 // 어휘는 「반영」— 위젯·메일이 방문자에게 「반영됐어요」라고 말하므로 버튼도 같은 말을 쓴다.
 
-import { useReducer } from 'react';
+import { useReducer, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { Check, ChevronRight, ExternalLink, Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,17 +19,10 @@ import {
   isTransientGateBlock,
   usePrReview,
   type DraftGateBlocked,
-  type PrBlockReason,
   type PrReviewData,
 } from '@/lib/hooks/usePrReview';
-import { MERGE_BLOCK_MESSAGE, VERDICT_LABEL } from '@/lib/auto-dev/review-labels';
-import {
-  CLOSE_REASONS,
-  CLOSE_REASON_LABEL,
-  CLOSE_REASON_HINT,
-  CLOSE_NOTE_MAX,
-  type CloseReason,
-} from '@/lib/auto-dev/close-reason';
+import { CLOSE_REASONS, CLOSE_NOTE_MAX, type CloseReason } from '@/lib/auto-dev/close-reason';
+import { dynamicT, type DynamicTranslate } from '@/i18n/dynamic';
 import type { RunExplanation, UnverifiedItem } from '@/lib/auto-dev/explanation';
 import type { PickedTarget } from '@/lib/auto-dev/picked-targets';
 import type { PickedShotData } from '@/lib/widget/picked-shot';
@@ -115,8 +109,17 @@ function Dot({ tone }: { tone: 'ok' | 'bad' | 'wait' | 'off' }) {
   );
 }
 
+const unit = (chunks: ReactNode) => <small className="ml-0.5 text-sm font-medium tracking-normal text-muted-foreground">{chunks}</small>;
+const pickedTags = {
+  m: (chunks: ReactNode) => <span className="text-muted-foreground">{chunks}</span>,
+  l: (chunks: ReactNode) => <span className="font-medium">{chunks}</span>,
+  a: (chunks: ReactNode) => <span className="text-faint">{chunks}</span>,
+  f: (chunks: ReactNode) => <span className="break-all font-mono text-[12.5px]">{chunks}</span>,
+};
+
 /** 판단 재료 세 칸 — /bots 의 「칸 = 상태 + 그 상태를 바꾸는 링크 하나」 규칙 */
 function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; review: PrReviewData | null; targets: PickedTarget[]; shots: PickedShotData[]; loading: boolean; error: string | null }) {
+  const t = useTranslations('monitor.review.facts');
   const merged = Boolean(run.pr?.mergedAt);
   const build = review?.build;
   const preview = review?.preview;
@@ -124,19 +127,17 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
     // 판단 재료 세 칸은 카드 한 장(v4 §4-2). 칸 사이는 헤어라인, 카드 밖은 캔버스
     <dl className="card-surface grid grid-cols-1 p-5 sm:grid-cols-3 sm:p-6">
       <div className="pb-4 sm:pb-0 sm:pr-5">
-        <dt className="mb-1.5 text-[12.5px] leading-[1.45] text-muted-foreground">근거 피드백</dt>
+        <dt className="mb-1.5 text-[12.5px] leading-[1.45] text-muted-foreground">{t('evidence')}</dt>
         <dd className="text-xl font-extrabold leading-none tracking-[-0.02em] tabular-nums">
-          {run.evidence.insightCount}
-          <small className="ml-0.5 text-sm font-medium tracking-normal text-muted-foreground">건</small>
+          {t.rich('items', { count: run.evidence.insightCount, small: unit })}
           {run.evidence.conversationCount > 0 && (
             <>
               <span className="mx-1.5 font-normal text-faint">·</span>
-              {run.evidence.conversationCount}
-              <small className="ml-0.5 text-sm font-medium tracking-normal text-muted-foreground">명</small>
+              {t.rich('people', { count: run.evidence.conversationCount, small: unit })}
             </>
           )}
         </dd>
-        <dd className="mt-1.5 truncate text-[12.5px] leading-[1.45] text-faint">{run.repo ?? '저장소 없음'}</dd>
+        <dd className="mt-1.5 truncate text-[12.5px] leading-[1.45] text-faint">{run.repo ?? t('noRepo')}</dd>
         {/* 짚는 순간 찍은 화면(I-55) — 누르면 크게. 「그린다」 줄은 아래에 그대로 */}
         {shots.length > 0 && (
           <dd className="mt-2.5 flex flex-wrap gap-2">
@@ -146,28 +147,20 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
           </dd>
         )}
         {/* 제보자가 화면에서 짚은 요소 — 「그린다」까지만. 원인이 거기 있다는 뜻이 아니다(PR #6) */}
-        {targets.map((t, i) => (
-          <dd key={i} className="mt-1.5 text-[12.5px] leading-[1.45]" title={t.evidence ? `원본에서 확인: ${t.evidence}` : undefined}>
-            <span className="text-muted-foreground">짚은 요소 </span>
-            <span className="font-medium">{t.label}</span>
-            {t.status === 'confirmed' ? (
-              <>
-                <span className="text-faint"> → </span>
-                <span className="break-all font-mono text-[12.5px]">{t.files.map((f) => f.split('/').pop()).join(', ')}</span>
-                <span className="text-muted-foreground"> 이(가) 그려요</span>
-              </>
-            ) : (
-              <span className="text-muted-foreground"> · 저장소 원본에서 확인 못 함</span>
-            )}
+        {targets.map((pt, i) => (
+          <dd key={i} className="mt-1.5 text-[12.5px] leading-[1.45]" title={pt.evidence ? t('pickedEvidence', { evidence: pt.evidence }) : undefined}>
+            {pt.status === 'confirmed'
+              ? t.rich('picked', { label: pt.label, files: pt.files.map((f) => f.split('/').pop()).join(', '), ...pickedTags })
+              : t.rich('pickedUnconfirmed', { label: pt.label, ...pickedTags })}
           </dd>
         ))}
       </div>
 
       <div className="border-t border-border pt-4 sm:border-l sm:border-t-0 sm:px-5 sm:pt-0">
-        <dt className="mb-1.5 text-[12.5px] leading-[1.45] text-muted-foreground">프리뷰</dt>
+        <dt className="mb-1.5 text-[12.5px] leading-[1.45] text-muted-foreground">{t('preview')}</dt>
         <dd className="text-sm font-semibold">
           {merged ? (
-            '반영됨 · 배포는 따로 확인'
+            t('previewShipped')
           ) : preview?.url ? (
             <a
               href={preview.url}
@@ -175,14 +168,14 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-brand-strong hover:underline"
             >
-              프리뷰 열기 <ExternalLink className="h-3 w-3" aria-hidden />
+              {t('previewOpen')} <ExternalLink className="h-3 w-3" aria-hidden />
             </a>
           ) : loading ? (
-            <span className="text-faint">읽는 중…</span>
+            <span className="text-faint">{t('reading')}</span>
           ) : preview?.state === 'building' ? (
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Dot tone="wait" />만들고 있어요</span>
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Dot tone="wait" />{t('previewBuilding')}</span>
           ) : (
-            <span className="text-faint">프리뷰 없음</span>
+            <span className="text-faint">{t('previewNone')}</span>
           )}
         </dd>
         {preview?.url && !merged && (
@@ -190,32 +183,32 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
         )}
         <dd className="mt-1 text-[12.5px] leading-[1.45] text-faint">
           {merged
-            ? '반영 뒤 프리뷰가 제공되는지는 배포 서비스에 따라 달라요'
+            ? t('previewAfterShip')
             : preview?.url
-              ? 'Vercel 에 로그인돼 있어야 열려요'
+              ? t('previewLogin')
               : preview?.state === 'building'
-                ? '배포가 끝나면 링크가 생겨요'
+                ? t('previewSoon')
                 : review && !preview?.url
-                  ? '이 저장소엔 프리뷰 배포가 없어요'
+                  ? t('previewNoRepo')
                   : ' '}
         </dd>
       </div>
 
       <div className="border-t border-border pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-        <dt className="mb-1.5 text-[12.5px] leading-[1.45] text-muted-foreground">빌드</dt>
+        <dt className="mb-1.5 text-[12.5px] leading-[1.45] text-muted-foreground">{t('build')}</dt>
         <dd className="inline-flex items-center gap-1.5 text-sm font-semibold">
           {error ? (
-            <><Dot tone="off" />못 읽었어요</>
+            <><Dot tone="off" />{t('buildReadFailed')}</>
           ) : !build ? (
-            <span className="text-faint">{loading ? '읽는 중…' : '—'}</span>
+            <span className="text-faint">{loading ? t('reading') : '—'}</span>
           ) : build.state === 'success' ? (
-            <><Dot tone="ok" />통과</>
+            <><Dot tone="ok" />{t('buildPassed')}</>
           ) : build.state === 'failure' ? (
-            <><Dot tone="bad" />실패</>
+            <><Dot tone="bad" />{t('buildFailed')}</>
           ) : build.state === 'pending' ? (
-            <><Dot tone="wait" />진행 중</>
+            <><Dot tone="wait" />{t('buildPending')}</>
           ) : (
-            <><Dot tone="off" />알 수 없음</>
+            <><Dot tone="off" />{t('buildUnknown')}</>
           )}
         </dd>
         <dd className="mt-1 text-[12.5px] leading-[1.45] text-faint">
@@ -223,11 +216,11 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
             ? error
             : build?.state === 'unknown'
               ? build.unavailable
-                ? '빌드 상태를 물어볼 수 없었어요 — 토큰에 Checks·Commit statuses 권한이 없거나 GitHub 이 거절했어요. 확인 없이 반영하게 돼요'
+                ? t('buildUnavailable')
                 : // 초안 대기 중엔 버튼이 잠겨 있다 — 「막지 않아요」는 아래 상태 한 줄과 어긋난다
                   review?.draftGate === 'waiting'
-                  ? 'Vercel 이 연결되지 않은 저장소예요'
-                  : 'Vercel 이 연결되지 않은 저장소예요. 반영은 막지 않아요'
+                  ? t('noVercelWaiting')
+                  : t('noVercel')
               : build?.description
                 ? [build.description, build.targetUrl ? null : undefined].filter(Boolean).join('')
                 : ' '}
@@ -235,7 +228,7 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
             <>
               {' · '}
               <a href={build.targetUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-foreground hover:underline">
-                빌드 로그
+                {t('buildLog')}
               </a>
             </>
           )}
@@ -245,27 +238,23 @@ function Facts({ run, review, targets, shots, loading, error }: { run: RunItem; 
   );
 }
 
-/** 서버 판정 문구에 초안 대기·수동 초안을 더한다 — 서버 파일(review-labels)은 이번 작업 범위 밖이라 화면에서 잇는다 */
-const BLOCK_MESSAGE: Record<PrBlockReason, string> = {
-  ...MERGE_BLOCK_MESSAGE,
-  draft_waiting: '자동 검사를 기다리는 초안이에요. 검토 요청으로 바뀌면 반영할 수 있어요',
-  manual_draft: '담당자가 다시 초안으로 돌려 둔 PR 이에요. GitHub 에서 검토 요청으로 바꾸면 반영할 수 있어요',
+/**
+ * 반영 요청이 409 로 돌아온 이유(`reason`)를 쉬운 말로. 서버 문구는 개발자 말투라 화면 어휘로 다시 쓴다.
+ * 반영을 잠그는 이유(`PrBlockReason`)의 문구는 사전 `monitor.mergeBlock.<이유>` 에 있다(서버 판정 5개 + 초안 대기·수동 초안).
+ */
+const MERGE_REASON_KEY: Record<DraftGateBlocked, `${'review.mergeReason' | 'mergeBlock'}.${string}`> = {
+  lock_unavailable: 'review.mergeReason.transient',
+  write_failed: 'review.mergeReason.transient',
+  gate_failed: 'review.mergeReason.transient',
+  manual_draft: 'mergeBlock.manual_draft',
+  checks_unavailable: 'review.mergeReason.checks_unavailable',
 };
 
-/** 반영 요청이 409 로 돌아온 이유(`reason`)를 쉬운 말로. 서버 문구는 개발자 말투라 화면 어휘로 다시 쓴다 */
-const MERGE_REASON_MESSAGE: Record<DraftGateBlocked, string> = {
-  lock_unavailable: '잠시 문제가 있어 반영을 멈췄어요. 잠시 후 다시 눌러 주세요',
-  write_failed: '잠시 문제가 있어 반영을 멈췄어요. 잠시 후 다시 눌러 주세요',
-  gate_failed: '잠시 문제가 있어 반영을 멈췄어요. 잠시 후 다시 눌러 주세요',
-  manual_draft: BLOCK_MESSAGE.manual_draft,
-  checks_unavailable: '검사 결과를 읽을 권한이 없어 반영을 멈췄어요. GitHub 에서 검사 조회 권한을 확인한 뒤 다시 눌러 주세요',
-};
-
-/** 반영 실패 응답 → 버튼 아래 문구. 아는 `reason` 이면 화면 문구, 모르면 서버 `error`, 그것도 없으면 기본 문구 */
-export function mergeErrorMessage(json: { error?: unknown; reason?: unknown } | null): string {
+/** 반영 실패 응답 → 버튼 아래 문구. 아는 `reason` 이면 화면 문구, 모르면 서버 `error`, 그것도 없으면 기본 문구. `t` 는 `dynamicT(useTranslations('monitor'))` */
+export function mergeErrorMessage(json: { error?: unknown; reason?: unknown } | null, t: DynamicTranslate): string {
   const reason = json?.reason;
-  if (typeof reason === 'string' && Object.hasOwn(MERGE_REASON_MESSAGE, reason)) return MERGE_REASON_MESSAGE[reason as DraftGateBlocked];
-  return typeof json?.error === 'string' && json.error ? json.error : '반영하지 못했어요';
+  if (typeof reason === 'string' && Object.hasOwn(MERGE_REASON_KEY, reason)) return t(MERGE_REASON_KEY[reason as DraftGateBlocked]);
+  return typeof json?.error === 'string' && json.error ? json.error : t('review.errors.ship');
 }
 
 /** 이미 서버가 https 만 남겨 오지만, 링크로 거는 건 화면이라 한 번 더 본다 */
@@ -295,18 +284,19 @@ const GATE_LINE_TONE: Record<GateLineKind, 'ok' | 'bad' | 'wait' | 'off'> = {
  * 옛 PR(not_draft)·데모(필드 없음)는 아무것도 안 그린다. 검사 없이 10분 뒤 바뀐 PR 에 「통과」라고 말하지 않는다.
  */
 export function DraftGateLine({ review }: { review: Pick<PrReviewData, 'draftGate' | 'draftGateBlocked' | 'build'> | null }) {
+  const t = useTranslations('monitor.review.gate');
   const kind = review ? gateLineKind(review) : null;
   if (!review || !kind) return null;
   const noChecks = review.build.state === 'unknown';
   const failedChecks = review.build.failedChecks ?? [];
   const [title, tail] = {
-    waiting: ['자동 검사를 기다리는 중이에요', noChecks ? '확인할 검사가 없으면 PR 을 연 지 10분 뒤 검토 요청으로 바뀌어요' : '통과하면 검토 요청으로 바뀌어요'],
-    failed: ['자동 검사에 실패해 초안으로 두었어요', null],
-    promoted: [noChecks ? '확인할 자동 검사가 없어 PR 을 연 지 10분 뒤 검토 요청으로 바꿨어요' : '자동 검사를 통과해 검토 요청으로 바뀌었어요', null],
-    unsupported: ['이 레포는 초안 PR 을 지원하지 않아 바로 열었어요', null],
-    human: ['검사 결과를 읽을 권한이 없어 자동으로 바꾸지 않았어요', '직접 확인하고 반영하세요'],
-    manual: ['담당자가 다시 초안으로 돌려 둔 PR 이에요', '자동으로 바꾸지 않아요'],
-    transient: ['잠시 문제가 있어 자동으로 바꾸지 못했어요', '잠시 후 다시 확인해요'],
+    waiting: [t('waiting.title'), noChecks ? t('waiting.tailNoChecks') : t('waiting.tail')],
+    failed: [t('failed.title'), null],
+    promoted: [noChecks ? t('promoted.titleNoChecks') : t('promoted.title'), null],
+    unsupported: [t('unsupported.title'), null],
+    human: [t('human.title'), t('human.tail')],
+    manual: [t('manual.title'), t('manual.tail')],
+    transient: [t('transient.title'), t('transient.tail')],
   }[kind];
   return (
     <p className="mt-3 flex items-start gap-2 text-sm leading-[1.55]">
@@ -318,7 +308,7 @@ export function DraftGateLine({ review }: { review: Pick<PrReviewData, 'draftGat
         {tail && <span className="text-muted-foreground">{` · ${tail}`}</span>}
         {kind === 'failed' && failedChecks.length > 0 && (
           <span className="text-muted-foreground">
-            {' · 실패한 검사: '}
+            {` · ${t('failed.checks')}`}
             {failedChecks.map((c, i) => {
               const href = safeHref(c.url);
               return (
@@ -341,12 +331,6 @@ export function DraftGateLine({ review }: { review: Pick<PrReviewData, 'draftGat
   );
 }
 
-const VERIFIABLE_HOW: Record<UnverifiedItem['verifiableBy'], string> = {
-  code: '코드로 확인할 수 있어요',
-  reporter: '코드로는 확인할 수 없어요 · 제보자만 알아요',
-  human: '사람이 프리뷰에서 직접 봐야 해요',
-};
-
 function Unverified({
   items,
   runId,
@@ -365,12 +349,13 @@ function Unverified({
   onVerify: (index: number) => void;
   onCloseWithReason: (reason: CloseReason) => void;
 }) {
+  const t = useTranslations('monitor');
   if (items.length === 0) return null;
   return (
     <div className="mt-4 grid gap-x-4 gap-y-2 rounded-[10px] bg-[#fbf0d3] px-4 py-3.5 text-[#8a5c06] dark:bg-[#37301a] dark:text-[#e2b34f] sm:grid-cols-[auto_minmax(0,1fr)]">
       <dt className="inline-flex items-start gap-1.5 whitespace-nowrap text-sm font-bold leading-[1.55]">
         <TriangleAlert className="mt-1 h-3.5 w-3.5 shrink-0" aria-hidden />
-        확인하지 못한 것
+        {t('review.unverified.title')}
       </dt>
       <ul className="m-0 flex list-disc flex-col gap-2 pl-4 text-sm leading-[1.55]">
         {items.map((item, i) => {
@@ -385,10 +370,10 @@ function Unverified({
                     v.status === 'fix_does_not_hold' && 'shadow-[inset_3px_0_0_var(--destructive)]',
                   )}
                 >
-                  <b className="font-bold">{VERDICT_LABEL[v.status]}.</b> {v.text}
+                  <b className="font-bold">{t(`verdict.${v.status}`)}.</b> {v.text}
                   {v.files.length > 0 && (
                     <span className="mt-1 block text-[12.5px] leading-[1.45] text-muted-foreground">
-                      읽은 파일: {v.files.map((f) => <code key={f} className="mr-1.5 rounded bg-muted px-1 font-mono text-[12.5px]">{f}</code>)}
+                      {t('review.unverified.filesRead')} {v.files.map((f) => <code key={f} className="mr-1.5 rounded bg-muted px-1 font-mono text-[12.5px]">{f}</code>)}
                     </span>
                   )}
                   {v.status === 'fix_does_not_hold' && open && !readOnly && (
@@ -397,7 +382,7 @@ function Unverified({
                       onClick={() => onCloseWithReason('wrong_causality')}
                       className="mt-1.5 inline-flex h-6.5 items-center gap-1 rounded-full border border-current px-2.5 text-[12.5px] font-semibold text-brand-strong"
                     >
-                      「인과가 틀린 수정」으로 반영하지 않기
+                      {t('review.unverified.wrongCause')}
                     </button>
                   )}
                 </span>
@@ -411,7 +396,7 @@ function Unverified({
                       className="inline-flex h-6.5 items-center gap-1.5 rounded-full border border-current px-2.5 text-[12.5px] font-semibold disabled:opacity-50"
                     >
                       {verifying === i ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <RefreshCw className="h-3 w-3" aria-hidden />}
-                      {verifying === i ? '확인하는 중…' : 'AI 에게 확인시키기'}
+                      {verifying === i ? t('review.unverified.verifying') : t('review.unverified.verify')}
                     </button>
                   )}
                   {item.verifiableBy === 'reporter' && (
@@ -419,19 +404,20 @@ function Unverified({
                       href="/inbox"
                       className="inline-flex h-6.5 items-center gap-1 rounded-full border border-current px-2.5 text-[12.5px] font-semibold"
                     >
-                      제보자에게 물어보기 <ChevronRight className="h-3 w-3" aria-hidden />
+                      {t('review.unverified.askReporter')} <ChevronRight className="h-3 w-3" aria-hidden />
                     </Link>
                   )}
                   <span className="text-[12.5px] leading-[1.45] opacity-80">
-                    {VERIFIABLE_HOW[item.verifiableBy]}
+                    {t(`review.unverified.how.${item.verifiableBy}`)}
                     {item.verifiableBy === 'code' && item.files.length > 0 && (
                       <>
                         {' · '}
-                        {item.files.map((f) => <code key={f} className="mr-1 font-mono text-[12.5px]">{f}</code>)}
-                        를 읽고 다시 판단 · 약 40초
+                        {t.rich('review.unverified.reads', {
+                          f: () => <>{item.files.map((f) => <code key={f} className="mr-1 font-mono text-[12.5px]">{f}</code>)}</>,
+                        })}
                       </>
                     )}
-                    {item.verifiableBy === 'reporter' && item.question && <> · 대화 탭에서 「{item.question}」</>}
+                    {item.verifiableBy === 'reporter' && item.question && <> · {t('review.unverified.inboxQuestion', { question: item.question })}</>}
                   </span>
                 </span>
               )}
@@ -439,7 +425,7 @@ function Unverified({
           );
         })}
       </ul>
-      <p className="m-0 text-sm font-semibold sm:col-start-2">반영 전에 프리뷰에서 직접 확인해 보세요.</p>
+      <p className="m-0 text-sm font-semibold sm:col-start-2">{t('review.unverified.footer')}</p>
     </div>
   );
 }
@@ -450,32 +436,33 @@ function Explanation({
 }: {
   explanation: RunExplanation | null;
 } & Omit<Parameters<typeof Unverified>[0], 'items'>) {
+  const t = useTranslations('monitor.review.explanation');
   return (
     <section className="border-b border-border py-5" aria-labelledby={`ex-${rest.runId}`}>
       {/* 출처 설명은 제목 옆이 아니라 아래 한 줄로(v4 §5) */}
-      <h3 id={`ex-${rest.runId}`} className="text-[15px] font-bold tracking-[-0.01em]">이 수정이 하는 일</h3>
+      <h3 id={`ex-${rest.runId}`} className="text-[15px] font-bold tracking-[-0.01em]">{t('title')}</h3>
       <p className="mb-4 mt-1 text-[12.5px] leading-[1.45] text-muted-foreground">
         {explanation?.source === 'pr_body'
-          ? '저장된 설명이 없어 PR 본문에서 추출했습니다'
-          : 'AI 가 코드를 고치면서 쓴 설명이에요'}
+          ? t('sourcePrBody')
+          : t('sourceAi')}
       </p>
       {!explanation ? (
         <p className="text-sm text-muted-foreground">
-          이 수정안에는 설명이 없어요. 아래 「바뀐 코드」와 GitHub 의 PR 본문을 봐 주세요.
+          {t('none')}
         </p>
       ) : (
         <dl className="grid grid-cols-1 gap-y-4 sm:grid-cols-3 sm:gap-y-0">
           {(
             [
-              ['무엇이 문제였나', explanation.problem],
-              ['무엇을 바꿨나', explanation.change],
-              ['반영되면', explanation.effect],
+              [t('problem'), explanation.problem],
+              [t('change'), explanation.change],
+              [t('effect'), explanation.effect],
             ] as const
           ).map(([label, text], i) => (
             <div key={label} className={cn('min-w-0', i > 0 && 'sm:border-l sm:border-border sm:pl-5', i < 2 && 'sm:pr-5')}>
               <dt className="mb-1 text-[12.5px] leading-[1.45] text-muted-foreground">{label}</dt>
               <dd className="text-sm leading-[1.6] tracking-[-0.005em]">
-                {text || <span className="text-faint">{i === 2 ? '설명에 없어요' : '—'}</span>}
+                {text || <span className="text-faint">{i === 2 ? t('noEffect') : '—'}</span>}
               </dd>
             </div>
           ))}
@@ -492,6 +479,8 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
   const pr = run.pr;
   const { data, error, loading, reload, pollingStopped } = usePrReview(pr ? run.id : null, Boolean(pr) && !readOnly);
   const [state, dispatch] = useReducer(reduce, INITIAL);
+  const t = useTranslations('monitor');
+  const td = dynamicT(t);
 
   if (!pr) return null;
   const review = data?.review ?? null;
@@ -505,14 +494,14 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
     try {
       const res = await fetch(`/api/auto-dev/runs/${run.id}/merge`, { method: 'POST' });
       const json = await res.json();
-      if (!res.ok) throw new Error(mergeErrorMessage(json));
+      if (!res.ok) throw new Error(mergeErrorMessage(json, td));
       dispatch({
         type: 'done',
         notice: [
-          `서비스에 반영했어요 · 반영 알림 ${json.delivered ?? 0}건 준비`,
-          json.emailed > 0 ? `메일 ${json.emailed}통` : null,
-          json.mergeMethod === 'merge' ? '저장소 설정 때문에 기본 방식으로 반영했어요' : null,
-          json.loopError ? `반영 알림 일부 실패: ${json.loopError}` : null,
+          t('review.notice.shipped', { count: json.delivered ?? 0 }),
+          json.emailed > 0 ? t('review.notice.emailed', { count: json.emailed }) : null,
+          json.mergeMethod === 'merge' ? t('review.notice.mergeMethod') : null,
+          json.loopError ? t('review.notice.loopError', { error: String(json.loopError) }) : null,
         ]
           .filter(Boolean)
           .join(' · '),
@@ -520,7 +509,7 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
       onRunChange({ ...run, pr: { ...pr, mergedAt: json.mergedAt } });
       onRefresh();
     } catch (err) {
-      dispatch({ type: 'fail', error: err instanceof Error ? err.message : '반영하지 못했어요' });
+      dispatch({ type: 'fail', error: err instanceof Error ? err.message : t('review.errors.ship') });
       reload();
     }
   };
@@ -535,14 +524,14 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
         body: JSON.stringify({ close_reason: state.reason, close_note: state.note }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '닫지 못했어요');
+      if (!res.ok) throw new Error(json.error || t('review.errors.close'));
       dispatch({ type: 'done', notice: null });
       onRunChange({
         ...run,
         pr: { ...pr, closedAt: json.closedAt, closeReason: json.closeReason, closeNote: json.closeNote },
       });
     } catch (err) {
-      dispatch({ type: 'fail', error: err instanceof Error ? err.message : '닫지 못했어요' });
+      dispatch({ type: 'fail', error: err instanceof Error ? err.message : t('review.errors.close') });
     }
   };
 
@@ -555,11 +544,11 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
         body: JSON.stringify({ index }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '확인하지 못했어요');
+      if (!res.ok) throw new Error(json.error || t('review.errors.verify'));
       dispatch({ type: 'verify_done' });
       onRunChange({ ...run, explanation: json.explanation });
     } catch (err) {
-      dispatch({ type: 'verify_fail', error: err instanceof Error ? err.message : '확인하지 못했어요' });
+      dispatch({ type: 'verify_fail', error: err instanceof Error ? err.message : t('review.errors.verify') });
     }
   };
 
@@ -590,29 +579,29 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
 
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pb-2 pt-5">
         <h3 className="min-w-0 text-[15px] font-bold tracking-[-0.01em]">
-          바뀐 코드
+          {t('review.changedCode')}
           {review && (
             <span className="ml-2 text-[12.5px] font-normal text-muted-foreground tabular-nums">
-              {review.changedFiles}개 파일 · <b className="font-semibold text-[#1e6b3a] dark:text-[#7ed69a]">+{review.additions}</b>{' '}
+              {t('review.fileStats', { count: review.changedFiles })}<b className="font-semibold text-[#1e6b3a] dark:text-[#7ed69a]">+{review.additions}</b>{' '}
               <b className="font-semibold text-[#a13a2f] dark:text-[#f0a19a]">−{review.deletions}</b>
             </span>
           )}
         </h3>
         <span className="min-w-0 break-all text-[12.5px] leading-[1.45] text-faint">
-          개발자용 · 파일을 눌러 펼치기{review && ` · ${review.headRef} → ${review.baseRef}`}
+          {t('review.devNote')}{review && ` · ${review.headRef} → ${review.baseRef}`}
         </span>
       </div>
       {review ? (
         <DiffView files={review.files} filesTruncated={review.filesTruncated} />
       ) : readOnly ? (
         <p className="py-3 text-sm text-muted-foreground">
-          {run.filesChanged.map((f) => f.path).join(', ') || '바뀐 파일 정보가 없어요'}
+          {run.filesChanged.map((f) => f.path).join(', ') || t('review.noFileInfo')}
         </p>
       ) : (
-        <p className="py-3 text-sm text-muted-foreground">{error ? `GitHub 에서 읽지 못했어요 — ${error}` : '읽는 중…'}</p>
+        <p className="py-3 text-sm text-muted-foreground">{error ? t('review.githubReadFailed', { error }) : t('review.facts.reading')}</p>
       )}
 
-      <p className="mt-3 text-[12.5px] leading-[1.45] text-muted-foreground">AI 코드 판단은 참고 의견입니다. 실제 실행 검증 결과는 위 검사 기록에서 확인하세요.</p>
+      <p className="mt-3 text-[12.5px] leading-[1.45] text-muted-foreground">{t('review.aiNote')}</p>
 
       {/* 행동 — 열린 PR 에만 */}
       {isOpen && !readOnly && state.mode !== 'closing' && state.mode !== 'submitting_close' && (
@@ -620,48 +609,56 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
           <Button
             onClick={handleMerge}
             disabled={busy || Boolean(blocked) || !review}
-            title={blocked ? BLOCK_MESSAGE[blocked] : undefined}
+            title={blocked ? td(`mergeBlock.${blocked}`) : undefined}
           >
             {state.mode === 'merging' ? <Loader2 className="animate-spin" /> : <Check />}
-            {state.mode === 'merging' ? '반영하는 중…' : review?.build.unavailable ? '빌드 확인 없이 반영하기' : '서비스에 반영하기'}
+            {state.mode === 'merging' ? t('review.shipping') : review?.build.unavailable ? t('review.shipNoBuild') : t('review.ship')}
           </Button>
           <Button variant="outline" disabled={busy} onClick={() => dispatch({ type: 'open_close' })}>
-            반영하지 않기
+            {t('review.dontShip')}
           </Button>
           {blocked ? (
             <p className="flex basis-full items-start gap-2 rounded-[10px] bg-[#fbf0d3] px-4 py-3 text-sm leading-[1.55] text-[#8a5c06] dark:bg-[#37301a] dark:text-[#e2b34f]">
               <TriangleAlert className="mt-1 h-3.5 w-3.5 shrink-0" aria-hidden />
               <span>
-                {BLOCK_MESSAGE[blocked]}
+                {td(`mergeBlock.${blocked}`)}
                 {blocked === 'build_failed' && (
                   <>
                     {' '}
-                    {review?.build.targetUrl && (
-                      <a href={review.build.targetUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
-                        빌드 로그
-                      </a>
-                    )}
-                    를 확인하고, 고칠 수 없으면 「반영하지 않기」에서 「없는 경로·심볼을 지어냄」을 골라 주세요. 빌드가 다시 통과하면 버튼이 열려요.
+                    {t.rich('review.buildFailedHelp', {
+                      reason: t('closeReason.hallucinated_path.label'),
+                      action: t('review.dontShip'),
+                      log: (chunks) =>
+                        review?.build.targetUrl ? (
+                          <a href={review.build.targetUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+                            {chunks}
+                          </a>
+                        ) : (
+                          chunks
+                        ),
+                    })}
                   </>
                 )}
                 {(blocked === 'build_pending' || blocked === 'draft_waiting') &&
                   (pollingStopped ? (
                     <>
                       {' '}
-                      30분 넘게 끝나지 않아 자동 확인을 멈췄어요.{' '}
-                      <button type="button" onClick={() => reload()} className="font-semibold underline">
-                        다시 확인
-                      </button>
+                      {t.rich('review.pollStopped', {
+                        retry: (chunks) => (
+                          <button type="button" onClick={() => reload()} className="font-semibold underline">
+                            {chunks}
+                          </button>
+                        ),
+                      })}
                     </>
                   ) : (
-                    ' 1분마다 다시 확인해요.'
+                    ` ${t('review.polling')}`
                   ))}
               </span>
             </p>
           ) : (
             <p className="m-0 basis-full text-[12.5px] leading-[1.45] text-muted-foreground">
-              PR #{pr.number}을 서비스에 반영하고, 제보자 {people}명에게 반영 알림을 보냅니다. 배포 성공과 문제 해결은 따로 확인합니다.
-              이메일 전달 결과는 후속 확인 기록에서 확인하세요. GitHub 반영 기록은 연결된 계정으로 남습니다.
+              {t('review.shipSummary', { number: pr.number, people })}
             </p>
           )}
           {state.error && <p className="basis-full text-sm text-destructive">{state.error}</p>}
@@ -671,12 +668,11 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
       {/* 반영하지 않기 — 사유 필수 */}
       {isOpen && !readOnly && (state.mode === 'closing' || state.mode === 'submitting_close') && (
         <div className="mt-5 border-t border-border-strong pt-4">
-          <h4 className="text-[15px] font-bold tracking-[-0.01em]">반영하지 않기</h4>
+          <h4 className="text-[15px] font-bold tracking-[-0.01em]">{t('review.close.title')}</h4>
           <p className="mb-3 mt-1 text-sm leading-relaxed text-muted-foreground">
-            이유를 하나 골라 두면 AI 가 어떤 실수를 반복하는지 보여요. 피드백을 남긴 분들에게는 아무것도 가지 않고, GitHub 의 PR #
-            {pr.number} 은 닫혀요.
+            {t('review.close.desc', { number: pr.number })}
           </p>
-          <div role="radiogroup" aria-label="반영하지 않는 이유" className="grid gap-1.5 sm:grid-cols-2">
+          <div role="radiogroup" aria-label={t('review.close.groupAria')} className="grid gap-1.5 sm:grid-cols-2">
             {CLOSE_REASONS.map((r) => {
               const on = state.reason === r;
               return (
@@ -699,9 +695,9 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
                     aria-describedby={`close-hint-${run.id}-${r}`}
                   />
                   <span>
-                    <span id={`close-label-${run.id}-${r}`} className="block text-sm font-semibold">{CLOSE_REASON_LABEL[r]}</span>
+                    <span id={`close-label-${run.id}-${r}`} className="block text-sm font-semibold">{t(`closeReason.${r}.label`)}</span>
                     <span id={`close-hint-${run.id}-${r}`} className={cn('mt-0.5 block text-[12.5px] leading-[1.45]', on ? 'text-background/70' : 'text-muted-foreground')}>
-                      {CLOSE_REASON_HINT[r]}
+                      {t(`closeReason.${r}.hint`)}
                     </span>
                   </span>
                 </label>
@@ -712,20 +708,20 @@ export function PrReviewPanel({ run, readOnly, onRunChange, onRefresh }: PrRevie
             type="text"
             value={state.note}
             maxLength={CLOSE_NOTE_MAX}
-            placeholder="메모 (선택) — 무엇이 틀렸는지 한 줄"
-            aria-label="반영하지 않는 이유 메모"
+            placeholder={t('detail.closeReason.notePlaceholder')}
+            aria-label={t('review.close.noteAria')}
             onChange={(e) => dispatch({ type: 'note', note: e.target.value })}
             className="mt-2.5 h-9 w-full max-w-xl rounded-[10px] border border-border-strong bg-background px-3 text-sm placeholder:text-faint"
           />
           <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
             <Button variant="secondary" className="bg-foreground text-background hover:bg-foreground/90" disabled={!state.reason || busy} onClick={handleClose}>
               {state.mode === 'submitting_close' && <Loader2 className="animate-spin" />}
-              반영하지 않기
+              {t('review.dontShip')}
             </Button>
             <Button variant="ghost" disabled={busy} onClick={() => dispatch({ type: 'cancel_close' })}>
-              돌아가기
+              {t('review.close.back')}
             </Button>
-            <span className="text-[12.5px] text-muted-foreground">이 피드백 묶음은 다시 「열림」으로 돌아가요. 나중에 다시 수정을 시킬 수 있어요</span>
+            <span className="text-[12.5px] text-muted-foreground">{t('review.close.groupNote')}</span>
           </div>
           {state.error && <p className="mt-2 text-sm text-destructive">{state.error}</p>}
         </div>

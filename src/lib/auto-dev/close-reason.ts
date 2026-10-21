@@ -18,22 +18,7 @@ export const CLOSE_REASONS = [
 
 export type CloseReason = (typeof CLOSE_REASONS)[number];
 
-export const CLOSE_REASON_LABEL: Record<CloseReason, string> = {
-  hallucinated_path: '없는 경로·심볼을 지어냄',
-  wrong_causality: '인과가 틀린 수정',
-  duplicate: '중복 PR',
-  superseded: '다른 PR 로 대체됨',
-  other: '기타',
-};
-
-/** 화면 셀렉트에 붙는 한 줄 설명. 어떤 사고가 여기 해당하는지 예로 알려준다. */
-export const CLOSE_REASON_HINT: Record<CloseReason, string> = {
-  hallucinated_path: '존재하지 않는 파일·함수·번역 키를 참조해 빌드가 깨지거나 쓸모없는 파일이 생김 (PR #1·#5 형)',
-  wrong_causality: '실재 파일을 고쳤지만 증상과 무관하거나 도달 불가능한 코드 (PR #6 형)',
-  duplicate: '같은 문제로 이미 PR 이 있었음 (PR #4 형)',
-  superseded: '사람이 직접 고쳤거나 다른 PR 이 같은 문제를 해결함',
-  other: '위에 없는 이유 — 메모에 적어두세요',
-};
+// 화면 문구(사유 이름·한 줄 설명)는 사전 `monitor.closeReason.<코드>.label|hint` 에 있다.
 
 export const CLOSE_NOTE_MAX = 500;
 

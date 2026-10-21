@@ -14,6 +14,7 @@ import { getServiceRoleClient } from '@/lib/supabase';
 import { shotExtension, type ShotImageInfo } from './shot-image';
 import type { PickedShotView } from './pick';
 import { pickedFromContext, type PickedShotData } from './picked-shot';
+import type { Locale } from '@/i18n/routing';
 
 export const SHOT_BUCKET = 'widget-shots';
 /** 방문자 한 명이 1분에 올릴 수 있는 장수 */
@@ -373,7 +374,7 @@ export async function loadRunPickedShots(run: {
   botId: string;
   groupId: string | null;
   insightId: string | null;
-}, limit = 3): Promise<PickedShotData[]> {
+}, limit = 3, locale: Locale = 'ko'): Promise<PickedShotData[]> {
   if (!run.groupId && !run.insightId) return [];
   try {
     const client = db();
@@ -402,7 +403,7 @@ export async function loadRunPickedShots(run: {
       [run.botId],
     );
     return withTarget
-      .map((m) => pickedFromContext(m.context, shots[m.id], m.detected_at))
+      .map((m) => pickedFromContext(m.context, shots[m.id], m.detected_at, locale))
       .filter((d): d is PickedShotData => d !== null)
       .sort((a, b) => Number(Boolean(b.shot)) - Number(Boolean(a.shot)))
       .slice(0, limit);

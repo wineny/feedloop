@@ -41,16 +41,23 @@ export function countUndeliveredBySource(returns: RunReturn[]): {
  * 그러면 「전부 0」 분기를 타 **「보낼 되돌림이 없어요」가 조용히 잘못 뜬다.**
  * 실제로 겪은 종류의 사고다(3칸 → 5칸 전환). 조용히 틀리느니 시끄럽게 멈춘다.
  */
+export class RetryShapeError extends Error {
+  constructor() {
+    super('retry outcome has an unexpected shape');
+    this.name = 'RetryShapeError';
+  }
+}
+
 export function parseRunRetryOutcome(json: unknown): RunRetryOutcome {
   if (typeof json !== 'object' || json === null) {
-    throw new Error('응답 형태가 예상과 달라요');
+    throw new RetryShapeError();
   }
   const o = json as Record<string, unknown>;
   const keys = ['sent', 'failed', 'remaining', 'exhausted', 'skippedNonChannel'] as const;
 
   for (const k of keys) {
     if (typeof o[k] !== 'number' || !Number.isFinite(o[k])) {
-      throw new Error('응답 형태가 예상과 달라요');
+      throw new RetryShapeError();
     }
   }
 
@@ -71,44 +78,47 @@ export interface RetryMessage {
   note: string | null;
 }
 
+/** 문구를 읽는 함수 — 화면은 `useTranslations('monitor.retry')`, 테스트는 같은 사전으로 만든 번역기 */
+export type RetryTranslate = (key: 'nothing' | 'sent' | 'refused' | 'remaining' | 'cantNow' | 'exhausted' | 'skippedNonChannel', values?: { count: number }) => string;
+
 /**
- * 재전송이 끝난 뒤 버튼 옆에 남길 문구.
+ * 재전송이 끝난 뒤 버튼 옆에 남길 문구. 문장은 사전 `monitor.retry.*` 에 있다.
  *
  * 다섯 칸이 전부 0 인 것은 **오류가 아니다** — 보낼 게 없었다는 뜻이다.
  * 「0건 실패」로 읽히면 운영자가 없는 문제를 찾는다.
  */
-export function buildRetryMessage(outcome: RunRetryOutcome): RetryMessage {
+export function buildRetryMessage(outcome: RunRetryOutcome, t: RetryTranslate): RetryMessage {
   const { sent, failed, remaining, exhausted, skippedNonChannel } = outcome;
 
   if (sent === 0 && failed === 0 && remaining === 0 && exhausted === 0 && skippedNonChannel === 0) {
-    return { headline: '보낼 반영 알림이 없어요', warning: null, note: null };
+    return { headline: t('nothing'), warning: null, note: null };
   }
 
   const parts: string[] = [];
-  if (sent > 0) parts.push(`${sent}건 보냈어요`);
+  if (sent > 0) parts.push(t('sent', { count: sent }));
   // 「실패」로만 적으면 우리 쪽 버그처럼 읽힌다. 거부한 주체를 밝힌다.
-  if (failed > 0) parts.push(`${failed}건은 채널톡이 거부했어요`);
+  if (failed > 0) parts.push(t('refused', { count: failed }));
   // 한 번에 최대 5건만 나간다. 남은 게 있으면 회수 경로 둘을 다 말해 준다 —
   // 안 그러면 운영자가 「왜 다 안 갔지」에서 멈추고, 버튼만이 유일한 길이라 오해한다.
   if (remaining > 0) {
-    parts.push(`${remaining}건 남았어요. 다시 누르거나 고객이 말을 걸면 나갑니다`);
+    parts.push(t('remaining', { count: remaining }));
   }
 
   const headline =
     parts.length > 0
       ? parts.join(' · ')
       : // 시도할 수 있는 게 하나도 없었다. 아래 warning·note 가 이유를 말한다.
-        '지금 보낼 수 있는 반영 알림이 없어요';
+        t('cantNow');
 
   return {
     headline,
     warning:
       exhausted > 0
-        ? `${exhausted}건은 여러 번 실패해 더 보내지 않아요. 채널톡 연결과 그 대화가 아직 열려 있는지 확인해 주세요`
+        ? t('exhausted', { count: exhausted })
         : null,
     note:
       skippedNonChannel > 0
-        ? `${skippedNonChannel}건은 다른 채널이라 고객이 말 걸 때 나갑니다`
+        ? t('skippedNonChannel', { count: skippedNonChannel })
         : null,
   };
 }

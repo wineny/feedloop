@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import React, { type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { NextIntlClientProvider } from 'next-intl';
+import { NextIntlClientProvider, createTranslator } from 'next-intl';
+import type { DynamicTranslate } from '../../src/i18n/dynamic';
 
 // children 을 props 로 넘기면 lint(react/no-children-prop), createElement 인자로 넘기면 타입이 막아서 좁힌 타입으로 한 번 감싼다.
 const Provider = NextIntlClientProvider as unknown as React.ComponentType<{
@@ -31,4 +32,9 @@ export function renderWithIntl(ui: ReactElement, locale: 'en' | 'ko' = 'en'): st
   return renderToStaticMarkup(
     React.createElement(Provider, { locale, messages: loadMessages(locale), timeZone: 'UTC' }, ui),
   );
+}
+
+/** 컴포넌트 밖(lib 함수에 넘기는 번역기)에서 쓰는 번역기 — 실제 사전을 읽는다. `namespace` 는 `monitor`·`monitor.retry` 처럼. */
+export function translator(namespace: string, locale: 'en' | 'ko' = 'en'): DynamicTranslate {
+  return createTranslator({ locale, messages: loadMessages(locale) as never, namespace } as never) as unknown as DynamicTranslate;
 }

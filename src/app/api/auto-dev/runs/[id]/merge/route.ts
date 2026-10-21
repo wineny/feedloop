@@ -15,7 +15,7 @@ import { reviewAndPromoteDraft } from '@/lib/auto-dev/draft-promotion';
 import { closeLoopForRun } from '@/lib/auto-dev/loop-closed';
 import { apiText } from '@/lib/http/api-text';
 
-// mergeBlockedBy 가 돌려주는 값 → errors.api 키 (화면용 문구 표 MERGE_BLOCK_MESSAGE 와 같은 말)
+// mergeBlockedBy 가 돌려주는 값 → errors.api 키 (화면 문구는 사전 monitor.mergeBlock 과 같은 말)
 const BLOCKED_KEY = {
   merged: 'blockedMerged',
   closed: 'blockedClosed',

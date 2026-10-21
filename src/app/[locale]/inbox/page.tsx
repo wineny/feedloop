@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useFormatter, useTranslations } from 'next-intl';
+import { useFormatter, useLocale, useTranslations } from 'next-intl';
+import type { Locale } from '@/i18n/routing';
 import { PageHero, PAGE_EMOJI } from '@/components/layout/PageHero';
 import { LoadingState, ErrorState } from '@/components/layout/PageState';
 import { Button } from '@/components/ui/button';
@@ -136,8 +137,9 @@ function EscalatedBadge({ className }: { className?: string }) {
  */
 function ContextLine({ context, shot, at }: { context: unknown; shot?: PickedShotView; at?: string }) {
   const t = useTranslations('inbox.context');
-  const s = summarizeContext(context);
-  const picked = pickedFromContext(context, shot, at);
+  const locale = useLocale() as Locale;
+  const s = summarizeContext(context, locale);
+  const picked = pickedFromContext(context, shot, at, locale);
   if (!s) return null;
   const facts = [
     s.page,

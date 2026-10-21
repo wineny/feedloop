@@ -1,0 +1,76 @@
+{
+  "title": "피드백",
+  "subtitleEmpty": "아직 분류된 제보가 없어요",
+  "subtitleUngrouped": "아직 안 묶인 제보 <strong>{count}건</strong> · 전체 {total}",
+  "subtitleAllGrouped": "전체 <strong>{total}</strong> · 안 묶인 제보 없음",
+  "total": "{count}건{plus, select, yes {+} other {}}",
+  "runClassify": "미분류 메시지 분류",
+  "hint": "제보를 하나씩 보는 화면입니다. PR 은 대시보드의 <link>피드백 묶음</link>에서 만듭니다.",
+  "errors": {
+    "api": "API 오류: {status}",
+    "load": "데이터를 불러오지 못했습니다",
+    "classifyStatus": "분류 실패: {status}",
+    "classify": "분류에 실패했습니다",
+    "group": "묶기에 실패했습니다",
+    "reschedule": "다시 예약하지 못했습니다",
+    "retry": "재시도 실패"
+  },
+  "result": {
+    "failed": "{count}건 분류 실패",
+    "exhausted": "{count}건 재시도 한도 도달 · 원인을 확인하고 다시 예약하세요",
+    "noInsight": "{count}건은 제보 생성 대상이 아니에요",
+    "deferred": "남은 처리는 보류되었습니다",
+    "done": "{count}건을 분류했어요",
+    "failedBotsPartial": "{count}개 봇은 실패했어요 (API 키 설정을 확인해 주세요)",
+    "failedBotsAll": "분류에 실패했어요. API 키 설정을 확인해 주세요",
+    "limitedBots": "{count}개 봇은 오늘 사용량을 다 썼어요",
+    "deferredBots": "{count}개 봇은 다음에 이어서 처리해요",
+    "leftNone": "남은 {count}건을 분류하지 못했어요",
+    "nothingNew": "분류할 새 피드백이 없어요",
+    "left": "{count}건이 남았어요"
+  },
+  "group": {
+    "busy": "이미 자동으로 묶는 중이에요. 잠시 뒤 다시 읽어요",
+    "grouped": "{count}건을 묶었어요",
+    "nothing": "묶을 수 있는 피드백이 없어요"
+  },
+  "rescheduled": "새 복구 주기를 예약했습니다. 미분류 메시지 분류로 실행할 수 있습니다.",
+  "recovery": {
+    "aria": "분류 복구 상태",
+    "title": "분류 복구",
+    "pending": "대기 {count}",
+    "processing": "처리 중 {count}",
+    "failed": "실패 {count}",
+    "exhausted": "한도 도달 {count}",
+    "none": "밀린 분류가 없어요",
+    "note": "실패는 제한된 횟수로 재시도합니다. 한도 도달 건은 원인을 확인한 뒤 새 복구 주기를 예약하세요. 오래된 순으로 최대 50건을 표시합니다.",
+    "row": "메시지 {id} · {attempts}회 · {error}",
+    "unknownCause": "원인 미확인",
+    "reschedule": "새 복구 주기 예약"
+  },
+  "tabs": {
+    "aria": "분류된 피드백",
+    "all": "전체",
+    "empty": "아직 이 갈래로 분류된 피드백이 없어요."
+  },
+  "row": {
+    "sentiment": {
+      "positive": "긍정",
+      "neutral": "중립",
+      "negative": "부정"
+    },
+    "jevTitle": "결정 전용 모델 Jev 가 확신 0.7 이상이라 분류를 확정했어요",
+    "llmTitle": "Jev 확신이 낮아 LLM 판단을 썼어요",
+    "followUpTurns": "보충 {count}턴",
+    "prShipped": "PR #{number} 반영됨",
+    "prOpen": "PR #{number} 열림",
+    "groupSize": "묶음 {count}건",
+    "groupClosed": "묶음 닫힘",
+    "groupingSoon": "곧 자동으로 묶여요",
+    "notGroupedYet": "아직 안 묶임",
+    "notGroupable": "묶음 대상 아님",
+    "needsPerson": "사람 확인 필요",
+    "groupLink": "묶음 · {title}",
+    "viewConversation": "대화 보기"
+  }
+}

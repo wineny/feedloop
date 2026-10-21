@@ -1,0 +1,12 @@
+{
+  "title": "Is the problem fixed?",
+  "intro": "We fixed the problem you reported. Please tell us how it works for you now. It may take a few more minutes to appear on the live site.",
+  "savedFixed": "Your answer, “it's fixed”, was saved.",
+  "savedNotFixed": "Your answer, “it's still not fixed”, was saved. The owner will follow up.",
+  "loadError": "Couldn't load your confirmation. Please reopen the link from the widget.",
+  "saveError": "Couldn't save. Please try again.",
+  "fixed": "It's fixed",
+  "notFixed": "It's still not fixed",
+  "checking": "Checking…",
+  "changeNote": "You can change your answer by choosing again."
+}

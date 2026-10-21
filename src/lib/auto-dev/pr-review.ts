@@ -225,8 +225,6 @@ export function mergeBlockedBy(review: Pick<PrReview, 'build' | 'state' | 'merge
   return null;
 }
 
-export { MERGE_BLOCK_MESSAGE } from './review-labels';
-
 // ─── GitHub 호출 ───────────────────────────────────────────────────────────────
 
 export async function getPrReview(repoUrl: string, prNumber: number, opts?: GithubOpts): Promise<PrReview> {

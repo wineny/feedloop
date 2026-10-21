@@ -6,6 +6,7 @@
 
 import { summarizeContext } from './context-summary';
 import type { PickedShotView } from './pick';
+import type { Locale } from '@/i18n/routing';
 
 export interface Rect {
   x: number;
@@ -35,11 +36,7 @@ export interface PickedShotData {
 export const PICKED_SHOT_RETENTION_DAYS = 90;
 /** 썸네일에서 테두리가 이보다 작아지면 최소 상자 + 핀으로 그린다(134×23 버튼이 점이 되지 않게) */
 export const MIN_MARK_PX = 12;
-/** 운영자 화면 각주 */
-export const SHOT_FOOTNOTE = '방문자 브라우저에서 다시 그린 화면이라 이미지·지도·고정 헤더는 빠질 수 있어요';
-/** 「제보된 페이지」 링크 문구·각주 */
-export const PAGE_LINK_LABEL = '제보된 페이지';
-export const PAGE_LINK_NOTE = '지금 상태의 페이지가 열려서 방문자가 본 화면과 다를 수 있어요';
+// 화면 문구(각주·「제보된 페이지」·화면이 없는 까닭)는 사전 `picked.*` 에 있다.
 
 /** http(s) 만 통과 — 서버가 이미 걸렀지만 href 에 싣기 전에 한 번 더(javascript: 등) */
 export function safePageUrl(url: unknown): string | undefined {
@@ -64,8 +61,8 @@ export function pagePathLabel(url: string): string {
 }
 
 /** messages.context + 서명 결과 → 카드 재료. 짚은 요소가 없으면 null */
-export function pickedFromContext(context: unknown, shot: PickedShotView | null | undefined, at?: string): PickedShotData | null {
-  const s = summarizeContext(context);
+export function pickedFromContext(context: unknown, shot: PickedShotView | null | undefined, at?: string, locale: Locale = 'ko'): PickedShotData | null {
+  const s = summarizeContext(context, locale);
   if (!s?.target) return null;
   return {
     label: s.target.label,
@@ -88,18 +85,6 @@ export function missingShotKind(d: Pick<PickedShotData, 'shot' | 'hadShot' | 'at
   const t = d.at ? Date.parse(d.at) : NaN;
   if (Number.isFinite(t) && now - t > PICKED_SHOT_RETENTION_DAYS * 86_400_000) return 'expired';
   return 'failed';
-}
-
-const MISSING_REASON: Record<MissingShotKind, string> = {
-  noShot: '이 제보엔 화면이 없어요 · 위치만 표시해요',
-  expired: '보존 기간이 지나 화면이 삭제됐어요 · 위치만 표시해요',
-  failed: '화면을 불러오지 못했어요 · 위치만 표시해요',
-};
-
-/** 이미지가 없을 때 무엇이라 말할지(한국어 고정 — 서버·프롬프트·테스트용. 화면은 `missingShotKind` + 사전) */
-export function missingShotReason(d: Pick<PickedShotData, 'shot' | 'hadShot' | 'at'>, now = Date.now()): string | null {
-  const kind = missingShotKind(d, now);
-  return kind ? MISSING_REASON[kind] : null;
 }
 
 /** 좌표계 크기 — 뷰포트, 없으면 이미지 크기, 둘 다 없으면 rect 를 담는 최소 상자 */

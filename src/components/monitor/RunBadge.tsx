@@ -1,4 +1,7 @@
+'use client';
+
 import { Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import type { RunItem } from '@/app/api/auto-dev/runs/route';
 
@@ -15,18 +18,9 @@ export function runState(run: Pick<RunItem, 'status' | 'pr'>): RunState {
   return 'failed';
 }
 
-export const RUN_STATE_LABEL: Record<RunState, string> = {
-  running: '진행 중',
-  open: '검토 대기',
-  merged: '반영됨',
-  closed: '닫힘',
-  failed: '실패',
-  stopped: '중단',
-  unverifiable: '검증 불가',
-};
-
 /** 20px 알약 배지 — 머지됨만 브랜드, 중단은 경고 톤, 나머지는 중립 */
 export function RunBadge({ state, className }: { state: RunState; className?: string }) {
+  const t = useTranslations('monitor.state');
   return (
     <span
       className={cn(
@@ -40,7 +34,7 @@ export function RunBadge({ state, className }: { state: RunState; className?: st
     >
       {state === 'merged' && <Check className="h-2.5 w-2.5" aria-hidden />}
       {state === 'running' && <i className="block h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" aria-hidden />}
-      {RUN_STATE_LABEL[state]}
+      {t(state)}
     </span>
   );
 }

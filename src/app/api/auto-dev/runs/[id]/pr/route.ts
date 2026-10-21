@@ -11,6 +11,7 @@ import { extractLegacyExplanation } from '@/lib/auto-dev/explanation';
 import { extractPickedTargets } from '@/lib/auto-dev/picked-targets';
 import { loadRunPickedShots } from '@/lib/widget/shots';
 import { apiText } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const [review, pickedShots] = await Promise.all([
       reviewAndPromoteDraft(run.repoUrl, run.prNumber, { botId: run.botId }),
       // 근거 제보가 짚은 화면(I-55) — 소유 확인(loadOwnedRun)을 지난 뒤, 10분 서명 URL 로
-      loadRunPickedShots(run),
+      loadRunPickedShots(run, 3, localeFromRequest(req, 'operator')),
     ]);
     // 담당자에게 PR 본문 원문은 필요 없다 — 옛 실행의 설명을 뽑는 데만 쓰고 내보내지 않는다
     const { body, ...rest } = review;

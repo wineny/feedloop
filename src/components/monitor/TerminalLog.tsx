@@ -4,6 +4,7 @@
 // 널널투어 v2: 검은 터미널 흉내 대신 `bg-muted` 위에 모노 12.5px. 마지막 완료 줄만 브랜드색.
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 
 interface LogLine {
@@ -31,15 +32,18 @@ interface TerminalLogProps {
 }
 
 export function TerminalLog({ streamUrl, onComplete, onSettled, staticLines, className }: TerminalLogProps) {
+  const t = useTranslations('monitor.detail.log');
   const [lines, setLines] = useState<LogLine[]>([]);
   const [live, setLive] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   // 최신 onComplete 를 ref 로 들고 있어야 스트림 effect 가 콜백이 바뀔 때마다 재구독하지 않는다.
   const onSettledRef = useRef(onSettled);
   const onCompleteRef = useRef(onComplete);
+  const disconnectedRef = useRef(t('disconnected'));
   useEffect(() => {
     onCompleteRef.current = onComplete;
     onSettledRef.current = onSettled;
+    disconnectedRef.current = t('disconnected');
   });
   const startTimeRef = useRef(0);
 
@@ -87,7 +91,7 @@ export function TerminalLog({ streamUrl, onComplete, onSettled, staticLines, cla
     eventSource.onerror = () => {
       setLive(false);
       eventSource.close();
-      setLines((prev) => [...prev, { type: 'error', message: '실시간 연결이 끊어졌어요. 저장된 실행 상태를 다시 확인합니다.' }]);
+      setLines((prev) => [...prev, { type: 'error', message: disconnectedRef.current }]);
       onSettledRef.current?.();
     };
 
@@ -104,7 +108,7 @@ export function TerminalLog({ streamUrl, onComplete, onSettled, staticLines, cla
     ? (staticLines as LogLine[])
     : streamUrl
       ? lines
-      : [{ type: 'log', message: '실행을 선택하면 로그가 여기 흐릅니다' }];
+      : [{ type: 'log', message: t('idle') }];
 
   return (
     <div
@@ -122,7 +126,7 @@ export function TerminalLog({ streamUrl, onComplete, onSettled, staticLines, cla
             line.type === 'error' && 'font-semibold text-destructive',
           )}
         >
-          {line.type === 'complete' && !line.message ? `PR #${line.pr_number} 생성 완료!` : line.message || ' '}
+          {line.type === 'complete' && !line.message ? t('prDone', { number: line.pr_number ?? 0 }) : line.message || ' '}
         </div>
       ))}
       {streamUrl && live && !staticLines && (

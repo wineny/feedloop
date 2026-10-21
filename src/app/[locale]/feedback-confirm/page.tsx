@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useFormatter, useTranslations } from 'next-intl';
 
 type Receipt = { confirmation: 'fixed' | 'not_fixed' | null; confirmedAt: string | null };
 type Target = { botId: string; visitorId: string; responseId: string };
 
 export default function FeedbackConfirmPage() {
+  const t = useTranslations('feedbackConfirm');
+  const format = useFormatter();
   const [target, setTarget] = useState<Target | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [error, setError] = useState('');
@@ -18,8 +21,9 @@ export default function FeedbackConfirmPage() {
     const query = new URLSearchParams({ visitorId: next.visitorId, responseId: next.responseId });
     fetch(`/api/widget/${encodeURIComponent(next.botId)}/confirm?${query}`, { cache: 'no-store', referrerPolicy: 'no-referrer' })
       .then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); setReceipt(data); })
-      .catch(() => setError('확인 내용을 불러오지 못했습니다. 위젯의 링크를 다시 열어 주세요.'))
+      .catch(() => setError(t('loadError')))
       .finally(() => setBusy(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 주소의 해시를 한 번만 읽는다. 언어가 바뀌어도 다시 부르지 않는다
   }, []);
   async function confirm(confirmation: 'fixed' | 'not_fixed') {
     if (!target) return;
@@ -32,19 +36,19 @@ export default function FeedbackConfirmPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setReceipt(data);
-    } catch { setError('저장하지 못했습니다. 다시 시도해 주세요.'); }
+    } catch { setError(t('saveError')); }
     finally { setBusy(false); }
   }
   return <main className="mx-auto max-w-lg p-8 space-y-5">
-    <h1 className="text-2xl font-semibold">문제가 해결되었나요?</h1>
-    <p>말씀하신 문제를 고쳤어요. 실제로 써 보신 결과를 알려 주세요. 서비스에 반영되기까지는 조금 걸릴 수 있어요.</p>
-    {receipt?.confirmation && <p role="status">{receipt.confirmation === 'fixed' ? '해결되었다는 응답을 저장했습니다.' : '아직 해결되지 않았다는 응답을 저장했습니다. 담당자가 후속 확인합니다.'} {receipt.confirmedAt && <time dateTime={receipt.confirmedAt}>{new Date(receipt.confirmedAt).toLocaleString('ko-KR')}</time>}</p>}
+    <h1 className="text-2xl font-semibold">{t('title')}</h1>
+    <p>{t('intro')}</p>
+    {receipt?.confirmation && <p role="status">{receipt.confirmation === 'fixed' ? t('savedFixed') : t('savedNotFixed')} {receipt.confirmedAt && <time dateTime={receipt.confirmedAt}>{format.dateTime(new Date(receipt.confirmedAt), { dateStyle: 'medium', timeStyle: 'short' })}</time>}</p>}
     {error && <p role="alert">{error}</p>}
     <div className="flex gap-3">
-      <button className="rounded border px-4 py-2 disabled:opacity-50" disabled={busy || !receipt} onClick={() => confirm('fixed')}>해결됐어요</button>
-      <button className="rounded border px-4 py-2 disabled:opacity-50" disabled={busy || !receipt} onClick={() => confirm('not_fixed')}>아직 해결되지 않았어요</button>
+      <button className="rounded border px-4 py-2 disabled:opacity-50" disabled={busy || !receipt} onClick={() => confirm('fixed')}>{t('fixed')}</button>
+      <button className="rounded border px-4 py-2 disabled:opacity-50" disabled={busy || !receipt} onClick={() => confirm('not_fixed')}>{t('notFixed')}</button>
     </div>
-    {busy && <p role="status">확인 중…</p>}
-    <p className="text-sm">응답은 다시 선택해 변경할 수 있습니다.</p>
+    {busy && <p role="status">{t('checking')}</p>}
+    <p className="text-sm">{t('changeNote')}</p>
   </main>;
 }

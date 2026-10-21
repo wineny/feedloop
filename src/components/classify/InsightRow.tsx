@@ -10,10 +10,10 @@
 // 「피드백 묶음」에서만 만든다 — 랜딩이 말하는 「사람이 하는 일 = 묶음 확인·반영 승인」 그대로.
 
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { Check, ChevronRight, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { personLabel, sourceLabel } from '@/lib/channel/labels';
+import { useChannelLabels } from '@/lib/channel/useChannelLabels';
 import type { GroupRef, Insight } from './types';
 import { isGroupable } from '@/lib/classify/taxonomy';
 import { PickedShot } from '@/components/picked/PickedShot';
@@ -23,21 +23,6 @@ interface InsightRowProps {
   insight: Insight;
   group: GroupRef | null;
   demo?: boolean;
-}
-
-const SENTIMENT_LABEL: Record<string, string> = {
-  positive: '긍정',
-  neutral: '중립',
-  negative: '부정',
-};
-
-const timeFormatter = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' });
-const dateFormatter = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' });
-
-function formatWhen(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toDateString() === new Date().toDateString() ? timeFormatter.format(d) : dateFormatter.format(d);
 }
 
 function Sep() {
@@ -78,11 +63,12 @@ function NeutralBadge({ children }: { children: React.ReactNode }) {
  * 분류 출처 — 카테고리 배지에 딸린 메타라 배지가 아니라 회색 글자로 둔다. 출처를 모르면(예전 행) 그리지 않는다.
  */
 function ClassifiedBy({ by, confidence }: { by: Insight['classified_by']; confidence: Insight['classify_confidence'] }) {
+  const t = useTranslations('classify.row');
   if (by === 'jev') {
     return (
       <span
         className="shrink-0 text-[12.5px] font-medium text-faint tabular-nums"
-        title="결정 전용 모델 Jev 가 확신 0.7 이상이라 분류를 확정했어요"
+        title={t('jevTitle')}
       >
         Jev{confidence != null && ` ${confidence.toFixed(2)}`}
       </span>
@@ -90,7 +76,7 @@ function ClassifiedBy({ by, confidence }: { by: Insight['classified_by']; confid
   }
   if (by === 'llm') {
     return (
-      <span className="shrink-0 text-[12.5px] font-medium text-faint" title="Jev 확신이 낮아 LLM 판단을 썼어요">
+      <span className="shrink-0 text-[12.5px] font-medium text-faint" title={t('llmTitle')}>
         LLM
       </span>
     );
@@ -99,10 +85,18 @@ function ClassifiedBy({ by, confidence }: { by: Insight['classified_by']; confid
 }
 
 export function InsightRow({ insight, group, demo = false }: InsightRowProps) {
+  const t = useTranslations('classify.row');
+  const format = useFormatter();
+  const { sourceLabel, personLabel } = useChannelLabels();
   const msg = insight.messages;
   const source = msg?.source ? sourceLabel(msg.source) : null;
-  const sentiment = insight.sentiment ? SENTIMENT_LABEL[insight.sentiment] ?? insight.sentiment : null;
-  const when = formatWhen(msg?.detected_at || insight.created_at);
+  const sentiment = insight.sentiment ? (dynamicT(t).has(`sentiment.${insight.sentiment}`) ? dynamicT(t)(`sentiment.${insight.sentiment}`) : insight.sentiment) : null;
+  const whenAt = new Date(msg?.detected_at || insight.created_at);
+  const when = Number.isNaN(whenAt.getTime())
+    ? ''
+    : whenAt.toDateString() === new Date().toDateString()
+      ? format.dateTime(whenAt, { hour: 'numeric', minute: '2-digit' })
+      : format.dateTime(whenAt, { month: 'long', day: 'numeric' });
   const pr = group?.pr ?? null;
 
   return (
@@ -126,7 +120,7 @@ export function InsightRow({ insight, group, demo = false }: InsightRowProps) {
           <ClassifiedBy by={insight.classified_by} confidence={insight.classify_confidence} />
           {/* I-05 — 꼬리질문 답이 기존 인사이트 갱신으로 흡수됐을 때만 뜬다. */}
           {insight.source_message_ids && insight.source_message_ids.length > 0 && (
-            <NeutralBadge>보충 {insight.source_message_ids.length}턴</NeutralBadge>
+            <NeutralBadge>{t('followUpTurns', { count: insight.source_message_ids.length })}</NeutralBadge>
           )}
           <p className="min-w-0 text-[15px] font-semibold leading-[1.3] tracking-[-0.01em]">{insight.summary}</p>
         </div>
@@ -169,36 +163,36 @@ export function InsightRow({ insight, group, demo = false }: InsightRowProps) {
             {pr.mergedAt ? (
               <span className="inline-flex min-h-5 items-center gap-1 rounded-full bg-brand-subtle px-2 text-[12.5px] font-medium text-brand-strong">
                 <Check className="h-3 w-3" aria-hidden />
-                PR #{pr.number} 반영됨
+                {t('prShipped', { number: pr.number })}
               </span>
             ) : (
-              <NeutralBadge>PR #{pr.number} 열림</NeutralBadge>
+              <NeutralBadge>{t('prOpen', { number: pr.number })}</NeutralBadge>
             )}
           </>
         ) : group ? (
-          <NeutralBadge>묶음 {group.insightCount}건</NeutralBadge>
+          <NeutralBadge>{t('groupSize', { count: group.insightCount })}</NeutralBadge>
         ) : insight.group_id ? (
           // 묶였는데 목록(/api/groups)에 없다 = 운영자가 닫은(dismissed) 묶음이다. 「곧 묶여요」라고
           // 하면 거짓이다 — 자동 묶기는 group_id 가 NULL 인 것만 본다.
-          <NeutralBadge>묶음 닫힘</NeutralBadge>
+          <NeutralBadge>{t('groupClosed')}</NeutralBadge>
         ) : isGroupable(insight.category) ? (
           // 자동 묶기(I-10)가 곧 잡는다. 「아직 안 묶임」은 사람이 눌러야 하는 것처럼 읽혔다.
           // 데모(로그아웃 심사 화면)의 예시 행은 영원히 안 묶이므로 그 약속을 하지 않는다.
-          <NeutralBadge>{demo ? '아직 안 묶임' : '곧 자동으로 묶여요'}</NeutralBadge>
+          <NeutralBadge>{demo ? t('notGroupedYet') : t('groupingSoon')}</NeutralBadge>
         ) : (
           // 「아직」은 곧 해소될 대기 상태로 읽힌다. cs·praise·other 는 묶기 대상이
           // 아니라 **영원히 안 묶인다** — 끝난 상태로 보이게 문구를 가른다.
-          <NeutralBadge>묶음 대상 아님</NeutralBadge>
+          <NeutralBadge>{t('notGroupable')}</NeutralBadge>
         )}
 
-        {insight.follow_up_needed && <NeutralBadge>사람 확인 필요</NeutralBadge>}
+        {insight.follow_up_needed && <NeutralBadge>{t('needsPerson')}</NeutralBadge>}
 
         {group && (
           <Link
             href="/dashboard"
             className="inline-flex min-w-0 max-w-full items-center gap-0.5 text-[12.5px] font-semibold text-brand-strong hover:underline sm:max-w-[260px]"
           >
-            <span className="truncate">묶음 · {group.title}</span>
+            <span className="truncate">{t('groupLink', { title: group.title })}</span>
             <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
           </Link>
         )}
@@ -208,7 +202,7 @@ export function InsightRow({ insight, group, demo = false }: InsightRowProps) {
             href="/inbox"
             className={cn('inline-flex items-center gap-0.5 text-[12.5px] font-medium text-faint hover:text-foreground')}
           >
-            대화 보기
+            {t('viewConversation')}
             <ChevronRight className="h-3 w-3" aria-hidden />
           </Link>
         )}

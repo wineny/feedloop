@@ -4,7 +4,9 @@
 // 담당자용 화면에서는 접혀 있고 「개발자용」이라고 적힌다 — 판단 재료는 그 위의 설명이다.
 
 import { ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
+import { dynamicT } from '@/i18n/dynamic';
 import type { PrFile } from '@/lib/auto-dev/pr-review';
 
 interface DiffViewProps {
@@ -61,16 +63,10 @@ export function parsePatch(patch: string): DiffLine[] {
   return out;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  added: '새 파일',
-  removed: '삭제',
-  renamed: '이름 변경',
-  modified: '수정',
-};
-
 export function DiffView({ files, filesTruncated, openFirst = 0 }: DiffViewProps) {
+  const t = useTranslations('monitor.diff');
   if (files.length === 0) {
-    return <p className="py-3 text-sm text-muted-foreground">바뀐 파일이 없어요.</p>;
+    return <p className="py-3 text-sm text-muted-foreground">{t('none')}</p>;
   }
   return (
     <div>
@@ -81,7 +77,7 @@ export function DiffView({ files, filesTruncated, openFirst = 0 }: DiffViewProps
             <span className="flex min-w-0 items-baseline gap-2">
               <code className="truncate font-mono text-[12.5px]">{f.path}</code>
               {f.status !== 'modified' && (
-                <span className="shrink-0 text-[12.5px] text-faint">{STATUS_LABEL[f.status] ?? f.status}</span>
+                <span className="shrink-0 text-[12.5px] text-faint">{dynamicT(t).has(`status.${f.status}`) ? dynamicT(t)(`status.${f.status}`) : f.status}</span>
               )}
             </span>
             <span className="whitespace-nowrap text-[12.5px] tabular-nums">
@@ -135,17 +131,17 @@ export function DiffView({ files, filesTruncated, openFirst = 0 }: DiffViewProps
               </div>
               {f.patchTruncated && (
                 <p className="border-t border-border px-3 py-1.5 text-[12.5px] text-faint">
-                  변경이 길어 앞부분만 보여요. 전체는 GitHub 에서 볼 수 있어요.
+                  {t('patchTruncated')}
                 </p>
               )}
             </div>
           ) : (
-            <p className="mb-3 text-[12.5px] text-faint">이 파일은 미리 볼 수 없어요 (바이너리이거나 너무 커요).</p>
+            <p className="mb-3 text-[12.5px] text-faint">{t('noPreview')}</p>
           )}
         </details>
       ))}
       {filesTruncated && (
-        <p className="pt-2 text-[12.5px] text-faint">파일이 100개를 넘어 일부만 보여요. 전체는 GitHub 에서 볼 수 있어요.</p>
+        <p className="pt-2 text-[12.5px] text-faint">{t('filesTruncated')}</p>
       )}
     </div>
   );
