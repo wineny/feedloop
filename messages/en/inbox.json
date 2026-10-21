@@ -1,0 +1,112 @@
+{
+  "title": "Inbox",
+  "noNew": "No new conversations",
+  "subtitleEscalated": "Awaiting your reply: <strong>{count}</strong>",
+  "subtitleUnread": "Unread: <strong>{count}</strong>",
+  "empty": "No conversations yet. Add the widget to your site and they will collect here.",
+  "addWidget": "Add the widget",
+  "listLabel": "Conversation list",
+  "detailLabel": "Conversation detail",
+  "tabAll": "All",
+  "tabUnread": "Unread",
+  "noUnread": "No unread conversations.",
+  "noContent": "(No content)",
+  "unreadDot": "Unread",
+  "selectPrompt": "Select a conversation on the left.",
+  "needsReply": "Needs reply",
+  "kind": {
+    "ai": "AI reply",
+    "operator": "Your reply",
+    "system": "Notice",
+    "notice": "Info",
+    "payment": "PayPal"
+  },
+  "context": {
+    "prefix": "When reported · {facts}",
+    "errors": "Console errors {count}",
+    "requests": "Failed requests {count}"
+  },
+  "timeAgo": {
+    "now": "just now",
+    "minutes": "{count}m ago",
+    "hours": "{count}h ago",
+    "yesterday": "yesterday",
+    "days": "{count}d ago"
+  },
+  "originTitle": "Site where this conversation started: {origin}",
+  "noContact": "No contact info",
+  "closed": "Closed",
+  "approver": "Approver",
+  "closeConversation": "Close conversation",
+  "closeHintChannel": "Follows the status in Channel Talk. If the conversation reopens there, it reopens here too.",
+  "closeHint": "Closing can't be undone.",
+  "handoffEmail": {
+    "sent": "Handoff email: accepted for delivery",
+    "failed": "Handoff email: failed to send. Check the request in your inbox.",
+    "unknown": "Handoff email: delivery unconfirmed. Resending is on hold until the provider's records are checked."
+  },
+  "approverNote": "You are an approver on this bot: approve or reject refund requests above. Replies and closing the conversation are for the bot owner.",
+  "channelReply": "Reply in Channel Talk Desk",
+  "channelNote": "Channel Talk conversations are answered in Desk. Feedloop triages the report and only sends the notification once the fix ships.",
+  "replyHint": "Write a reply here",
+  "replyPlaceholder": "Type a reply",
+  "send": "Send",
+  "replyNote": {
+    "kakao": "Kakao can't message first, so your reply is delivered the next time they send a message.",
+    "kakaoEmail": "Kakao can't message first, so your reply is delivered the next time they send a message. An email goes to {email} right away.",
+    "webEmail": "Your reply goes to the widget right away, and an email goes to {email} too.",
+    "web": "Web widget replies are delivered right away. No email was left, so none is sent."
+  },
+  "errors": {
+    "api": "API error: {status}",
+    "loadList": "Could not load conversations",
+    "open": "Could not open the conversation",
+    "close": "Could not close the conversation",
+    "reply": "Could not send the reply",
+    "noConversation": "No conversation is open.",
+    "decisionFailed": "The decision failed ({status}).",
+    "alreadyDecided": "This request was already decided by someone else. The card shows the current state.",
+    "notCompleted": "The decision was saved but could not be completed ({status})."
+  },
+  "notices": {
+    "deepLinkMissing": "Could not find the conversation from your email in the list. Please pick it from the list.",
+    "demoClosed": "Conversation closed. This is a practice screen, so nothing is actually closed. Reload to reset.",
+    "demoReplied": "Reply sent. This is a practice screen, so it is not delivered. Reload to reset.",
+    "closed": "Conversation closed."
+  },
+  "payment": {
+    "aria": "Refund request",
+    "title": "Refund request · {amount}",
+    "capture": "PayPal capture",
+    "requested": "Requested",
+    "refund": "PayPal refund",
+    "detail": "Detail",
+    "why": "Why it waits for you",
+    "approve": "Approve {amount}",
+    "approveBare": "Approve",
+    "reject": "Reject",
+    "once": "Approving sends exactly this amount to PayPal. Decided once.",
+    "saveFailed": "The decision could not be saved. Reload and try again.",
+    "status": {
+      "pending": "Waiting for approval",
+      "executing": "Sending to PayPal",
+      "unknown": "Processing (awaiting PayPal confirmation)",
+      "executed": "Refunded",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    },
+    "checks": {
+      "amount_within_max": "Amount within auto limit",
+      "within_days": "Paid recently enough",
+      "no_prior_refund": "No earlier refund on this payment",
+      "currency_matches": "Currency matches the store",
+      "daily_cap_ok": "Daily refund cap not exceeded",
+      "customer_known": "Customer identified",
+      "customer_cap_ok": "Customer refund cap not exceeded",
+      "no_dispute": "No open dispute",
+      "not_propose_only": "Store allows automatic refunds",
+      "not_paused": "Automatic refunds not paused"
+    }
+  }
+}

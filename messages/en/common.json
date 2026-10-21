@@ -17,5 +17,17 @@
   "close": "Close",
   "copy": "Copy",
   "copied": "Copied",
-  "saving": "Saving…"
+  "saving": "Saving…",
+  "channels": {
+    "source": {
+      "web": "Web widget",
+      "kakao": "KakaoTalk",
+      "channel": "Channel Talk"
+    },
+    "person": {
+      "default": "Visitor",
+      "kakao": "Kakao user",
+      "channel": "Customer"
+    }
+  }
 }

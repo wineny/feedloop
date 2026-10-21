@@ -79,13 +79,27 @@ export function pickedFromContext(context: unknown, shot: PickedShotView | null 
   };
 }
 
-/** 이미지가 없을 때 무엇이라 말할지 */
-export function missingShotReason(d: Pick<PickedShotData, 'shot' | 'hadShot' | 'at'>, now = Date.now()): string | null {
+/** 이미지가 없는 까닭의 코드. 화면은 이 코드로 사전(`picked.missing.<코드>`)을 읽는다 */
+export type MissingShotKind = 'noShot' | 'expired' | 'failed';
+
+export function missingShotKind(d: Pick<PickedShotData, 'shot' | 'hadShot' | 'at'>, now = Date.now()): MissingShotKind | null {
   if (d.shot) return null;
-  if (!d.hadShot) return '이 제보엔 화면이 없어요 · 위치만 표시해요';
+  if (!d.hadShot) return 'noShot';
   const t = d.at ? Date.parse(d.at) : NaN;
-  if (Number.isFinite(t) && now - t > PICKED_SHOT_RETENTION_DAYS * 86_400_000) return '보존 기간이 지나 화면이 삭제됐어요 · 위치만 표시해요';
-  return '화면을 불러오지 못했어요 · 위치만 표시해요';
+  if (Number.isFinite(t) && now - t > PICKED_SHOT_RETENTION_DAYS * 86_400_000) return 'expired';
+  return 'failed';
+}
+
+const MISSING_REASON: Record<MissingShotKind, string> = {
+  noShot: '이 제보엔 화면이 없어요 · 위치만 표시해요',
+  expired: '보존 기간이 지나 화면이 삭제됐어요 · 위치만 표시해요',
+  failed: '화면을 불러오지 못했어요 · 위치만 표시해요',
+};
+
+/** 이미지가 없을 때 무엇이라 말할지(한국어 고정 — 서버·프롬프트·테스트용. 화면은 `missingShotKind` + 사전) */
+export function missingShotReason(d: Pick<PickedShotData, 'shot' | 'hadShot' | 'at'>, now = Date.now()): string | null {
+  const kind = missingShotKind(d, now);
+  return kind ? MISSING_REASON[kind] : null;
 }
 
 /** 좌표계 크기 — 뷰포트, 없으면 이미지 크기, 둘 다 없으면 rect 를 담는 최소 상자 */

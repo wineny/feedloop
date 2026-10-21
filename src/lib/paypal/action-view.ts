@@ -87,8 +87,12 @@ export interface DecisionResponseEffect {
   escalationCleared: boolean;
   /** Shown on the card (the decision did not go through). */
   cardError: string | null;
+  /** Set when `cardError` is this file's own fallback sentence, so the screen can swap in its dictionary text. */
+  cardErrorCode?: 'alreadyDecided' | 'failed';
   /** Shown at the conversation level (the decision is saved; something else needs attention). */
   notice: string | null;
+  /** True when `notice` is this file's own fallback sentence (the server sent none). */
+  noticeIsFallback?: boolean;
 }
 
 export function interpretDecisionResponse(status: number, body: unknown): DecisionResponseEffect {
@@ -97,14 +101,14 @@ export function interpretDecisionResponse(status: number, body: unknown): Decisi
   const escalationCleared = b.escalationCleared === true;
   const serverError = typeof b.error === 'string' && b.error ? b.error : null;
   if (status === 409 && action) {
-    return { action, escalationCleared, cardError: 'This request was already decided by someone else. The card shows the current state.', notice: null };
+    return { action, escalationCleared, cardError: 'This request was already decided by someone else. The card shows the current state.', cardErrorCode: 'alreadyDecided', notice: null };
   }
   if (!action) {
-    return { action: null, escalationCleared, cardError: serverError ?? `The decision failed (${status}).`, notice: null };
+    return { action: null, escalationCleared, cardError: serverError ?? `The decision failed (${status}).`, cardErrorCode: serverError ? undefined : 'failed', notice: null };
   }
   if (status < 200 || status >= 300) {
     // e.g. 502: the approval is saved (the row says "Sending to PayPal") but nothing went out yet.
-    return { action, escalationCleared, cardError: null, notice: serverError ?? `The decision was saved but could not be completed (${status}).` };
+    return { action, escalationCleared, cardError: null, notice: serverError ?? `The decision was saved but could not be completed (${status}).`, noticeIsFallback: !serverError };
   }
   return { action, escalationCleared, cardError: null, notice: null };
 }

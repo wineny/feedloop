@@ -17,5 +17,17 @@
   "close": "닫기",
   "copy": "복사",
   "copied": "복사됨",
-  "saving": "저장 중…"
+  "saving": "저장 중…",
+  "channels": {
+    "source": {
+      "web": "웹 위젯",
+      "kakao": "카카오톡",
+      "channel": "채널톡"
+    },
+    "person": {
+      "default": "방문자",
+      "kakao": "카카오 사용자",
+      "channel": "고객"
+    }
+  }
 }

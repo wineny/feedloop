@@ -1,0 +1,112 @@
+{
+  "title": "대화",
+  "noNew": "새 대화가 없어요",
+  "subtitleEscalated": "답장을 기다리는 대화 <strong>{count}건</strong>",
+  "subtitleUnread": "안 읽음 <strong>{count}건</strong>",
+  "empty": "아직 들어온 대화가 없어요. 사이트에 위젯을 붙이면 여기에 쌓입니다.",
+  "addWidget": "위젯 붙이기",
+  "listLabel": "대화 목록",
+  "detailLabel": "대화 상세",
+  "tabAll": "전체",
+  "tabUnread": "안 읽음",
+  "noUnread": "안 읽은 대화가 없어요.",
+  "noContent": "(내용 없음)",
+  "unreadDot": "읽지 않음",
+  "selectPrompt": "왼쪽에서 대화를 선택하세요.",
+  "needsReply": "담당자 확인 필요",
+  "kind": {
+    "ai": "AI 응답",
+    "operator": "내 답장",
+    "system": "알림",
+    "notice": "안내",
+    "payment": "PayPal"
+  },
+  "context": {
+    "prefix": "제보 시점 · {facts}",
+    "errors": "콘솔 에러 {count}",
+    "requests": "실패 요청 {count}"
+  },
+  "timeAgo": {
+    "now": "방금",
+    "minutes": "{count}분 전",
+    "hours": "{count}시간 전",
+    "yesterday": "어제",
+    "days": "{count}일 전"
+  },
+  "originTitle": "이 대화가 시작된 사이트: {origin}",
+  "noContact": "연락처 없음",
+  "closed": "닫힘",
+  "approver": "승인자",
+  "closeConversation": "대화 닫기",
+  "closeHintChannel": "채널톡의 상담 상태를 따라갑니다. 채널톡에서 대화가 다시 열리면 여기도 다시 열려요.",
+  "closeHint": "닫으면 되돌릴 수 없어요.",
+  "handoffEmail": {
+    "sent": "상담원 알림 이메일: 전송 승인됨",
+    "failed": "상담원 알림 이메일: 전송 실패. 받은편지함에서 요청을 확인하세요.",
+    "unknown": "상담원 알림 이메일: 전달 확인 필요. 제공업체 기록 대조 전 재발송을 보류합니다."
+  },
+  "approverNote": "이 봇의 승인자입니다. 위의 환불 요청을 승인하거나 거절할 수 있습니다. 답장과 대화 닫기는 봇 주인만 할 수 있어요.",
+  "channelReply": "채널톡 데스크에서 답장하기",
+  "channelNote": "채널톡 대화는 데스크에서 답장합니다. Feedloop 은 제보를 분류하고, 수정이 반영되면 반영 알림만 보냅니다.",
+  "replyHint": "여기에 답장을 써보세요",
+  "replyPlaceholder": "답장을 입력하세요",
+  "send": "보내기",
+  "replyNote": {
+    "kakao": "카카오는 먼저 말을 걸 수 없어, 답장은 상대가 다음에 메시지를 보낼 때 전달됩니다.",
+    "kakaoEmail": "카카오는 먼저 말을 걸 수 없어, 답장은 상대가 다음에 메시지를 보낼 때 전달됩니다. {email} 로는 바로 메일이 갑니다.",
+    "webEmail": "답장은 위젯에 바로 전달되고, {email} 로도 메일이 갑니다.",
+    "web": "웹 위젯 대화는 답장이 바로 전달됩니다. 이메일을 남기지 않아 메일은 가지 않습니다."
+  },
+  "errors": {
+    "api": "API 오류: {status}",
+    "loadList": "대화를 불러오지 못했습니다",
+    "open": "대화를 열지 못했습니다",
+    "close": "대화를 닫지 못했습니다",
+    "reply": "답장을 보내지 못했습니다",
+    "noConversation": "열려 있는 대화가 없습니다.",
+    "decisionFailed": "결정을 처리하지 못했습니다 ({status}).",
+    "alreadyDecided": "다른 사람이 이미 결정한 요청입니다. 카드에 현재 상태를 표시합니다.",
+    "notCompleted": "결정은 저장됐지만 완료하지 못했습니다 ({status})."
+  },
+  "notices": {
+    "deepLinkMissing": "메일에서 온 대화를 목록에서 찾지 못했어요. 목록에서 직접 골라 주세요.",
+    "demoClosed": "대화를 닫았어요. 연습용 화면이라 실제로 닫히지는 않아요 — 새로고침하면 되돌아와요.",
+    "demoReplied": "답장을 보냈어요. 연습용 화면이라 실제로 전달되지는 않아요 — 새로고침하면 되돌아와요.",
+    "closed": "대화를 닫았습니다."
+  },
+  "payment": {
+    "aria": "환불 요청",
+    "title": "환불 요청 · {amount}",
+    "capture": "PayPal 결제 번호",
+    "requested": "요청 시각",
+    "refund": "PayPal 환불 번호",
+    "detail": "상세",
+    "why": "승인을 기다리는 이유",
+    "approve": "{amount} 승인",
+    "approveBare": "승인",
+    "reject": "거절",
+    "once": "승인하면 이 금액이 그대로 PayPal 로 전송됩니다. 결정은 한 번만 할 수 있어요.",
+    "saveFailed": "결정을 저장하지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.",
+    "status": {
+      "pending": "승인 대기",
+      "executing": "PayPal 로 전송 중",
+      "unknown": "처리 중 (PayPal 확인 대기)",
+      "executed": "환불 완료",
+      "failed": "실패",
+      "rejected": "거절됨",
+      "expired": "만료됨"
+    },
+    "checks": {
+      "amount_within_max": "금액이 자동 한도 이내",
+      "within_days": "결제 후 기간 이내",
+      "no_prior_refund": "이 결제의 이전 환불 없음",
+      "currency_matches": "상점 통화와 일치",
+      "daily_cap_ok": "하루 환불 한도 이내",
+      "customer_known": "고객 확인됨",
+      "customer_cap_ok": "고객별 환불 한도 이내",
+      "no_dispute": "진행 중인 분쟁 없음",
+      "not_propose_only": "상점이 자동 환불을 허용",
+      "not_paused": "자동 환불이 중지되지 않음"
+    }
+  }
+}

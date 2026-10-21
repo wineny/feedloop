@@ -1,0 +1,19 @@
+{
+  "dialogLabel": "방문자가 짚은 화면",
+  "newTab": "(새 탭)",
+  "newTabPath": "(새 탭, {path})",
+  "pickedLabel": "화면에서 선택 · {label}",
+  "marksOff": "테두리 끄기",
+  "marksOn": "테두리 켜기",
+  "closeEsc": "닫기 (Esc)",
+  "viewLarge": "짚은 화면 크게 보기 — {label}",
+  "pageLinkLabel": "제보된 페이지",
+  "pageLinkNote": "지금 상태의 페이지가 열려서 방문자가 본 화면과 다를 수 있어요",
+  "pageLinkNoteSentence": "「제보된 페이지」 링크는 지금 상태의 페이지가 열려서 방문자가 본 화면과 다를 수 있어요",
+  "footnote": "방문자 브라우저에서 다시 그린 화면이라 이미지·지도·고정 헤더는 빠질 수 있어요",
+  "missing": {
+    "noShot": "이 제보엔 화면이 없어요 · 위치만 표시해요",
+    "expired": "보존 기간이 지나 화면이 삭제됐어요 · 위치만 표시해요",
+    "failed": "화면을 불러오지 못했어요 · 위치만 표시해요"
+  }
+}
