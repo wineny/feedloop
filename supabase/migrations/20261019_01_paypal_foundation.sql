@@ -265,3 +265,25 @@ GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, 
   TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand, in this order; not executed by the migration) ─────────────────────────
+-- Later stage-3 migrations (20261020_01 … 20261021_03) must be rolled back first; their blocks say how.
+-- DROP FUNCTION IF EXISTS payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text);
+-- DROP TABLE IF EXISTS paypal_webhook_events;
+-- DROP TABLE IF EXISTS payment_actions;
+-- DROP TABLE IF EXISTS paypal_orders;
+-- DROP TABLE IF EXISTS products;
+-- DROP TABLE IF EXISTS bot_members;
+-- COMMENT ON COLUMN responses.response_type IS 'mention | keyword | question | kakao | ai | operator | loop_closed | system';
+-- DROP INDEX IF EXISTS idx_bots_single_demo;
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_refund_limits_check;
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_paypal_env_check;
+-- ALTER TABLE bots
+--   DROP COLUMN IF EXISTS is_demo, DROP COLUMN IF EXISTS propose_only, DROP COLUMN IF EXISTS currency,
+--   DROP COLUMN IF EXISTS refund_per_customer_30d, DROP COLUMN IF EXISTS refund_daily_cap_cents,
+--   DROP COLUMN IF EXISTS refund_auto_days, DROP COLUMN IF EXISTS refund_auto_max_cents,
+--   DROP COLUMN IF EXISTS paypal_paused, DROP COLUMN IF EXISTS paypal_webhook_id, DROP COLUMN IF EXISTS paypal_scopes,
+--   DROP COLUMN IF EXISTS paypal_failed_reason, DROP COLUMN IF EXISTS paypal_failed_at, DROP COLUMN IF EXISTS paypal_verified_at,
+--   DROP COLUMN IF EXISTS paypal_env, DROP COLUMN IF EXISTS paypal_secret_last4, DROP COLUMN IF EXISTS paypal_secret_encrypted,
+--   DROP COLUMN IF EXISTS paypal_client_id;
+-- NOTIFY pgrst, 'reload schema';

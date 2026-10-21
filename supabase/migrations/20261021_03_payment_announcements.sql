@@ -91,3 +91,11 @@ REVOKE ALL ON FUNCTION payment_actions_unannounced(integer) FROM PUBLIC, anon, a
 GRANT EXECUTE ON FUNCTION payment_actions_unannounced(integer) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- The `payment` lines already written to `responses` stay (they are conversation history); only the
+-- once-per-(row, status) bookkeeping and the two functions go.
+-- DROP FUNCTION IF EXISTS payment_actions_unannounced(integer);
+-- DROP FUNCTION IF EXISTS payment_action_announce(uuid, text, text);
+-- DROP TABLE IF EXISTS payment_announcements;
+-- NOTIFY pgrst, 'reload schema';

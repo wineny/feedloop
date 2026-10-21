@@ -8,7 +8,7 @@ const OWNER = '00000000-0000-4000-8000-000000000001';
 const OTHER_CONVERSATION = '77777777-7777-4777-8777-777777777777';
 
 const h = vi.hoisted(() => ({
-  auth: vi.fn<() => Promise<unknown>>(async () => ({ ok: true, userId: '00000000-0000-4000-8000-000000000001', botIds: ['11111111-1111-4111-8111-111111111111'] })),
+  auth: vi.fn<() => Promise<unknown>>(async () => ({ ok: true, userId: '00000000-0000-4000-8000-000000000001', botIds: ['11111111-1111-4111-8111-111111111111'], role: 'owner' })),
   owner: vi.fn<(id: string) => Promise<unknown>>(async (id) => ({ id, bot_id: '11111111-1111-4111-8111-111111111111', source: 'web', external_user_id: 'v1' })),
   store: null as MemoryStore | null,
   paypalBot: vi.fn<() => Promise<unknown>>(),
@@ -64,7 +64,7 @@ function decide(conversationId: string, actionId: string, body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.auth.mockResolvedValue({ ok: true, userId: OWNER, botIds: [BOT] });
+  h.auth.mockResolvedValue({ ok: true, userId: OWNER, botIds: [BOT], role: 'owner' });
   h.owner.mockImplementation(async (id) => ({ id, bot_id: BOT, source: 'web', external_user_id: 'v1' }));
 });
 
@@ -277,6 +277,19 @@ describe('GET /api/inbox/[conversationId] — paymentActions', () => {
         { key: 'customer_known', label: 'Customer identified', passed: true },
       ],
     });
+  });
+
+  it('tells the screen the caller\'s role; an approver still decides but reads role=approver (6/6)', async () => {
+    const { actionId } = await setupPending();
+    const asOwner = await GET(new Request('http://localhost/api/inbox/x'), { params: Promise.resolve({ conversationId: CONVERSATION }) });
+    expect((await asOwner.json()).role).toBe('owner');
+
+    h.auth.mockResolvedValue({ ok: true, userId: 'judge-1', botIds: [BOT], role: 'approver' });
+    const asApprover = await GET(new Request('http://localhost/api/inbox/x'), { params: Promise.resolve({ conversationId: CONVERSATION }) });
+    expect((await asApprover.json()).role).toBe('approver');
+    const res = await decide(CONVERSATION, actionId, { decision: 'approve' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).action).toMatchObject({ status: 'executed' });
   });
 
   it('an empty or failing lookup still returns the conversation', async () => {

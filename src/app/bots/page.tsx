@@ -17,7 +17,8 @@ import { DEFAULT_LIMITS, PLATFORM_MODEL_LABEL } from '@/lib/llm/limits';
 import { cn } from '@/lib/utils';
 import { sourceLabel } from '@/lib/channel/labels';
 import { ScopedBotRow, ScopedBotsSummary, ScopedWidgetSnippet } from '@/components/bots/ScopedBots';
-import { listAccessibleBotIds } from '@/lib/auth/ownership';
+import { listAccessibleBots } from '@/lib/auth/ownership';
+import { APPROVER_BOT_COLUMNS, toApproverView, type ApproverBotView } from '@/lib/bot/bot-list';
 import { TryDemoBotButton } from './TryDemoBotButton';
 
 // 「챗봇 설정」 — 등록 단위는 봇이 아니라 피드백을 받을 서비스다.
@@ -432,6 +433,52 @@ function SettingsLink({ href, disabled, children }: { href: string; disabled?: b
   );
 }
 
+/**
+ * A bot the viewer only approves for (stage 3, 6/6). Name, status, where feedback comes in, and the one
+ * place they can act: the inbox. No settings links, no delete, nothing the owner configures.
+ */
+function ApproverRow({ bot }: { bot: ApproverBotView }) {
+  const webOn = Boolean(bot.widget_connected_at);
+  const channelOn = Boolean(bot.channel_connected_at);
+  return (
+    <li id={`bot-${bot.id}`} className="card-surface flex scroll-mt-20 flex-col gap-4 p-5 sm:p-6">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          <h2 className="break-words text-xl font-bold leading-[1.2] tracking-[-0.02em]">{bot.service_name}</h2>
+          <StatusLabel status={bot.status} />
+          <span className={cn(PILL, 'bg-muted text-muted-foreground')}>Approver</span>
+        </div>
+        <p className="mt-1.5 truncate text-[12.5px] leading-[1.45] text-muted-foreground">
+          {bot.service_url ? hostLabel(bot.service_url) : bot.service_description || '서비스 주소 없음'}
+          <span className="mx-1.5">·</span>
+          등록 {formatDate(bot.created_at)}
+        </p>
+      </div>
+      <div className="grid gap-x-8 gap-y-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <Cell title="입구">
+          <div className="flex flex-col gap-1.5">
+            <Channel icon={<RiChat1Line className="h-4 w-4" aria-hidden />} label={sourceLabel('web')} on={webOn} />
+            <Channel icon={<RiCustomerService2Line className="h-4 w-4" aria-hidden />} label={sourceLabel('channel')} on={channelOn} />
+          </div>
+        </Cell>
+        <Cell
+          title="내 역할"
+          action={
+            <CellAction href="/inbox" next>
+              받은편지함 열기
+            </CellAction>
+          }
+        >
+          <span className="text-sm text-muted-foreground">
+            You approve or reject this bot&apos;s refund requests in the inbox. Replies, settings and the API key stay
+            with the owner.
+          </span>
+        </Cell>
+      </div>
+    </li>
+  );
+}
+
 function Cell({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-2 border-t border-border pt-3.5">
@@ -480,37 +527,49 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
   const userId = session?.user?.id ?? null;
   const isDemo = !userId;
 
-  // 사용자 소유의 봇 + 승인자로 참여한 봇(bot_members — PayPal 해커톤 데모 봇) 목록
+  // 사용자 소유의 봇(설정 전부) + 승인자로 참여한 봇(bot_members — PayPal 해커톤 데모 봇; 축소 뷰)
   let bots: BotView[] = demoBots;
-  // listed bots this user does not own: they can operate these (inbox, approvals) but not delete them
-  const foreignIds = new Set<string>();
+  // bots this user only approves for: read with the short column list, drawn as a compact row with no
+  // settings — knowledge, key tail, GitHub and the owner's id never leave the database for them (6/6)
+  let approverBots: ApproverBotView[] = [];
   // a demo bot exists on this deployment and this user is not in it yet → offer "Try the demo bot"
   let canJoinDemo = false;
   if (userId) {
     const supabase = getServiceRoleClient();
-    let ids: string[] = [];
+    let access = { owned: [] as string[], approver: [] as string[] };
     try {
-      ids = await listAccessibleBotIds(userId);
+      access = await listAccessibleBots(userId);
     } catch (e) {
       console.error('Error listing accessible bots:', e instanceof Error ? e.message : e);
     }
     bots = [];
-    if (ids.length > 0) {
+    if (access.owned.length > 0) {
       const { data, error } = await supabase
         .from('bots')
         .select(BOT_COLUMNS)
-        .in('id', ids)
+        .in('id', access.owned)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching bots:', error);
       }
-      const rows = (data ?? []) as unknown as BotRow[];
-      for (const r of rows) if (r.user_id !== userId) foreignIds.add(r.id);
-      bots = rows.map(toView);
+      bots = ((data ?? []) as unknown as BotRow[]).map(toView);
+    }
+    if (access.approver.length > 0) {
+      const { data, error } = await supabase
+        .from('bots')
+        .select(APPROVER_BOT_COLUMNS)
+        .in('id', access.approver)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching approver bots:', error);
+      }
+      approverBots = ((data ?? []) as unknown as Record<string, unknown>[]).map(toApproverView);
     }
     const { data: demoRow } = await supabase.from('bots').select('id').eq('is_demo', true).maybeSingle();
-    canJoinDemo = Boolean(demoRow && !ids.includes(demoRow.id));
+    canJoinDemo = Boolean(demoRow && !access.owned.includes(demoRow.id) && !access.approver.includes(demoRow.id));
   }
 
   // 위젯 스니펫의 주소 — 연결 화면(/bots/[id]/connect)과 같은 방식으로 만든다.
@@ -519,9 +578,10 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
   const baseUrl = process.env.WEBHOOK_BASE_URL || `${proto}://${h.get('host')}`;
 
   // 히어로 부제는 숫자·사실 한 줄. 「들어오는 중」 = 입구가 하나라도 살아 있는 서비스(아래 행의 anyOn 과 같은 판정)
-  const receivingCount = bots.filter(
-    (b) => Boolean(b.widget_connected_at) || Boolean(b.channel_connected_at) || Boolean(b.last_active_at),
-  ).length;
+  const isReceiving = (b: { widget_connected_at: string | null; channel_connected_at: string | null; last_active_at: string | null }) =>
+    Boolean(b.widget_connected_at) || Boolean(b.channel_connected_at) || Boolean(b.last_active_at);
+  const receivingCount = bots.filter(isReceiving).length + approverBots.filter(isReceiving).length;
+  const totalCount = bots.length + approverBots.length;
 
   const registerButton = isDemo ? (
     <Button disabled>새 서비스 등록</Button>
@@ -543,11 +603,11 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
       <PageHero
         emoji={PAGE_EMOJI.bots}
         title="챗봇 설정"
-        description={<ScopedBotsSummary total={bots.length} receiving={receivingCount} />}
+        description={<ScopedBotsSummary total={totalCount} receiving={receivingCount} />}
         actions={heroActions}
       />
 
-      {bots.length === 0 ? (
+      {totalCount === 0 ? (
         // 빈 상태 — 실패가 아니라 시작점이다. 이모지 하나 + 한 줄 + 다음 할 일(코랄 버튼)
         <div className="card-surface flex flex-col items-center gap-4 px-6 py-14 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -727,18 +787,24 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                     <SettingsLink href={`/bots/${bot.id}/knowledge?tab=key`} disabled={isDemo}>API 키</SettingsLink>
                     <SettingsLink href={`/bots/${bot.id}/knowledge?tab=github`} disabled={isDemo}>GitHub 연결</SettingsLink>
                     <div className="ml-auto flex min-w-0 basis-full justify-end sm:basis-auto">
-                      <DeleteBotButton botId={bot.id} serviceName={bot.service_name} disabled={isDemo || foreignIds.has(bot.id)} />
+                      <DeleteBotButton botId={bot.id} serviceName={bot.service_name} disabled={isDemo} />
                     </div>
                   </div>
                 </li>
               </ScopedBotRow>
             );
           })}
+          {approverBots.map((bot) => (
+            <ScopedBotRow key={bot.id} botId={bot.id}>
+              <ApproverRow bot={bot} />
+            </ScopedBotRow>
+          ))}
         </ul>
       )}
 
       {/* 카드가 아니다 — 목록이 아니라 한 줄 코드라, 바탕 위에 제목·코드·각주로만 둔다.
-          어느 서비스의 스크립트인지는 헤더 선택을 따라간다(ScopedWidgetSnippet 주석). */}
+          어느 서비스의 스크립트인지는 헤더 선택을 따라간다(ScopedWidgetSnippet 주석).
+          승인자 봇은 제외 — 남의 사이트에 붙일 스크립트를 발급받을 이유가 없다. */}
       <ScopedWidgetSnippet
         bots={bots.map((b) => ({ id: b.id, service_name: b.service_name }))}
         baseUrl={baseUrl}

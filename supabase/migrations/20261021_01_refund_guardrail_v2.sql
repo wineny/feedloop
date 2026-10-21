@@ -235,3 +235,18 @@ REVOKE ALL ON FUNCTION payment_action_decide(uuid, uuid, text, uuid) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION payment_action_decide(uuid, uuid, text, uuid) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_02 and _03 are rolled back. Rows in 'executing'/'unknown' lose their send-gate
+-- bookkeeping (sent_at, send_attempts): reconcile them to a final status before dropping the columns.
+-- DROP FUNCTION IF EXISTS payment_action_decide(uuid, uuid, text, uuid);
+-- DROP FUNCTION IF EXISTS payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text, integer);
+-- Then re-create payment_action_open_refund from 20261020_01 (the 10-argument version).
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_demo_sandbox_check;
+-- DROP FUNCTION IF EXISTS payment_action_touch_reconcile(uuid);
+-- DROP FUNCTION IF EXISTS payment_action_mark_sent(uuid);
+-- DROP INDEX IF EXISTS idx_payment_actions_stuck;
+-- ALTER TABLE payment_actions
+--   DROP COLUMN IF EXISTS send_attempts, DROP COLUMN IF EXISTS sent_at,
+--   DROP COLUMN IF EXISTS reconcile_attempted_at, DROP COLUMN IF EXISTS reconcile_attempts;
+-- NOTIFY pgrst, 'reload schema';

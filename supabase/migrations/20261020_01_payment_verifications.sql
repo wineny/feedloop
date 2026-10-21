@@ -142,3 +142,17 @@ GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, 
   TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_01 … _03 are rolled back. Rows in status 'unknown' must be reconciled first
+-- (the narrower CHECK below refuses them); do not close them as 'failed' to make the constraint fit.
+-- DROP TABLE IF EXISTS payment_verifications;
+-- COMMENT ON COLUMN responses.response_type IS 'mention | keyword | question | kakao | ai | operator | loop_closed | system | payment';
+-- DROP INDEX IF EXISTS idx_payment_actions_live_target;
+-- CREATE UNIQUE INDEX idx_payment_actions_live_target ON payment_actions(bot_id, kind, target_id)
+--   WHERE status IN ('pending', 'executing', 'executed');
+-- ALTER TABLE payment_actions DROP CONSTRAINT IF EXISTS payment_actions_status_check;
+-- ALTER TABLE payment_actions ADD CONSTRAINT payment_actions_status_check
+--   CHECK (status IN ('pending', 'executing', 'executed', 'failed', 'rejected', 'expired'));
+-- Then re-create payment_action_open_refund from 20261019_01 (the 10-argument version).
+-- NOTIFY pgrst, 'reload schema';

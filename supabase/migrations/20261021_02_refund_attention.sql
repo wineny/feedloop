@@ -148,3 +148,11 @@ REVOKE ALL ON FUNCTION conversation_clear_refund_attention(uuid, uuid) FROM PUBL
 GRANT EXECUTE ON FUNCTION conversation_clear_refund_attention(uuid, uuid) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_03 is rolled back. The badge then has no database writer: raise and clear it from
+-- application code again. conversations.escalated_at itself is untouched by this migration and stays.
+-- DROP FUNCTION IF EXISTS conversation_clear_refund_attention(uuid, uuid);
+-- Then re-create payment_action_open_refund from 20261021_01 (same 11-argument signature, no
+-- conversations UPDATE in the pending branch).
+-- NOTIFY pgrst, 'reload schema';

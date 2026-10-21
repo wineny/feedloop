@@ -10,7 +10,7 @@
 --   20260906_02_web_widget.sql
 --   20260906_03_widget_appearance.sql
 --   20260906_04_rls_rest.sql
---   20260906_04_run_closed_at.sql
+--   20260906_05_run_closed_at.sql
 --   20260908_01_message_context.sql
 --   20260908_02_group_spec_draft.sql
 --   20260909_01_run_close_reason.sql
@@ -478,7 +478,7 @@ ALTER TABLE public.classifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.action_logs     ENABLE ROW LEVEL SECURITY;
 
 
--- ═══════════════════════════ 20260906_04_run_closed_at.sql ═══════════════════════════
+-- ═══════════════════════════ 20260906_05_run_closed_at.sql ═══════════════════════════
 
 -- 머지 없이 닫힌 PR 을 기록한다 (2026-09-06).
 -- 머지 감지는 merged_at 만 봤기 때문에 GitHub 에서 닫아버린 PR(리허설 중복 PR #4)이 화면에 영원히 「열림」으로 남았다.
@@ -2529,6 +2529,28 @@ GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, 
 
 NOTIFY pgrst, 'reload schema';
 
+-- ── Rollback (run by hand, in this order; not executed by the migration) ─────────────────────────
+-- Later stage-3 migrations (20261020_01 … 20261021_03) must be rolled back first; their blocks say how.
+-- DROP FUNCTION IF EXISTS payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text);
+-- DROP TABLE IF EXISTS paypal_webhook_events;
+-- DROP TABLE IF EXISTS payment_actions;
+-- DROP TABLE IF EXISTS paypal_orders;
+-- DROP TABLE IF EXISTS products;
+-- DROP TABLE IF EXISTS bot_members;
+-- COMMENT ON COLUMN responses.response_type IS 'mention | keyword | question | kakao | ai | operator | loop_closed | system';
+-- DROP INDEX IF EXISTS idx_bots_single_demo;
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_refund_limits_check;
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_paypal_env_check;
+-- ALTER TABLE bots
+--   DROP COLUMN IF EXISTS is_demo, DROP COLUMN IF EXISTS propose_only, DROP COLUMN IF EXISTS currency,
+--   DROP COLUMN IF EXISTS refund_per_customer_30d, DROP COLUMN IF EXISTS refund_daily_cap_cents,
+--   DROP COLUMN IF EXISTS refund_auto_days, DROP COLUMN IF EXISTS refund_auto_max_cents,
+--   DROP COLUMN IF EXISTS paypal_paused, DROP COLUMN IF EXISTS paypal_webhook_id, DROP COLUMN IF EXISTS paypal_scopes,
+--   DROP COLUMN IF EXISTS paypal_failed_reason, DROP COLUMN IF EXISTS paypal_failed_at, DROP COLUMN IF EXISTS paypal_verified_at,
+--   DROP COLUMN IF EXISTS paypal_env, DROP COLUMN IF EXISTS paypal_secret_last4, DROP COLUMN IF EXISTS paypal_secret_encrypted,
+--   DROP COLUMN IF EXISTS paypal_client_id;
+-- NOTIFY pgrst, 'reload schema';
+
 
 -- ═══════════════════════════ 20261020_01_payment_verifications.sql ═══════════════════════════
 
@@ -2676,6 +2698,20 @@ GRANT EXECUTE ON FUNCTION payment_action_open_refund(uuid, uuid, text, integer, 
   TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_01 … _03 are rolled back. Rows in status 'unknown' must be reconciled first
+-- (the narrower CHECK below refuses them); do not close them as 'failed' to make the constraint fit.
+-- DROP TABLE IF EXISTS payment_verifications;
+-- COMMENT ON COLUMN responses.response_type IS 'mention | keyword | question | kakao | ai | operator | loop_closed | system | payment';
+-- DROP INDEX IF EXISTS idx_payment_actions_live_target;
+-- CREATE UNIQUE INDEX idx_payment_actions_live_target ON payment_actions(bot_id, kind, target_id)
+--   WHERE status IN ('pending', 'executing', 'executed');
+-- ALTER TABLE payment_actions DROP CONSTRAINT IF EXISTS payment_actions_status_check;
+-- ALTER TABLE payment_actions ADD CONSTRAINT payment_actions_status_check
+--   CHECK (status IN ('pending', 'executing', 'executed', 'failed', 'rejected', 'expired'));
+-- Then re-create payment_action_open_refund from 20261019_01 (the 10-argument version).
+-- NOTIFY pgrst, 'reload schema';
 
 
 -- ═══════════════════════════ 20261021_01_refund_guardrail_v2.sql ═══════════════════════════
@@ -2918,6 +2954,21 @@ GRANT EXECUTE ON FUNCTION payment_action_decide(uuid, uuid, text, uuid) TO servi
 
 NOTIFY pgrst, 'reload schema';
 
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_02 and _03 are rolled back. Rows in 'executing'/'unknown' lose their send-gate
+-- bookkeeping (sent_at, send_attempts): reconcile them to a final status before dropping the columns.
+-- DROP FUNCTION IF EXISTS payment_action_decide(uuid, uuid, text, uuid);
+-- DROP FUNCTION IF EXISTS payment_action_open_refund(uuid, uuid, text, integer, text, timestamptz, boolean, boolean, text, text, integer);
+-- Then re-create payment_action_open_refund from 20261020_01 (the 10-argument version).
+-- ALTER TABLE bots DROP CONSTRAINT IF EXISTS bots_demo_sandbox_check;
+-- DROP FUNCTION IF EXISTS payment_action_touch_reconcile(uuid);
+-- DROP FUNCTION IF EXISTS payment_action_mark_sent(uuid);
+-- DROP INDEX IF EXISTS idx_payment_actions_stuck;
+-- ALTER TABLE payment_actions
+--   DROP COLUMN IF EXISTS send_attempts, DROP COLUMN IF EXISTS sent_at,
+--   DROP COLUMN IF EXISTS reconcile_attempted_at, DROP COLUMN IF EXISTS reconcile_attempts;
+-- NOTIFY pgrst, 'reload schema';
+
 
 -- ═══════════════════════════ 20261021_02_refund_attention.sql ═══════════════════════════
 
@@ -3072,6 +3123,14 @@ GRANT EXECUTE ON FUNCTION conversation_clear_refund_attention(uuid, uuid) TO ser
 
 NOTIFY pgrst, 'reload schema';
 
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- Only after 20261021_03 is rolled back. The badge then has no database writer: raise and clear it from
+-- application code again. conversations.escalated_at itself is untouched by this migration and stays.
+-- DROP FUNCTION IF EXISTS conversation_clear_refund_attention(uuid, uuid);
+-- Then re-create payment_action_open_refund from 20261021_01 (same 11-argument signature, no
+-- conversations UPDATE in the pending branch).
+-- NOTIFY pgrst, 'reload schema';
+
 
 -- ═══════════════════════════ 20261021_03_payment_announcements.sql ═══════════════════════════
 
@@ -3168,3 +3227,11 @@ REVOKE ALL ON FUNCTION payment_actions_unannounced(integer) FROM PUBLIC, anon, a
 GRANT EXECUTE ON FUNCTION payment_actions_unannounced(integer) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── Rollback (run by hand; not executed by the migration) ────────────────────────────────────────
+-- The `payment` lines already written to `responses` stay (they are conversation history); only the
+-- once-per-(row, status) bookkeeping and the two functions go.
+-- DROP FUNCTION IF EXISTS payment_actions_unannounced(integer);
+-- DROP FUNCTION IF EXISTS payment_action_announce(uuid, text, text);
+-- DROP TABLE IF EXISTS payment_announcements;
+-- NOTIFY pgrst, 'reload schema';

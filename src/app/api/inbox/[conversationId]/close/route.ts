@@ -5,7 +5,7 @@
 // 운영자가 직접 닫을 수 있는 길을 둔다. 채널톡 전용은 아니다 — 어느 채널이든 닫을 수 있다.
 
 import { NextResponse } from 'next/server';
-import { resolveAccessibleBots } from '@/lib/auth/ownership';
+import { OWNER_ONLY_ERROR, resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getConversationOwner } from '@/lib/bot/conversations';
 import { getServiceRoleClient } from '@/lib/supabase';
 
@@ -23,6 +23,10 @@ export async function POST(
   const auth = await resolveAccessibleBots(conversation.bot_id);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  // 닫기는 되돌릴 수 없다. 승인자는 환불만 결정한다(3단계 6/6).
+  if (auth.role !== 'owner') {
+    return NextResponse.json({ error: OWNER_ONLY_ERROR }, { status: 403 });
   }
 
   const { error } = await getServiceRoleClient()

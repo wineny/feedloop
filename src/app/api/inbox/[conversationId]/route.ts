@@ -76,6 +76,8 @@ export async function GET(
       deskUrl,
       status: (state as { status?: string } | null)?.status ?? 'open',
     },
+    // owner | approver — the screen hides reply and close from an approver (the routes refuse them too).
+    role: auth.role ?? 'owner',
     items,
     contexts,
     shots,

@@ -245,6 +245,9 @@ export default function InboxPage() {
   const [convStatus, setConvStatus] = useState<string>('open');
   // 결제 행(환불 요청 → 승인 카드, 3단계). 운영자 라우트만 준다; 연습용 화면엔 없다.
   const [paymentActions, setPaymentActions] = useState<PaymentActionView[]>([]);
+  // 이 봇에서 내가 소유자인지 승인자인지(3단계 6/6). 승인자는 환불 카드만 누를 수 있다 —
+  // 답장 칸과 「대화 닫기」는 숨긴다(라우트도 403 으로 거절하지만, 안 되는 버튼을 보여 주지 않는다).
+  const [role, setRole] = useState<'owner' | 'approver'>('owner');
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -348,6 +351,7 @@ export default function InboxPage() {
       setOrigin(null);
       setDeskUrl(null);
       setPaymentActions([]);
+      setRole('owner');
       // 닫아 둔 대화는 닫힌 채로 다시 연다 — 늘 'open' 으로 되돌리면 [대화 닫기]가 안 먹은 것처럼 보인다.
       setConvStatus(demo.data.closedIds?.includes(id) ? 'closed' : 'open');
       return;
@@ -364,6 +368,7 @@ export default function InboxPage() {
       setDeskUrl(json.conversation?.deskUrl ?? null);
       setConvStatus(json.conversation?.status ?? 'open');
       setPaymentActions(Array.isArray(json.paymentActions) ? json.paymentActions : []);
+      setRole(json.role === 'approver' ? 'approver' : 'owner');
       // 열었으니 읽음 — 목록의 점을 즉시 끈다(서버는 이미 기록했다)
       setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false } : c)));
     } catch (err) {
@@ -652,6 +657,10 @@ export default function InboxPage() {
                     <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[12.5px] font-semibold text-muted-foreground">
                       닫힘
                     </span>
+                  ) : role === 'approver' ? (
+                    <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[12.5px] font-semibold text-muted-foreground">
+                      Approver
+                    </span>
                   ) : (
                     <Button
                       size="sm"
@@ -664,7 +673,7 @@ export default function InboxPage() {
                     </Button>
                   )}
                 </div>
-                {convStatus !== 'closed' && (
+                {convStatus !== 'closed' && role === 'owner' && (
                   <p className="basis-full text-left text-[12.5px] text-faint sm:text-right">
                     {current.source === 'channel'
                       ? '채널톡의 상담 상태를 따라갑니다. 채널톡에서 대화가 다시 열리면 여기도 다시 열려요.'
@@ -701,7 +710,14 @@ export default function InboxPage() {
 
               {/* 답장 — 카드 바닥. 바탕을 한 톤 내려 「여기서 이어 쓴다」가 대화와 한 덩어리로 보이게 */}
               <div className="flex flex-col gap-2 border-t border-border bg-muted/40 px-5 py-4 sm:px-6">
-                {current.source === 'channel' ? (
+                {role === 'approver' ? (
+                  /* 승인자(데모 봇의 심사위원)는 환불 카드만 누른다. 입력창을 두면 403 을 보게 된다. */
+                  <p className="flex items-start gap-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                    <Clock className="mt-0.5 h-3 w-3 shrink-0 text-faint" aria-hidden />
+                    You are an approver on this bot: approve or reject refund requests above. Replies and closing the
+                    conversation are for the bot owner.
+                  </p>
+                ) : current.source === 'channel' ? (
                   /* 채널톡은 답장 창구가 데스크 하나다. 여기에 입력창을 두면 두 곳이 되고
                      「누가 이미 답했나」가 흐려진다 — 그래서 링크만 둔다. */
                   <>
