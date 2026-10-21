@@ -13,6 +13,8 @@
 //   - PR #6: 재현되지 않는 증상에 도달 불가능한 방어 코드를 추가(wrong_causality)
 // 엔진 프롬프트가 "버그"를 들으면 원인을 찾으려 하고, 원인이 없으면 지어낸다.
 
+import { OWNER_CONTENT_LANGUAGE } from '@/i18n/owner-locale';
+
 export const CATEGORIES = ['bug', 'ux', 'feature_request', 'praise', 'cs', 'other'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
@@ -59,47 +61,57 @@ export function normalizeSentiment(value: unknown): Sentiment {
  * 「근거가 없을 때 엔진이 환각한다」 같은 파이프라인 내부는 아래
  * `TAXONOMY_INTERNAL_NOTES` 로 — 그건 인증된 경로에서만 덧붙인다.
  */
-export const TAXONOMY_BLOCK = `## 분류 기준
+export const TAXONOMY_BLOCK = `## Classification
 
-아래 질문보다 먼저, 사용자가 명시한 기존 동작의 고장은 bug, 작동하지만 겪는 불편은 ux 로 판단하세요.
-해결책·새 버튼을 함께 제안해도 명시된 문제를 우선합니다. 새 능력 요청만으로 기존 불편이나 고장을 추측하지 마세요.
-이전에 접수한 건의 진행 상황만 묻는 후속 문의는 이 우선순위와 무관하게 other 입니다.
-그 외에는 이 질문을 순서대로 던지세요.
+Before the questions below: a breakdown of existing behavior that the user states is bug; an inconvenience with something that works is ux.
+Even if the user also proposes a fix or a new button, the stated problem comes first. Do not infer an existing inconvenience or breakdown from a request for a new capability alone.
+A follow-up that only asks about the progress of an earlier report is other, regardless of this priority.
+Otherwise, ask these questions in order.
 
-1. **답만 주면 끝나는 질문인가?** → cs
-   - 사용법·정보·가능 여부를 묻는 문장. "~있나요?" "~되나요?" "~인가요?"
-   - "가게를 여러 개 등록할 수 있나요?" 처럼 **가능 여부를 묻는 것도 cs 다.**
-     답을 알든 모르든 질문의 category 는 cs 다. 기능이 없다는 사실만으로 질문을 기능 요청으로 바꾸지 않는다.
-2. **지금 이 앱에 없는 능력을 원하는가?** → feature_request
-   - 외부 서비스 연동, 새로운 기능. "구글 캘린더에 저장되면 좋겠어요"
-3. **작동해야 할 것이 의도대로 안 되는가?** → bug
-   - 에러·먹통·빈 화면, **잘못되거나 낡은 결과를 보여줌**, **눈에 띄게 느림**,
-     와야 할 알림이 안 옴
-   - "지역을 바꿨는데 이전 지역 목록이 1~2초 남아요" → 틀린 결과 표시라 bug
-   - "사진 업로드가 너무 느려요" → 성능 저하는 bug
-4. **작동은 하는데 불편하거나 헷갈리는가?** → ux
-   - 안내 부족, 막다른 길, 찾기 어려움, 한눈에 안 들어옴
-   - ⚠️ **유저가 해결책을 제안해도 밑에 깔린 것이 불편이면 ux 다.**
-     "빈 쿠폰함에 안내 문구랑 링크만 있어도 편하겠어요" → 제보의 본질은
-     "빈 화면이 막다른 길"이라는 불편. 버튼·링크는 유저가 생각한 처방일 뿐이다.
-     제보는 **해결책이 아니라 문제로** 분류한다. 그래야 같은 증상의 제보가 한 묶음이 된다.
-5. **칭찬·감사인가?** → praise
-6. **위 어디에도 아닌가?** → other
-   - ⚠️ **이전에 제보한 건의 진행 상황을 묻는 후속 문의는 other 다.**
-     "그때 그 문제 어떻게 됐나요?" 는 새로운 제보가 아니다. 이미 접수된 건을
-     bug 로 다시 세면 같은 문제가 두 건으로 잡힌다.
-   - 서비스와 무관한 잡담, 인사, 의미를 알 수 없는 입력
+1. **Is it a question that ends once it is answered?** → cs
+   - Asks how to use something, for information, or whether something is possible. "Is there ...?" "Can I ...?" "Does it ...?"
+   - **Asking whether something is possible is also cs**, as in "Can I register more than one store?"
+     Whether or not you know the answer, the question's category is cs. Do not turn a question into a feature request just because the feature does not exist.
+2. **Does the user want a capability this app does not have now?** → feature_request
+   - Integration with an external service, a new feature. "It would be nice if it saved to Google Calendar"
+3. **Does something that should work not work as intended?** → bug
+   - Errors, freezes, blank screens, **showing wrong or stale results**, **noticeably slow**,
+     an expected notification not arriving
+   - "I changed the region but the old region's list stays for 1–2 seconds" → a wrong result is shown, so bug
+   - "Photo upload is too slow" → slow performance is bug
+4. **Does it work but feel inconvenient or confusing?** → ux
+   - Missing guidance, dead ends, hard to find, hard to take in at a glance
+   - ⚠️ **If the user proposes a fix but the underlying issue is an inconvenience, it is ux.**
+     "A message and a link in the empty coupon box would help" → the core of the report is the
+     inconvenience "the empty screen is a dead end". The button or link is only the user's idea of a remedy.
+     Classify a report **by the problem, not by the solution**. That way reports of the same symptom end up in one group.
+5. **Is it praise or thanks?** → praise
+6. **None of the above?** → other
+   - ⚠️ **A follow-up asking about the progress of an earlier report is other.**
+     "What happened to that problem?" is not a new report. Counting an issue that was already
+     reported as a new bug records the same problem twice.
+   - Small talk unrelated to the service, greetings, unintelligible input
 
-## bug 와 ux 를 가르는 한 줄
-**무언가 고장났으면 bug, 고장난 건 없는데 쓰기 나쁘면 ux.**
-고장이 없는데 bug 라고 하면, 뒤따르는 분석이 있지도 않은 원인을 찾게 된다.
+## One line that separates bug and ux
+**If something is broken, bug. If nothing is broken but it is bad to use, ux.**
+Calling it bug when nothing is broken makes the next analysis look for a cause that does not exist.
 
 ## sentiment
-- negative: 불만·실망·곤란함이 드러남
-- positive: 만족·감사
-- neutral: 담담한 제보나 질문. **정중하게 쓴 버그 제보는 neutral 일 수 있다.**
-  분류(category)와 감정(sentiment)은 따로 판단한다 — 질문이라고 negative 가 아니고,
-  버그라고 반드시 negative 인 것도 아니다.`;
+- negative: dissatisfaction, disappointment or difficulty shows
+- positive: satisfaction, thanks
+- neutral: a calm report or question. **A politely written bug report can be neutral.**
+  Judge category and sentiment separately — a question is not automatically negative,
+  and a bug is not always negative.`;
+
+/**
+ * 한 줄 요약(summary)의 언어 규칙 — 즉답·배치 분류 두 프롬프트가 같이 싣는다.
+ *
+ * summary 는 사업자가 읽는 생성물이라 방문자 언어가 아니라 OWNER_CONTENT_LANGUAGE 로 쓴다.
+ * 예시 하나는 «한국어 입력 → 영어 출력»으로 일부러 남긴다. 지시문·예시가 전부 영어면 한국어 제보를
+ * 분류·요약하는 힘이 약해질 수 있다(이 레포 제보의 대부분이 한국어다).
+ */
+export const SUMMARY_LANGUAGE_RULE = `- Write summary in ${OWNER_CONTENT_LANGUAGE}, whatever language the user wrote in. Translate the meaning; do not copy the user's sentence.
+- Example: the user wrote "쿠폰함 지난내역 탭 누르면 하얀 화면만 떠요" → category "bug", summary "White screen when opening the past-history tab in the coupon box"`;
 
 /**
  * 분류가 여는 문 — **인증된 경로에서만** 프롬프트에 덧붙인다.
@@ -108,11 +120,11 @@ export const TAXONOMY_BLOCK = `## 분류 기준
  * 깨우는지 ③ 근거가 없으면 환각한다 — 를 알려준다. 셋을 합치면 조준 설명서가 된다.
  * 모델에게는 유용한 동기라서 지우지 않고, 나가는 문만 좁혔다.
  */
-export const TAXONOMY_INTERNAL_NOTES = `## 이 분류가 여는 문
-bug·ux 는 자동 코드 수정 PR 로, feature_request 는 스펙 초안으로 간다.
-고장이 없는데 bug 로 부르면 수정 엔진이 없는 원인을 지어낸다 — 실제로 그렇게
-빌드가 깨진 PR 이 나온 적이 있다. 후속 문의를 bug 로 읽으면 이미 고치는 중인
-문제에 중복 묶음과 중복 PR 이 열린다.`;
+export const TAXONOMY_INTERNAL_NOTES = `## What this classification triggers
+bug and ux go to an automatic code-fix PR; feature_request goes to a spec draft.
+Calling something bug when nothing is broken makes the fix engine invent a cause — a PR that broke
+the build has actually come out this way. Reading a follow-up question as bug opens a duplicate group
+and a duplicate PR for a problem that is already being fixed.`;
 
 /**
  * 묶기(grouping)·자동 PR 후보로 올릴 카테고리인가.

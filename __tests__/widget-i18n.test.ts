@@ -98,11 +98,14 @@ describe('대기 문구·안내', () => {
   });
 
   it('applyHoldingPolicy·isHoldingResponse 는 두 문장을 모두 대기 문구로 인정한다', () => {
-    for (const msg of [HOLDING_MESSAGE, HOLDING_MESSAGE_EN]) {
-      const r = applyHoldingPolicy({ response: msg, insight: { category: 'cs' }, escalate: true });
-      expect(r.response).toBe(msg); // 이미 대기 문구면 덮어쓰지 않는다
+    for (const [msg, locale] of [[HOLDING_MESSAGE, 'ko'], [HOLDING_MESSAGE_EN, 'en']] as const) {
+      const r = applyHoldingPolicy({ response: msg, insight: { category: 'cs' }, escalate: true }, undefined, locale);
+      expect(r.response).toBe(msg); // 같은 언어의 대기 문구면 그대로다
       expect(isHoldingResponse(msg)).toBe(true);
     }
+    // 다른 언어의 대기 문구면 방문자 언어로 맞춘다(옛 프롬프트가 시키던 한국어 문장이 영어 위젯에 나가지 않게)
+    expect(applyHoldingPolicy({ response: HOLDING_MESSAGE, insight: { category: 'cs' }, escalate: true }, undefined, 'en').response)
+      .toBe(HOLDING_MESSAGE_EN);
   });
 
   it('기본 경로 안내: ko 는 종전 문장, en 은 영어', () => {

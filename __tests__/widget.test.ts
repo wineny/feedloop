@@ -238,7 +238,7 @@ describe('분류 힌트', () => {
     expect(http.hintLine('feature')).toContain('"feature_request"');
     expect(http.hintLine('question')).toContain('"cs"');
     // 강제가 아니라 우선 고려다 — 유저가 칩 문장을 지우고 딴 얘기를 쓸 수 있다
-    expect(http.hintLine('bug')).toContain('내용이 다르면');
+    expect(http.hintLine('bug')).toContain('follow the content if it says otherwise');
   });
 
   it('힌트가 없으면 프롬프트에 아무것도 덧붙이지 않는다', () => {

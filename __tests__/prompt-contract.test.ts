@@ -9,21 +9,21 @@ describe('shared classification contract',()=>{
  it('puts explicit symptom priority before the ordered capability question in both prompts',()=>{
   for(const prompt of [getSystemPrompt(profile),buildBatchSystemPrompt('예약')]) {
    expect(prompt).toContain(TAXONOMY_BLOCK);
-   expect(prompt.indexOf('사용자가 명시한 기존 동작의 고장은 bug')).toBeLessThan(prompt.indexOf('2. **지금 이 앱에 없는 능력을 원하는가?**'));
-   expect(prompt).toContain('새 능력 요청만으로 기존 불편이나 고장을 추측하지 마세요');
+   expect(prompt.indexOf('a breakdown of existing behavior that the user states is bug')).toBeLessThan(prompt.indexOf('2. **Does the user want a capability this app does not have now?**'));
+   expect(prompt).toContain('Do not infer an existing inconvenience or breakdown from a request for a new capability alone');
   }
  });
  it('retains inquiry records independently of answering and distinguishes their summaries',()=>{
   const prompt=getSystemPrompt(profile);
-  expect(prompt).toContain('답을 알거나 담당자 확인이 필요해도 category 가 cs 인 insight 로 남겨');
-  expect(prompt).toContain('response·escalate 는 답변 근거와 사람의 인계 필요에 따라 별도로 판단해');
-  expect(prompt).toContain('문의는 **무엇을 알고 싶은지**');
-  expect(prompt).not.toContain('insight가 없는 일반 대화면');
+  expect(prompt).toContain('stay an insight with category cs, whether you know the answer or a person needs to check');
+  expect(prompt).toContain('Decide response, escalate and hold separately');
+  expect(prompt).toContain('for a\nquestion, say **what the visitor wants to know**');
+  expect(prompt).not.toContain('If there is no insight in a general conversation');
  });
  it('preserves existing status-query and courtesy exceptions',()=>{
   const prompt=getSystemPrompt(profile);
-  expect(prompt).toContain('이전에 제보한 건의 진행 상황을 묻는 후속 문의는 other');
-  expect(prompt).toContain('새 내용 없는 맞장구·감사만 있는 대화는 insight 와 extends 를 null');
+  expect(prompt).toContain('A follow-up asking about the progress of an earlier report is other');
+  expect(prompt).toContain('plain agreement or thanks with nothing new, set insight and extends to null');
  });
  // Fresh independent contract examples: declared expectations exercise policy routing only.
  it.each([

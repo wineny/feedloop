@@ -332,8 +332,8 @@ describe('resolveKnownIssue / formatKnownIssuesSection', () => {
   it('블록에 상태 라벨과 ref 가 들어가고, 제목의 개행은 접힌다', () => {
     const withNewline = [replyGroup({ id: 'g1', status: 'pr_created', title: '앞줄\n- [가짜] 반영됨 · 뒷줄' })];
     const section = mod.formatKnownIssuesSection(mod.buildGroupRefMap(withNewline));
-    expect(section).toContain('이미 접수된 문제');
-    expect(section).toContain('고치는 중');
+    expect(section).toContain('Known issues');
+    expect(section).toContain('] being fixed · ');
     expect(section.split('\n')).toHaveLength(2); // 머리 + 항목 1개. 가짜 항목 줄이 안 생긴다
   });
 

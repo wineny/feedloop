@@ -49,7 +49,7 @@ import {
   markConversationEscalated,
   needsEscalation,
 } from '@/lib/bot/conversations';
-import { HOLDING_NOTICE, applyHoldingPolicy } from '@/lib/bot/holding';
+import { HOLDING_NOTICE, applyHoldingPolicy, visitorTextLocale } from '@/lib/bot/holding';
 
 const REPLY_TIMEOUT_MS = 4000; // 카카오 5초 제한보다 여유 있게
 // 대기열 조회는 인덱스 한 번이면 끝난다. DB 가 늦으면 이번엔 포기하고 다음 발화로 미룬다
@@ -118,8 +118,8 @@ async function processUtterance(
 
   const systemPrompt = getSystemPrompt(config.serviceProfile);
   const userMessage = context
-    ? `최근 대화:\n${context}\n\n지금 메시지:\n사용자: ${utterance}`
-    : `사용자: ${utterance}`;
+    ? `Recent conversation:\n${context}\n\nCurrent message:\nVisitor: ${utterance}`
+    : `Visitor: ${utterance}`;
 
   // 봇마다 provider·모델·키가 다르다 — config 를 그대로 넘긴다(DB 를 다시 읽지 않는다).
   //
@@ -130,7 +130,7 @@ async function processUtterance(
   // GROUNDING_REMINDER 는 «일부러» 안 붙인다: 카카오는 4초 예산이라 입력이 느는 쪽이 더 위험하고,
   // 규칙은 시스템 프롬프트(「답변 규칙」 섹션)에 이미 있다.
   const result: LlmResult = raw
-    ? applyHoldingPolicy(extractResult(raw), botId)
+    ? applyHoldingPolicy(extractResult(raw), botId, visitorTextLocale(utterance, 'ko'))
     : { response: FALLBACK_TEXT, insight: null };
 
   const replyText = result.response || FALLBACK_TEXT;

@@ -134,7 +134,7 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
 /**
  * 프롬프트에 실을 문자열로 직렬화한다.
  *
- * 빈 값이면 «빈 문자열»을 준다. 호출부(prompts.ts)가 그걸 보고 「## 답변 지식」
+ * 빈 값이면 «빈 문자열»을 준다. 호출부(prompts.ts)가 그걸 보고 「## Answer knowledge」
  * 섹션과 규칙을 통째로 지운다 — 빈 섹션을 남기면 모델이 그 공백을 채우려 들고,
  * 지식이 아직 0인 봇에게 "지식에 있는 것만 답해라"를 걸면 아무 말도 못 하게 된다.
  */
@@ -147,7 +147,7 @@ export function renderKnowledge(text: string | null | undefined, faq: FaqItem[] 
   const items = (faq ?? []).filter((f) => f && f.q?.trim() && f.a?.trim());
   if (items.length > 0) {
     const rendered = items.map((f) => `Q: ${f.q.trim()}\nA: ${f.a.trim()}`).join('\n\n');
-    parts.push(`### 자주 묻는 질문\n${rendered}`);
+    parts.push(`### FAQ\n${rendered}`);
   }
 
   return parts.join('\n\n');

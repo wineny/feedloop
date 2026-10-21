@@ -161,11 +161,13 @@ export async function POST(
   const chipOnly = isChipOnlyText(text);
   const bodyText = chipOnly ? collapseWhitespace(text) : text.trim();
 
+  // 방문자 언어. 대화에 저장하고(conversations.locale) 같은 값으로 즉답 언어·대기 문구·안내를 고른다.
+  const visitorLocale = widgetLocale(req);
   const conversation = await upsertConversation({
     botId,
     source: 'web',
     externalUserId: visitorId,
-    locale: widgetLocale(req),
+    locale: visitorLocale,
   });
   if (!conversation) return widgetError(req, 'conversation_failed', 500);
 
@@ -259,7 +261,7 @@ export async function POST(
   const replyResponseType = paymentRoute.route ? PAYMENT_AGENT_RESPONSE_TYPE : 'ai';
   // 결제 경로의 방문자 문구는 전부 영어다(설계 §10) — 느림·시간당 상한·일일 예산·설정 없음·늦은 답 실패까지.
   // 에이전트가 답을 못 내는 경우만이 아니라 에이전트를 «못 부른» 경우도 결제 얘기였으면 영어로 안내한다.
-  const notices = paymentRoute.route ? PAYMENT_NOTICES : defaultReplyNotices(widgetLocale(req));
+  const notices = paymentRoute.route ? PAYMENT_NOTICES : defaultReplyNotices(visitorLocale);
 
   // 새 대화 알림 — 이 대화의 «첫 진짜 메시지»면 봇 소유자에게 메일 한 통(2026-09-23 ny 결정).
   // 칩만 누른 턴은 말이 아니라 신호라 건너뛰고, 그 뒤 처음 적은 말이 첫 메시지다. 여기 판정은
@@ -440,7 +442,7 @@ export async function POST(
           // 유저 턴에 같은 규칙을 얹자 4/9 → 7/9 로 올랐다.
           const raw = await callLlm(
             config,
-            getSystemPrompt(config.serviceProfile),
+            getSystemPrompt(config.serviceProfile, { replyLocale: visitorLocale }),
             userTurn,
             { timeoutMs: LLM_TIMEOUT_MS },
           );
@@ -465,7 +467,8 @@ export async function POST(
           //    여기서 cs 를 채워 주면 그 턴도 대기 문구로 덮인다.
           ensureEscalationInsight(result, bodyText, { chipOnly, refMap });
           // ③ 정시·지연 두 경로가 모두 이 값을 쓴다. 여기서 한 번 거르면 둘 다 덮인다.
-          applyHoldingPolicy(result, botId);
+          //    모델이 hold 를 켰으면 여기서 방문자 언어의 대기 문구가 들어간다(모델은 문장을 쓰지 않는다).
+          applyHoldingPolicy(result, botId, visitorLocale);
           // ④ F1 — 이미 접수된 문제면 «서버가» 진행 상황을 답한다. 모델은 「어느 묶음인가」만
           //    골랐다. 문구를 모델에 맡기면 없는 PR 번호를 지어낸다(목록에 번호를 안 싣는 이유).
           //    merged·pr_created 는 답을 대체하고, open 은 모델 답변 뒤에 한 줄을 덧붙인다 —
@@ -475,7 +478,7 @@ export async function POST(
           //    «상태»이지, 이 사람이 사람 손을 필요로 하는지가 아니다.
           const known = chipOnly
             ? null
-            : resolveKnownIssue(result.matchesExistingGroup, groupRefMap, result.response);
+            : resolveKnownIssue(result.matchesExistingGroup, groupRefMap, result.response, visitorLocale);
           if (known) {
             result.response = known.reply;
           }

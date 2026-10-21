@@ -9,6 +9,9 @@ import { renderKnowledge, type FaqItem } from './knowledge';
 
 // ── 설정 캐시 ─────────────────────────────────────
 
+/** 봇 말투. 언어는 넣지 않는다 — 답의 언어는 프롬프트의 「## Language」가 정한다. */
+const BOT_TONE = 'Friendly and casual. A few emoji are fine.';
+
 const configCache = new Map<string, { config: BotConfig; expiresAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5분
 
@@ -43,14 +46,16 @@ export async function getBotConfigFromDB(botId: string): Promise<BotConfig> {
 
   const faq: FaqItem[] = Array.isArray(bot.knowledge_faq) ? bot.knowledge_faq : [];
 
+  // 톤은 언어 중립으로 둔다 — 답의 언어는 프롬프트의 「## Language」가 정한다(위젯은 대화 언어,
+  // 그 밖의 채널은 방문자 말). 예전 기본값 「친근하고 편한 한국어」는 영어 위젯에서도 한국어를 시켰다.
   const profile: ServiceProfile = {
     botName: bot.service_name,
-    botTone: '친근하고 편한 한국어. 이모지 적당히.',
+    botTone: BOT_TONE,
     serviceName: bot.service_name,
     serviceUrl: bot.service_url || '',
     serviceDescription: bot.service_description || '',
     serviceCompany: '',
-    targetUsers: '베타 테스터',
+    targetUsers: 'beta testers',
     serviceFeatures: [],
     loginMethod: '',
     faq,
@@ -141,18 +146,18 @@ export function createBot(token: string, botId?: string) {
 
 function getBotConfig(): BotConfig {
   const profile: ServiceProfile = {
-    botName: process.env.BOT_SERVICE_NAME || '피드백봇',
-    botTone: '친근하고 편한 한국어. 이모지 적당히.',
-    serviceName: process.env.BOT_SERVICE_NAME || '서비스',
+    botName: process.env.BOT_SERVICE_NAME || 'Feedback bot',
+    botTone: BOT_TONE,
+    serviceName: process.env.BOT_SERVICE_NAME || 'the service',
     serviceUrl: process.env.BOT_SERVICE_URL || '',
-    serviceDescription: process.env.BOT_SERVICE_DESCRIPTION || '베타 테스트 중인 서비스',
+    serviceDescription: process.env.BOT_SERVICE_DESCRIPTION || 'A service in beta testing',
     serviceCompany: process.env.BOT_SERVICE_COMPANY || '',
-    targetUsers: process.env.BOT_TARGET_USERS || '베타 테스터',
+    targetUsers: process.env.BOT_TARGET_USERS || 'beta testers',
     serviceFeatures: (process.env.BOT_SERVICE_FEATURES || '').split(',').filter(Boolean),
     loginMethod: process.env.BOT_LOGIN_METHOD || '',
     faq: [],
     // env 폴백 봇은 DB 행이 없다 — 지식도 없다. 빈 문자열이면 프롬프트에서
-    // 「## 답변 지식」 섹션 자체가 안 생긴다(prompts.ts).
+    // 「## Answer knowledge」 섹션 자체가 안 생긴다(prompts.ts).
     knowledge: '',
   };
 

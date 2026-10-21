@@ -8,63 +8,99 @@
 // 서비스 맥락·답변 지식에 없는 «사실 질문»이면 이 문구로만 답하고 사람에게 넘긴다.
 // 피드백(불편·버그·기능 요청·칭찬)은 사실 답변이 아니므로 이 문구를 쓰지 않는다.
 
-/** 방문자에게 나가는 대기 문구. 프롬프트가 «정확히 이 문장»을 response 로 두라고 시킨다. */
+/** 방문자에게 나가는 대기 문구(한국어). 모델이 쓰지 않는다 — 모델은 `hold` 플래그만 켜고 서버가 이 문장을 넣는다. */
 export const HOLDING_MESSAGE = '담당자가 확인하고 있어요. 조금만 기다려 주세요 🙏';
 
-/**
- * 같은 안내의 영어판(messages/en/common.json 의 holdingMessage 와 같은 문장 — 테스트가 대조).
- * 프롬프트는 아직 한국어 문장만 시킨다(5단계에서 바꾼다). 그때까지 저장·비교는 한국어가 정본이고,
- * 영어 위젯 요청이 만드는 대기 안내(영어)도 «대기 문구»로 알아보도록 판정은 두 문장을 모두 본다.
- */
+/** 같은 안내의 영어판(messages/en/common.json 의 holdingMessage 와 같은 문장 — 테스트가 대조). */
 export const HOLDING_MESSAGE_EN = 'A person is checking. Please hold on a moment 🙏';
+
+export type HoldingLocale = 'en' | 'ko';
+
+/**
+ * 방문자 언어의 대기 문구. 위젯은 대화 언어(`conversations.locale`)를, 카카오·텔레그램은 방문자 말의
+ * 언어(`visitorTextLocale`)를 넘긴다. 위젯 응답 안내(lib/widget/strings.ts)도 같은 두 상수를 쓴다.
+ */
+export function holdingMessage(locale: HoldingLocale): string {
+  return locale === 'en' ? HOLDING_MESSAGE_EN : HOLDING_MESSAGE;
+}
+
+/**
+ * 대화 언어를 저장하지 않는 채널(카카오·텔레그램)에서 «방문자 말의 언어»를 고른다.
+ * 한글이 있으면 ko, 한글 없이 라틴 문자만 있으면 en, 둘 다 없으면(이모지·숫자뿐) `fallback`.
+ */
+export function visitorTextLocale(text: string | null | undefined, fallback: HoldingLocale = 'ko'): HoldingLocale {
+  const t = text ?? '';
+  if (/[가-힣]/.test(t)) return 'ko';
+  if (/[A-Za-z]/.test(t)) return 'en';
+  return fallback;
+}
 
 /**
  * 위젯이 AI 답을 아예 못 냈을 때(출력 깨짐·설정 실패) 이번 응답에만 싣는 안내.
- * 저장하지 않는다(messages/route.ts 의 ESCALATED_NOTICE 자리).
+ * 저장하지 않는다(messages/route.ts 의 ESCALATED_NOTICE 자리). 카카오 폴백도 이 문장이다(한국어 채널).
  */
 export const HOLDING_NOTICE = `말씀 잘 받았어요! ${HOLDING_MESSAGE}`;
 
 /**
  * 유저 턴 끝에 한 줄로 붙이는 상기. 시스템 프롬프트에만 있는 규칙은 저가 모델이 자주
  * 놓친다(2026-09-10 실측: flash-lite 4/9 → 유저 턴 규칙 추가 7/9). 유저 입력 «뒤»에 붙는다.
+ * 대기 문장을 직접 쓰게 하지 않는다 — `hold` 플래그를 켜면 서버가 방문자 언어로 넣는다.
  */
 export const GROUNDING_REMINDER =
-  `(규칙: 위 메시지가 서비스의 정책·수량·가격·기간·기능 유무·절차 같은 «사실»을 묻는데 ` +
-  `서비스 맥락·답변 지식에 근거가 없으면, response 는 정확히 「${HOLDING_MESSAGE}」 로 두고 escalate 는 true. ` +
-  `피드백이면 종전대로 공감하고 꼬리질문 1개.)`;
+  '(Rule: if the message above asks for a fact about the service — policy, quantity, price, period, ' +
+  'whether a feature exists, procedure — and neither the service context nor the answer knowledge supports an answer, ' +
+  'set "hold" to true, "escalate" to true and "response" to null. ' +
+  'If it is feedback, empathize as usual and ask one follow-up question.)';
 
 /** 정책이 보는 결과 모양. handler.ts 의 LlmResult 부분집합 — 순환 import 를 피하려고 구조적으로 둔다. */
 export interface HoldingCandidate {
   response: string | null;
   insight: { category?: string | null } | null;
   escalate?: boolean;
+  /** 모델이 「근거가 없어 답하지 않는다」고 표시했다(응답 JSON 의 `hold`). `extractResult` 가 escalate 도 같이 켠다. */
+  hold?: boolean;
 }
 
 /**
- * 서버측 방어. 모델이 «자신 없다»(escalate) 고 하면서 «질문»(cs) 에 답 텍스트를 냈으면
- * 그 텍스트를 버리고 우리 대기 문구로 바꾼다 — 근거가 없다고 스스로 표시한 답변에 숫자·정책이
- * 섞여 나가는 경로를 닫는다.
+ * 대기 문구를 넣는 곳 — 두 경우다.
  *
- * 건드리지 않는 경우:
+ *  1. 모델이 `hold: true` 를 냈다 → response 를 방문자 언어의 대기 문구로 채우고 escalate 를 켠다.
+ *     예전에는 프롬프트가 «정확히 이 한국어 문장으로 답하라»고 시켰다. 문장 비교는 언어가 늘면 깨지고
+ *     모델이 한 글자만 바꿔도 어긋나서, 이제 모델은 플래그만 켜고 문장은 서버가 고른다.
+ *  2. 서버측 방어. 모델이 «자신 없다»(escalate) 고 하면서 «질문»(cs) 에 답 텍스트를 냈으면
+ *     그 텍스트를 버리고 대기 문구로 바꾼다 — 근거가 없다고 스스로 표시한 답변에 숫자·정책이
+ *     섞여 나가는 경로를 닫는다.
+ *
+ * 2 에서 건드리지 않는 경우:
  *  - response 가 null → 호출부가 미저장 안내(HOLDING_NOTICE)를 쓴다. 저장하면 사람 답장과 말풍선이 둘로 남는다
- *    (예외: 위젯의 «늦은 답» 경로는 응답이 이미 나가 안내를 실을 곳이 없어 HOLDING_MESSAGE 를 'ai' 로 저장한다)
+ *    (예외: 위젯의 «늦은 답» 경로는 응답이 이미 나가 안내를 실을 곳이 없어 대기 문구를 'ai' 로 저장한다)
  *  - cs 가 아닌 escalate(버그 제보 「팀에 전달해서 확인할게요」) → 공감 문장을 살린다
  *  - escalate 가 아닌 cs → 모델이 근거 있다고 답한 것. 지식 안 정답이 여기다
  *
+ * @param locale 대기 문구 언어. 기본 ko 는 한국어 채널(카카오)의 종전 동작이다 — 위젯은 대화 언어를 넘긴다.
  * 같은 객체를 돌려준다(호출부가 그대로 저장·전송).
  */
-export function applyHoldingPolicy<T extends HoldingCandidate>(result: T, botId?: string): T {
+export function applyHoldingPolicy<T extends HoldingCandidate>(result: T, botId?: string, locale: HoldingLocale = 'ko'): T {
+  const message = holdingMessage(locale);
+  if (result.hold === true) {
+    result.response = message;
+    result.escalate = true;
+    return result;
+  }
   // 카테고리는 정규화해서 본다. saveInsight 는 normalizeCategory(trim+소문자)를 거치므로 "CS" 도
   // DB 에는 cs 로 들어간다 — 모델이 지시를 어겼을 때 쓰라고 만든 장치가 모델의 대소문자에 기대면 안 된다.
   // (taxonomy.ts 를 import 하지 않는 이유: 이 모듈은 의존성 0 이어야 UI 가 같이 본다)
   const category = String(result.insight?.category ?? '').trim().toLowerCase();
-  if (result.escalate === true && category === 'cs' && result.response && result.response !== HOLDING_MESSAGE && result.response !== HOLDING_MESSAGE_EN) {
-    // 발동 흔적을 남긴다 — 「지식 안 정답인데 escalate 를 켠」 과잉 발동은 이 로그로만 셀 수 있다.
-    // 원문 앞부분만(운영자 쪽 로그, 방문자에게는 안 간다).
-    console.warn(
-      `[holding] replaced cs+escalate reply${botId ? ` bot=${botId}` : ''}: "${result.response.replace(/\s+/g, ' ').slice(0, 60)}"`,
-    );
-    result.response = HOLDING_MESSAGE;
+  if (result.escalate === true && category === 'cs' && result.response) {
+    // 이미 대기 문장(어느 언어든)이면 경고 없이 방문자 언어로만 맞춘다
+    if (result.response !== HOLDING_MESSAGE && result.response !== HOLDING_MESSAGE_EN) {
+      // 발동 흔적을 남긴다 — 「지식 안 정답인데 escalate 를 켠」 과잉 발동은 이 로그로만 셀 수 있다.
+      // 원문 앞부분만(운영자 쪽 로그, 방문자에게는 안 간다).
+      console.warn(
+        `[holding] replaced cs+escalate reply${botId ? ` bot=${botId}` : ''}: "${result.response.replace(/\s+/g, ' ').slice(0, 60)}"`,
+      );
+    }
+    result.response = message;
   }
   return result;
 }
@@ -127,7 +163,7 @@ export function ensureEscalationInsight<T extends EscalationCandidate>(
   return result;
 }
 
-/** 측정·테스트용: 응답이 대기 문구(또는 그걸 품은 문장)인지. */
+/** 응답이 대기 문구(또는 그걸 품은 문장)인지. 두 언어를 다 본다 — 이미 저장된 옛 대화(ko)도 같은 판정이다. */
 export function isHoldingResponse(text: string | null | undefined): boolean {
   return typeof text === 'string' && (text.includes(HOLDING_MESSAGE) || text.includes(HOLDING_MESSAGE_EN));
 }

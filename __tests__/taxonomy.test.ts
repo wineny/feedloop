@@ -72,26 +72,26 @@ describe('TAXONOMY_BLOCK — 실측으로 확정한 경계가 프롬프트에 �
   // 이 네 경계는 프로덕션 실데이터를 사람이 라벨링해 정했다(2026-09-11).
   // 문구를 지우면 골든셋 정확도가 74% 로 돌아간다 — 그걸 여기서 먼저 막는다.
   it('후속 문의는 other 라고 못박는다', () => {
-    expect(TAXONOMY_BLOCK).toContain('후속 문의는 other');
+    expect(TAXONOMY_BLOCK).toContain('follow-up asking about the progress of an earlier report is other');
   });
 
   it('가능 여부 질문은 cs 라고 못박는다', () => {
-    expect(TAXONOMY_BLOCK).toContain('가능 여부를 묻는 것도 cs');
+    expect(TAXONOMY_BLOCK).toContain('Asking whether something is possible is also cs');
   });
 
   it('유저가 제안한 해결책이 아니라 문제로 분류하라고 못박는다', () => {
-    expect(TAXONOMY_BLOCK).toContain('해결책이 아니라 문제로');
+    expect(TAXONOMY_BLOCK).toContain('by the problem, not by the solution');
   });
 
   it('성능 저하와 낡은 결과가 bug 임을 예시로 준다', () => {
-    expect(TAXONOMY_BLOCK).toContain('성능 저하는 bug');
-    expect(TAXONOMY_BLOCK).toContain('틀린 결과 표시라 bug');
+    expect(TAXONOMY_BLOCK).toContain('slow performance is bug');
+    expect(TAXONOMY_BLOCK).toContain('a wrong result is shown, so bug');
   });
 
   it('분류와 감정을 따로 판단하라고 말한다', () => {
     // 예전 실데이터에서 "몇 시까지 영업하나요?" 가 cs/negative 로 저장됐다 —
     // 유저는 그냥 물어봤을 뿐인데 답을 못 준 쪽의 사정이 감정에 섞였다.
-    expect(TAXONOMY_BLOCK).toContain('따로 판단한다');
+    expect(TAXONOMY_BLOCK).toContain('Judge category and sentiment separately');
   });
 });
 
@@ -105,8 +105,8 @@ describe('buildBatchSystemPrompt — 배치와 실시간이 같은 기준을 본
   it('서비스 이름을 싣되 대화용 지시는 넣지 않는다', () => {
     const p = buildBatchSystemPrompt('널널투어');
     expect(p).toContain('널널투어');
-    expect(p).toContain('분류만 합니다');
-    expect(p).not.toContain('3문장 이내');
+    expect(p).toContain('You only classify');
+    expect(p).not.toContain('3 sentences or fewer');
   });
 });
 
@@ -263,12 +263,12 @@ describe('TAXONOMY_INTERNAL_NOTES — 파이프라인 내부는 인증된 경로
     // 이 블록은 무인증 위젯의 시스템 프롬프트로 나간다. 방문자가 캐낼 수 있다고
     // 봐야 하므로, 「어떤 라벨이 코드 수정을 깨우는지」를 알려주면 안 된다.
     expect(TAXONOMY_BLOCK).not.toContain('PR');
-    expect(TAXONOMY_BLOCK).not.toContain('수정 엔진');
-    expect(TAXONOMY_BLOCK).not.toContain('지어낸다');
+    expect(TAXONOMY_BLOCK).not.toContain('fix engine');
+    expect(TAXONOMY_BLOCK).not.toContain('invent a cause');
   });
 
   it('내부 근거는 따로 있고, 배치 프롬프트만 그걸 싣는다', () => {
-    expect(TAXONOMY_INTERNAL_NOTES).toContain('자동 코드 수정 PR');
+    expect(TAXONOMY_INTERNAL_NOTES).toContain('automatic code-fix PR');
     expect(buildBatchSystemPrompt('x')).toContain(TAXONOMY_INTERNAL_NOTES);
   });
 });

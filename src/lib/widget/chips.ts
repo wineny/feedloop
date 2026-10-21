@@ -62,15 +62,13 @@ export function isWidgetHint(value: unknown): value is WidgetHint {
 
 /**
  * 힌트를 LLM 유저 메시지 뒤에 붙일 한 줄로 바꾼다. 힌트가 없으면 빈 문자열.
- *
- * 「시작 지점 = 」 꼴로 쓰는 이유는 조사 때문이다. 라벨을 문장에 그대로 끼우면
- * (`"자주 묻는 질문" 을 골라`) 받침에 따라 조사가 틀린다.
+ * 지시문이라 영어로 쓰고 칩 이름도 영어판(labelEn)을 싣는다 — 방문자가 한국어 칩을 눌렀어도 뜻은 같다.
  */
 export function hintLine(hint: WidgetHint | null | undefined): string {
   if (!hint) return '';
   const spec = WIDGET_HINTS.find((h) => h.hint === hint);
   if (!spec) return '';
-  return `\n\n(참고: 방문자의 시작 지점 = 「${spec.label}」. insight.category 는 "${spec.category}" 를 우선 고려하되, 내용이 다르면 내용을 따르세요.)`;
+  return `\n\n(Note: the visitor started from "${'labelEn' in spec ? spec.labelEn : 'a starter question'}". Prefer insight.category "${spec.category}", but follow the content if it says otherwise.)`;
 }
 
 // ── 칩 문장만 누른 첫 턴 ─────────────────────────────
@@ -117,9 +115,9 @@ export function isChipOnlyText(text: string): boolean {
  */
 export function chipOnlyLine(hint: WidgetHint | null | undefined): string {
   const spec = hint ? WIDGET_HINTS.find((h) => h.hint === hint) : undefined;
-  const label = spec?.chip ? `「${spec.label}」 ` : '';
+  const label = spec?.chip ? `"${spec.labelEn}" ` : '';
   return (
-    `\n\n(참고: 방문자가 ${label}칩만 눌렀고 아직 내용이 없다. ` +
-    `insight 는 null 로 두고, 어떤 점이 그랬는지 한 가지만 물어라.)`
+    `\n\n(Note: the visitor only tapped the ${label}chip and has not said anything yet. ` +
+    `Set insight to null and ask one question about what happened.)`
   );
 }

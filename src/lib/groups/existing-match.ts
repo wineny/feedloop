@@ -151,11 +151,11 @@ export async function listRecentGroups(
 /** 프롬프트에 싣는 제목 길이. `formatExtendableSection` 과 같은 상한을 쓴다. */
 const TITLE_CHARS = 300;
 
-/** 모델이 읽을 상태 라벨. 영문 status 를 그대로 주면 저가 모델이 뜻을 헷갈린다. */
+/** 모델이 읽을 상태 라벨. 영문 status 코드(pr_created 등)를 그대로 주면 저가 모델이 뜻을 헷갈린다. */
 function statusLabel(status: string): string {
-  if (status === 'merged') return '반영됨';
-  if (status === 'pr_created') return '고치는 중';
-  return '접수됨';
+  if (status === 'merged') return 'fixed';
+  if (status === 'pr_created') return 'being fixed';
+  return 'reported';
 }
 
 /** ref → 묶음. 배치 분류·「이 대화의 기존 제보」와 **같은 규칙**(`classify/ref.ts`). */
@@ -175,7 +175,7 @@ export function formatKnownIssuesSection(refMap: Map<string, ReplyGroup>): strin
     const title = collapseWhitespace(g.title).slice(0, TITLE_CHARS);
     return `- [${ref}] ${statusLabel(g.status)} · ${title}`;
   });
-  return ['이미 접수된 문제 (같은 문제면 matches_existing_group_id 에 ref):', ...lines].join('\n');
+  return ['Known issues (if it is the same problem, put its ref in matches_existing_group_id):', ...lines].join('\n');
 }
 
 /**
@@ -201,17 +201,24 @@ export function knownIssueMode(status: string): KnownIssueMode {
  * PR 번호가 없으면 번호를 빼고 말한다. 지어내느니 덜 말하는 편이 낫다.
  * 닫힌 묶음은 null — 해줄 말이 없다(`matchOutcome` 이 같은 판단을 한다).
  */
-export function buildKnownIssueReply(group: ReplyGroup): string | null {
+export function buildKnownIssueReply(group: ReplyGroup, locale: 'en' | 'ko' = 'ko'): string | null {
   if (matchOutcome(group.status) === 'new') return null;
-  const pr = group.prNumber ? ` (수정 #${group.prNumber})` : '';
+  const en = locale === 'en';
+  const pr = group.prNumber ? (en ? ` (fix #${group.prNumber})` : ` (수정 #${group.prNumber})`) : '';
   if (group.status === 'merged') {
-    return `이 문제는 이미 반영됐어요${pr}. 혹시 아직 그대로면 알려주세요 🙏`;
+    return en
+      ? `This has already been fixed${pr}. If it still happens, please let us know 🙏`
+      : `이 문제는 이미 반영됐어요${pr}. 혹시 아직 그대로면 알려주세요 🙏`;
   }
   if (group.status === 'pr_created') {
-    return `같은 내용을 이미 받아서 지금 고치는 중이에요${pr}. 반영되면 여기로 알려드릴게요 🙏`;
+    return en
+      ? `We already got the same report and are fixing it now${pr}. We'll let you know here when it's fixed 🙏`
+      : `같은 내용을 이미 받아서 지금 고치는 중이에요${pr}. 반영되면 여기로 알려드릴게요 🙏`;
   }
   // 덧붙는 줄이라 짧게. 진행 상황을 단정하지 않는다 — PR 이 아직 없다.
-  return '같은 문제를 말한 분이 또 있어 함께 보고 있어요 🙏';
+  return en
+    ? "Someone else reported the same problem, and we're looking at it 🙏"
+    : '같은 문제를 말한 분이 또 있어 함께 보고 있어요 🙏';
 }
 
 /**
@@ -226,12 +233,14 @@ export function resolveKnownIssue(
   ref: unknown,
   refMap: Map<string, ReplyGroup>,
   modelResponse?: string | null,
+  /** 방문자 언어(위젯 대화 언어). 기본 ko 는 종전 동작 */
+  locale: 'en' | 'ko' = 'ko',
 ): { group: ReplyGroup; reply: string; mode: KnownIssueMode } | null {
   const key = normalizeRef(ref);
   if (!key) return null;
   const group = refMap.get(key);
   if (!group) return null;
-  const line = buildKnownIssueReply(group);
+  const line = buildKnownIssueReply(group, locale);
   if (!line) return null;
 
   const mode = knownIssueMode(group.status);

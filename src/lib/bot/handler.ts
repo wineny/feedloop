@@ -8,7 +8,7 @@ import {
   getCsAnswerPrompt,
   type ServiceProfile,
 } from './prompts';
-import { HOLDING_MESSAGE, applyHoldingPolicy } from './holding';
+import { applyHoldingPolicy, holdingMessage, visitorTextLocale, type HoldingLocale } from './holding';
 import { after } from 'next/server';
 import { scheduleAutoGrouping, shouldScheduleAutoGrouping } from '@/lib/groups/auto-grouping';
 
@@ -78,6 +78,11 @@ interface LlmResult {
     sentiment: string;
   } | null;
   escalate?: boolean;
+  /**
+   * 모델이 「근거가 없어 답하지 않는다」고 표시했다(응답 JSON 의 `hold`). 대기 문구는 서버가 방문자 언어로
+   * 넣는다(`applyHoldingPolicy`). `extractResult` 가 이 값이 true 면 escalate 도 켠다.
+   */
+  hold?: boolean;
   /**
    * 이 턴이 «앞 제보의 보충»이면 그 제보의 ref(위젯 유저 턴의 「이 대화의 기존 제보」 목록).
    * 새 제보면 null. 카카오·텔레그램은 목록 자체를 안 실으므로 늘 null 이고, 실려 와도
@@ -161,7 +166,7 @@ export async function callLlm(
     // 운영자는 멀쩡한 키를 5분(config 캐시) 동안 의심하게 된다.
     if (options?.recordKeyFailure === false) {
       console.error(
-        `[bot] LLM call failed (키 실패로 기록하지 않음): bot=${config.botId} ` +
+        `[bot] LLM call failed (not recorded as a key failure): bot=${config.botId} ` +
           `provider=${resolved?.provider ?? '?'}`,
       );
       return null;
@@ -250,7 +255,10 @@ export function extractResult(raw: string): LlmResult {
       // `extends` 와 같은 이유로 문자열만 받는다. 목록 대조는 호출부가 한다.
       matchesExistingGroup:
         typeof parsed.matches_existing_group_id === 'string' ? parsed.matches_existing_group_id.trim() : null,
-      escalate: parsed.escalate || false,
+      // hold 는 «사람이 이어받아야 한다»를 품는다 — 모델이 escalate 를 빠뜨려도 받은편지함 배지와
+      // I-20 흔적(ensureEscalationInsight)이 같이 켜지게 여기서 합친다. 불리언이 아니면 false 로 본다.
+      escalate: parsed.escalate === true || parsed.hold === true,
+      hold: parsed.hold === true,
       parsed: true,
     };
   } catch {
@@ -272,6 +280,12 @@ export function extractResult(raw: string): LlmResult {
     };
   }
 }
+
+/** 텔레그램 «봇을 직접 부른» 턴에서 답을 못 냈을 때. 방문자 말의 언어로. */
+const RETRY_LATER: Record<HoldingLocale, string> = {
+  ko: '잠시 후 다시 말씀해주세요~',
+  en: 'Please try again in a moment.',
+};
 
 // ── 메시지 분류 ─────────────────────────────────────
 
@@ -338,22 +352,24 @@ export async function handleMessage(ctx: Context, config: BotConfig) {
   const recent = await getRecentMessages(config.botId, ctx.message!.chat.id);
   const context = recent.map((m: { author_name: string; body: string }) => `${m.author_name}: ${m.body}`).join('\n');
 
-  // LLM 호출
+  // LLM 호출. 텔레그램은 대화 언어를 저장하지 않는다 — 답은 모델이 방문자 말의 언어를 따라가고,
+  // 서버가 넣는 문장(대기 문구·재시도 안내)은 방문자 말에서 고른다(한글 없음 + 라틴 문자 = en).
   let result: LlmResult;
   const systemPrompt = getSystemPrompt(config.serviceProfile);
+  const visitorLocale = visitorTextLocale(text, 'ko');
 
   switch (msgType) {
     case 'mention': {
       const userMessage = context
-        ? `최근 대화:\n${context}\n\n지금 메시지:\n${ctx.message!.from?.first_name}: ${text}`
+        ? `Recent conversation:\n${context}\n\nCurrent message:\n${ctx.message!.from?.first_name}: ${text}`
         : `${ctx.message!.from?.first_name}: ${text}`;
       const raw = await callLlm(config, systemPrompt, userMessage, {
         timeoutMs: TELEGRAM_LLM_TIMEOUT_MS,
       });
       // 봇을 직접 부른 상황이라 침묵이 곧 고장으로 읽힌다.
       result = raw
-        ? withParseFallback(extractResult(raw), '잠시 후 다시 말씀해주세요~')
-        : { response: '잠시 후 다시 말씀해주세요~', insight: null };
+        ? withParseFallback(extractResult(raw), RETRY_LATER[visitorLocale])
+        : { response: RETRY_LATER[visitorLocale], insight: null };
       break;
     }
     case 'keyword': {
@@ -375,10 +391,10 @@ export async function handleMessage(ctx: Context, config: BotConfig) {
         timeoutMs: TELEGRAM_LLM_TIMEOUT_MS,
       });
       // 질문에 침묵하면 안 된다. 사람에게 넘긴다(extractResult 의 catch 가 escalate 를 이미 켠다).
-      // 폴백 문구도 holding.ts 한 곳에서 온다 — 프롬프트가 시키는 문장과 갈라지면 안 된다.
+      // 폴백 문구도 holding.ts 한 곳에서 온다 — 정책(applyHoldingPolicy)이 넣는 문장과 갈라지면 안 된다.
       result = raw
-        ? withParseFallback(extractResult(raw), HOLDING_MESSAGE)
-        : { response: HOLDING_MESSAGE, insight: { category: 'cs', summary: text.slice(0, 200), sentiment: 'neutral' }, escalate: true };
+        ? withParseFallback(extractResult(raw), holdingMessage(visitorLocale))
+        : { response: holdingMessage(visitorLocale), insight: { category: 'cs', summary: text.slice(0, 200), sentiment: 'neutral' }, escalate: true };
       break;
     }
     default:
@@ -388,7 +404,7 @@ export async function handleMessage(ctx: Context, config: BotConfig) {
   // 서버측 방어 — 모델이 «자신 없다»(escalate) 면서 «질문»(cs) 에 답 텍스트를 냈으면
   // 그 텍스트를 우리 대기 문구로 바꾼다. 텔레그램의 mention·keyword·question 세 분기가 모두 여기를 지난다
   // (카카오는 별도 라우트 api/kakao/webhook 이 같은 정책을 직접 건다).
-  result = applyHoldingPolicy(result, config.botId);
+  result = applyHoldingPolicy(result, config.botId, visitorLocale);
 
   // 응답 전송 (reply 실패 시 일반 메시지로 fallback)
   if (result.response) {
