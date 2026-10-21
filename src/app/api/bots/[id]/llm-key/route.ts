@@ -81,7 +81,7 @@ function present(bot: BotKeyRow) {
     verifiedAt: bot.llm_key_verified_at,
     failedAt: bot.llm_key_failed_at,
     // 4분류 고정 문구. provider 에러 원문은 여기 들어오지 않는다(20260910_02).
-    failedReason: failureReasonText(bot.llm_key_failed_reason, bot.llm_model),
+    failedReason: failureReasonText(bot.llm_key_failed_reason, provider ? effectiveModelId(provider, bot.llm_model) : bot.llm_model),
     // 화면의 상한 안내 문구가 이 값을 쓴다. 숫자를 문자열에 박으면
     // 데모 봇(2000)이나 anthropic 운영자에게 거짓말을 하게 된다.
     // null = 한도 없음(운영자 키). Infinity 는 JSON 에 실리지 않는다.

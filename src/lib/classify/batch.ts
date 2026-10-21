@@ -8,6 +8,7 @@
 // 예전엔 이 파일과 프롬프트가 각자 정의를 갖고 있어 «같은 문장이 들어온 문에 따라
 // 다르게 분류»될 수 있었다.
 
+import { personLabel } from '@/lib/channel/labels';
 import { buildRefMapBy, normalizeRef } from './ref';
 import {
   TAXONOMY_BLOCK,
@@ -20,6 +21,8 @@ export interface PendingMessage {
   id: string;
   body: string;
   author_name?: string | null;
+  /** 입구(web|kakao|channel). 이름이 없을 때 출처별 호칭을 고르는 데 쓴다. */
+  source?: string | null;
   bot_id: string;
 }
 
@@ -135,7 +138,7 @@ export function buildRefMap(messages: PendingMessage[]): Map<string, PendingMess
 export function buildBatchUserPrompt(messages: PendingMessage[]): string {
   const items = [...buildRefMap(messages)].map(([ref, m]) => ({
     ref,
-    author: sanitizeForPrompt(m.author_name || '익명', 60),
+    author: sanitizeForPrompt(m.author_name || personLabel(m.source ?? ''), 60),
     body: sanitizeForPrompt(m.body, 2000),
   }));
 

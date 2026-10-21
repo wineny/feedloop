@@ -19,12 +19,12 @@ export const SOURCE_LABEL: Record<string, string> = {
  * 그 입구의 사람을 부르는 말. 연락처를 안 남긴 사람의 이름 자리에 쓴다.
  *
  * `web` 이 없는 건 빠뜨린 게 아니다 — 폴백이 「방문자」이고 웹 위젯 방문자가
- * 바로 그 기본값이다. 익명화 방침이 `messages.author_name` 에 박는 고정 문자열
- * 「채널톡 이용자」와 채널톡 값이 같아야 한다.
+ * 바로 그 기본값이다. 채널톡 값은 i18n 전환 전 일반 채널톡 행이 저장하던 「고객」이다.
+ * 익명화된 행은 예전에 「채널톡 이용자」였지만 지금은 둘 다 NULL 이라 구분하지 않는다(받아들인 손실).
  */
 export const PERSON_LABEL: Record<string, string> = {
   kakao: '카카오 사용자',
-  channel: '채널톡 이용자',
+  channel: '고객',
 };
 
 /**

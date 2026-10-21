@@ -249,7 +249,7 @@ it('does not honor a forged completed promotion marker', async () => {
 });
 it.each(['success', 'failure'] as const)('holds manually redrafted %s PR with trusted completed comment', async state => {
   mocks.review.mockResolvedValue({ ...base, build: { ...base.build, state } });
-  mocks.comments.push({ id: 1, body: DRAFT_PROMOTION_MARKER + '\n검토 요청으로 바꿨습니다', user: { login: 'owner' } });
+  mocks.comments.push({ id: 1, body: DRAFT_PROMOTION_MARKER + '\n자동 검사를 통과해 검토 요청으로 바꿨습니다', user: { login: 'owner' } });
   expect(await reviewAndPromoteDraft('https://github.com/o/r', 1)).toMatchObject({ draft: true, draftGateBlocked: 'manual_draft' });
   expect(mocks.create).not.toHaveBeenCalled(); expect(mocks.update).not.toHaveBeenCalled(); expect(mocks.graphql).not.toHaveBeenCalled();
 });
