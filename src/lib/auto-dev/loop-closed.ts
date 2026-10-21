@@ -78,9 +78,17 @@ export function buildLoopClosedBody(
   title: string,
   prNumber: number | null,
   prUrl: string | null = null,
+  /**
+   * 본문 언어. 되돌림은 PR 이 머지될 때 «요청 없이» 만들어져 방문자 언어를 모른다. 안 주면 제목에 한글이
+   * 있을 때만 ko(한국어로 받은 제보의 제목은 한국어), 아니면 en 이다.
+   */
+  locale: 'en' | 'ko' = /[가-힣]/.test(title) ? 'ko' : 'en',
 ): string {
-  const head = `"${title}" 말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요.`;
-  const withNumber = prNumber ? `${head} (수정 #${prNumber})` : head;
+  const head =
+    locale === 'ko'
+      ? `"${title}" 말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요.`
+      : `"${title}" The problem you reported is fixed. It may take a little while to reach the service.`;
+  const withNumber = prNumber ? `${head} (${locale === 'ko' ? '수정' : 'fix'} #${prNumber})` : head;
   return prUrl ? `${withNumber} ${prUrl}` : withNumber;
 }
 

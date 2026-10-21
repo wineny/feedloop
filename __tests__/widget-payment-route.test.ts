@@ -132,10 +132,10 @@ import {
   PAYMENT_SLOW_NOTICE,
 } from '@/lib/paypal/notices';
 import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
-import { HOLDING_NOTICE } from '@/lib/bot/holding';
+import { HOLDING_MESSAGE_EN, HOLDING_NOTICE } from '@/lib/bot/holding';
 
-function post(text: string) {
-  const request = new NextRequest('http://localhost/api/widget/b1/messages', {
+function post(text: string, locale?: 'ko' | 'en') {
+  const request = new NextRequest(`http://localhost/api/widget/b1/messages${locale ? `?locale=${locale}` : ''}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ visitorId: VISITOR_ID, text }),
@@ -349,9 +349,17 @@ describe('payment route — every notice is English', () => {
     expect(h.markConversationEscalated).toHaveBeenCalledTimes(1);
   });
 
-  it('the ordinary path keeps its Korean notice (no config, non-payment message)', async () => {
+  it('the ordinary path keeps its Korean notice for a Korean widget (no config, non-payment message)', async () => {
     h.getBotConfigFromDB.mockResolvedValue(null);
-    const json = await (await post('The login button is broken')).json();
+    const json = await (await post('The login button is broken', 'ko')).json();
     expect(json.notice).toBe(HOLDING_NOTICE);
+  });
+
+  it('the ordinary path answers in English when the widget sends no locale or en', async () => {
+    h.getBotConfigFromDB.mockResolvedValue(null);
+    for (const locale of [undefined, 'en'] as const) {
+      const json = await (await post('The login button is broken', locale)).json();
+      expect(json.notice).toBe(`Got it! ${HOLDING_MESSAGE_EN}`);
+    }
   });
 });

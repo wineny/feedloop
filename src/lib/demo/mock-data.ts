@@ -256,7 +256,7 @@ export const DEMO_DATA: Record<DemoPageKey, unknown> = {
         { id: 'd3-1', kind: 'user', body: '예약할 때 날짜 바꾸면 인원수가 초기화돼요', at: minutesAgo(48) },
         { id: 'd3-2', kind: 'ai', body: '불편을 드려 죄송해요. 날짜 변경 시 인원이 초기화되는 문제 확인해볼게요!', at: minutesAgo(48) },
         // 방문자가 위젯의 「상담원 연결」을 누른 기록 (B2). 배지가 켜진 이유가 타임라인에 보인다.
-        { id: 'd3-3', kind: 'notice', body: escalationNotice({ quote: '예약할 때 날짜 바꾸면 인원수가 초기화돼요', hasEmail: false, statusText: '보통 몇 분 안에 답해요' }), at: minutesAgo(46) },
+        { id: 'd3-3', kind: 'notice', body: escalationNotice({ locale: 'ko', quote: '예약할 때 날짜 바꾸면 인원수가 초기화돼요', hasEmail: false, statusText: '보통 몇 분 안에 답해요' }), at: minutesAgo(46) },
         { id: 'd3-4', kind: 'system', body: '요청하신 "예약 인원 초기화" 가 반영됐어요. (PR #12)', at: minutesAgo(30) },
       ],
     },

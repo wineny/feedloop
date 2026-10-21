@@ -9,19 +9,21 @@ import { WIDGET_CHIPS, resolveWidgetBot, widgetError, widgetJson, widgetOptions 
 import { getServiceRoleClient } from '@/lib/supabase';
 // 폴백 문구·시작 질문 조립은 운영자 화면(위젯 모양 미리보기)과 한 곳을 공유한다 —
 // 두 화면이 어긋나면 운영자가 "미리보기와 다른 위젯"을 보게 된다.
+import { readFaqFallback, resolveStarterQuestions } from '@/lib/bot/appearance';
+// 비어 있는 값의 기본 문구는 방문자 언어(?locale=en|ko, 기본 en)로 — 위젯 모양 미리보기와 같은 사전에서 온다.
 import {
-  DEFAULT_STATUS_TEXT,
+  chipLabel,
   defaultGreeting,
   defaultOperatorName,
-  readFaqFallback,
-  resolveStarterQuestions,
-} from '@/lib/bot/appearance';
+  defaultStatusText,
+  widgetLocale,
+} from '@/lib/widget/strings';
 
 export const OPTIONS = widgetOptions;
 
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ botId: string }> },
 ) {
   const { botId } = await params;
@@ -29,6 +31,7 @@ export async function GET(
   const bot = await resolveWidgetBot(botId);
   if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
 
+  const locale = widgetLocale(req);
   const displayName = bot.display_name?.trim() || bot.service_name;
 
   // 시작 질문을 운영자가 안 정했고 «자동 채우기를 켜 뒀을 때만» FAQ 를 본다.
@@ -56,10 +59,10 @@ export async function GET(
   return widgetJson(
     {
       displayName,
-      statusText: bot.status_text?.trim() || DEFAULT_STATUS_TEXT,
-      greeting: bot.greeting?.trim() || defaultGreeting(displayName),
+      statusText: bot.status_text?.trim() || defaultStatusText(locale),
+      greeting: bot.greeting?.trim() || defaultGreeting(locale, displayName),
       profileImageUrl: bot.profile_image_url || null,
-      operatorDisplayName: bot.operator_display_name?.trim() || defaultOperatorName(displayName),
+      operatorDisplayName: bot.operator_display_name?.trim() || defaultOperatorName(locale, displayName),
       // 색은 null 을 그대로 내보낸다. 여기서 기본값을 채우면 위젯 CSS 폴백이
       // 무용지물이 되고, 나중에 기본색을 바꿀 때 고칠 곳이 두 군데가 된다.
       accentColor: bot.accent_color || null,
@@ -68,7 +71,7 @@ export async function GET(
       // 채운다. 답변은 절대 나가지 않는다(resolveStarterQuestions 가 질문만 꺼낸다).
       starterQuestions: resolveStarterQuestions(bot.starter_questions, faq, faqFallback),
       // 첫 화면 아래 줄 — 누르면 입력창이 채워지고 방문자가 이어 쓴다.
-      chips: WIDGET_CHIPS.map(({ hint, label }) => ({ hint, label })),
+      chips: WIDGET_CHIPS.map(({ hint }) => ({ hint, label: chipLabel(locale, hint) })),
     },
     200,
     // 모양은 자주 안 바뀐다. 사이트 방문자마다 DB 를 때리지 않도록 CDN 에 1분 얹는다.

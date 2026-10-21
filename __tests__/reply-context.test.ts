@@ -261,7 +261,10 @@ describe('칩 필터 리터럴 — PostgREST not.in 조립', () => {
   });
 
   it('현재 라벨로 만든 리터럴을 글자 그대로 고정한다', () => {
-    expect(buildChipOnlyFilter()).toBe('("불편한 점이 있어요","기능 제안이 있어요")');
+    // 한국어·영어 위젯의 칩 문장을 모두 거른다(chips.ts labelEn)
+    expect(buildChipOnlyFilter()).toBe(
+      '("불편한 점이 있어요","I have a problem","기능 제안이 있어요","I have a suggestion")',
+    );
   });
 
   it('전제를 깨는 라벨은 조용히 빠지지 않고 던진다 — 빠지면 그 칩 문장이 다시 분류된다', () => {

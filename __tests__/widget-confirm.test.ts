@@ -113,7 +113,7 @@ describe('widget.js — 되돌림 카드 안에서 확인을 받는다', () => {
     // 문자열이 아니라 «링크를 만드는 코드»를 막는다 — 경로를 설명하는 주석까지 걸면
     // 왜 이렇게 됐는지를 적을 수 없다(첫 판이 실제로 제 주석에 걸렸다).
     expect(src).not.toMatch(/new URL\(\s*'\/feedback-confirm'/);
-    expect(src).toContain("apiBase + '/confirm'");
+    expect(src).toContain("apiBase + '/confirm?' + LQ");
   });
 
   it('두 선택지와 보낸 뒤 상태를 모두 그린다', () => {

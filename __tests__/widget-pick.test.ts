@@ -276,7 +276,9 @@ describe('widget.js — 화면에서 짚기 (로더·첨부 칩·payload)', () =
   it('첨부 칩의 이름 규칙(targetLabel)이 pick.ts 와 같은 값을 낸다', () => {
     const m = widgetSrc.match(/function targetLabel\(t\) \{[\s\S]*?\n  \}/);
     expect(m).not.toBeNull();
-    const fn = new Function(`${m![0]}; return targetLabel;`)() as typeof targetLabel;
+    // 위젯의 한국어 표를 그대로 흉내 낸다(이름 규칙은 ko 가 pick.ts 와 같아야 한다)
+    const T = (k: string) => ({ q1: '「', q2: '」', section: '구역', area: '영역' })[k as 'q1'];
+    const fn = new Function('T', 'LOCALE', 'KIND_EN', `${m![0]}; return targetLabel;`)(T, 'ko', {}) as typeof targetLabel;
     for (const t of [
       { kind: '버튼', text: '쿠폰 받기' },
       { kind: '이미지', label: '대릉원 사진' },

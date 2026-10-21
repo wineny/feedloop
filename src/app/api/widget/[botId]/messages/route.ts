@@ -20,7 +20,8 @@ import type { PayPalClient } from '@/lib/paypal/client';
 import { hasOpenPaymentAction } from '@/lib/paypal/actions';
 import { NO_PAYMENT_ROUTE, routePayment } from '@/lib/paypal/router';
 import { paymentAgentPrompt, paymentAgentSystemPrompt, runPaymentAgent } from '@/lib/paypal/agent';
-import { PAYMENT_AGENT_FALLBACK, PAYMENT_NOTICES, type ReplyNotices } from '@/lib/paypal/notices';
+import { PAYMENT_AGENT_FALLBACK, PAYMENT_NOTICES } from '@/lib/paypal/notices';
+import { defaultReplyNotices, widgetLocale } from '@/lib/widget/strings';
 import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
 import { appOrigin } from '@/lib/paypal/checkout';
 import { supabasePaymentsStore } from '@/lib/paypal/store';
@@ -34,8 +35,6 @@ import { createVisitorTools, formatProductList } from '@/lib/paypal/visitor-tool
 // 남은 통로가 폴링뿐이다. 그때는 HOLDING_MESSAGE 를 'ai' 답변으로 저장한다(아래 late 분기 주석).
 import {
   GROUNDING_REMINDER,
-  HOLDING_MESSAGE,
-  HOLDING_NOTICE,
   applyHoldingPolicy,
   ensureEscalationInsight,
 } from '@/lib/bot/holding';
@@ -106,25 +105,11 @@ const LLM_TIMEOUT_MS = 30_000;
 // 기본값은 «묶기 시작» + 280초라, 늦은 답이 30초를 먹은 뒤면 최악 310초로 maxDuration 을 넘긴다
 // (넘기면 release 가 안 돌아 잠금이 고아가 된다. 150초 뒤 저절로 풀리긴 한다).
 const GROUPING_DEADLINE_FROM_START_MS = 290_000;
-const SLOW_NOTICE = '말씀 잘 받았어요! 확인하고 바로 답 드릴게요 🙌';
-// 오늘 자동 답변 예산을 다 쓴 경우. **「담당자 확인 필요」과 섞지 않는다** —
-// 지식이 모자란 게 아니라 예산이 끝난 것이고, 운영자가 할 일도 다르다(키 등록·상한 조정).
-// 이것도 저장하지 않는다.
-const LIMIT_NOTICE = '말씀 잘 받았어요! 오늘은 자동 답변이 어려워 팀이 직접 읽고 답 드릴게요 🙌';
-// 봇 시간당 상한에 걸린 경우. 제보는 저장됐고 자동 답변만 건너뛴다.
-// LIMIT_NOTICE 와 가르는 이유: 저쪽은 **오늘**이 끝난 것이고(운영자가 키를 넣거나 상한을
-// 올려야 풀린다) 이쪽은 한 시간이면 저절로 풀린다. 「오늘은 어려워」라고 하면 거짓말이 된다.
-// 이것도 저장하지 않는다.
-const RATE_NOTICE = '말씀 잘 받았어요! 지금 문의가 몰려 자동 답변은 잠시 쉬고 있어요. 팀이 직접 읽고 답 드릴게요 🙌';
-// 기존 경로의 안내 네 가지 + 늦은 답 실패 때 저장하는 답변. 결제 경로는 같은 자리마다 영어 문장
-// (lib/paypal/notices.ts)을 쓴다 — 아래 `notices` 가 경로별로 고른다. 한국어 문구 자체는 그대로다.
-const DEFAULT_NOTICES: ReplyNotices = {
-  slow: SLOW_NOTICE,
-  rate: RATE_NOTICE,
-  limit: LIMIT_NOTICE,
-  holding: HOLDING_NOTICE,
-  holdingMessage: HOLDING_MESSAGE,
-};
+// 안내 다섯 가지(느림·시간당 상한·일일 예산·답 못 냄 + 늦은 답 실패 때 저장하는 답변)는
+// lib/widget/strings.ts 의 defaultReplyNotices(locale) 에 en/ko 로 있다. 결제 경로는 같은 자리마다
+// 영어 고정 문장(lib/paypal/notices.ts)을 쓴다 — 아래 `notices` 가 경로별로 고른다.
+// 구분은 그대로다: rate = 시간당 상한(한 시간이면 풀림), limit = 오늘 예산 소진(키·상한 조정 필요),
+// holding = 설정을 못 읽음. 세 안내는 저장하지 않는다.
 
 export const OPTIONS = widgetOptions;
 
@@ -273,7 +258,7 @@ export async function POST(
   const replyResponseType = paymentRoute.route ? PAYMENT_AGENT_RESPONSE_TYPE : 'ai';
   // 결제 경로의 방문자 문구는 전부 영어다(설계 §10) — 느림·시간당 상한·일일 예산·설정 없음·늦은 답 실패까지.
   // 에이전트가 답을 못 내는 경우만이 아니라 에이전트를 «못 부른» 경우도 결제 얘기였으면 영어로 안내한다.
-  const notices = paymentRoute.route ? PAYMENT_NOTICES : DEFAULT_NOTICES;
+  const notices = paymentRoute.route ? PAYMENT_NOTICES : defaultReplyNotices(widgetLocale(req));
 
   // 새 대화 알림 — 이 대화의 «첫 진짜 메시지»면 봇 소유자에게 메일 한 통(2026-09-23 ny 결정).
   // 칩만 누른 턴은 말이 아니라 신호라 건너뛰고, 그 뒤 처음 적은 말이 첫 메시지다. 여기 판정은

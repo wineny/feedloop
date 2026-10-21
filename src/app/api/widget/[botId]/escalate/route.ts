@@ -13,7 +13,7 @@
 
 import { NextRequest, after } from 'next/server';
 import { escalationNotice } from '@/lib/bot/holding';
-import { DEFAULT_STATUS_TEXT } from '@/lib/bot/appearance';
+import { defaultStatusText, widgetLocale } from '@/lib/widget/strings';
 import {
   findWebConversation,
   getRecentTurns,
@@ -54,6 +54,7 @@ export async function POST(
   { params }: { params: Promise<{ botId: string }> },
 ) {
   const { botId } = await params;
+  const locale = widgetLocale(req);
 
   const bot = await resolveWidgetBot(botId);
   if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
@@ -147,7 +148,12 @@ export async function POST(
       conversationId: conversation.id,
       triggerMessageId: messageId,
       responseType: 'system',
-      body: escalationNotice({ quote, hasEmail, statusText: bot.status_text ?? DEFAULT_STATUS_TEXT }),
+      body: escalationNotice({
+        locale,
+        quote,
+        hasEmail,
+        statusText: bot.status_text ?? defaultStatusText(locale),
+      }),
       delivered: true,
     });
   }

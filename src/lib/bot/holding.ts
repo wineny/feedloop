@@ -12,6 +12,13 @@
 export const HOLDING_MESSAGE = '담당자가 확인하고 있어요. 조금만 기다려 주세요 🙏';
 
 /**
+ * 같은 안내의 영어판(messages/en/common.json 의 holdingMessage 와 같은 문장 — 테스트가 대조).
+ * 프롬프트는 아직 한국어 문장만 시킨다(5단계에서 바꾼다). 그때까지 저장·비교는 한국어가 정본이고,
+ * 영어 위젯 요청이 만드는 대기 안내(영어)도 «대기 문구»로 알아보도록 판정은 두 문장을 모두 본다.
+ */
+export const HOLDING_MESSAGE_EN = 'A person is checking. Please hold on a moment 🙏';
+
+/**
  * 위젯이 AI 답을 아예 못 냈을 때(출력 깨짐·설정 실패) 이번 응답에만 싣는 안내.
  * 저장하지 않는다(messages/route.ts 의 ESCALATED_NOTICE 자리).
  */
@@ -51,7 +58,7 @@ export function applyHoldingPolicy<T extends HoldingCandidate>(result: T, botId?
   // DB 에는 cs 로 들어간다 — 모델이 지시를 어겼을 때 쓰라고 만든 장치가 모델의 대소문자에 기대면 안 된다.
   // (taxonomy.ts 를 import 하지 않는 이유: 이 모듈은 의존성 0 이어야 UI 가 같이 본다)
   const category = String(result.insight?.category ?? '').trim().toLowerCase();
-  if (result.escalate === true && category === 'cs' && result.response && result.response !== HOLDING_MESSAGE) {
+  if (result.escalate === true && category === 'cs' && result.response && result.response !== HOLDING_MESSAGE && result.response !== HOLDING_MESSAGE_EN) {
     // 발동 흔적을 남긴다 — 「지식 안 정답인데 escalate 를 켠」 과잉 발동은 이 로그로만 셀 수 있다.
     // 원문 앞부분만(운영자 쪽 로그, 방문자에게는 안 간다).
     console.warn(
@@ -122,7 +129,7 @@ export function ensureEscalationInsight<T extends EscalationCandidate>(
 
 /** 측정·테스트용: 응답이 대기 문구(또는 그걸 품은 문장)인지. */
 export function isHoldingResponse(text: string | null | undefined): boolean {
-  return typeof text === 'string' && text.includes(HOLDING_MESSAGE);
+  return typeof text === 'string' && (text.includes(HOLDING_MESSAGE) || text.includes(HOLDING_MESSAGE_EN));
 }
 
 // ── 「상담원 연결」 (백로그 B2, 2026-09-13 v2) ─────────────────
@@ -152,6 +159,8 @@ export const HANDOFF_QUOTE_CHARS = 60;
  * 나가므로(lib/email/notify.ts), 없는 사람에게 메일을 약속하면 거짓이 된다.
  */
 export function escalationNotice(opts: {
+  /** 방문자 언어(위젯 요청의 ?locale=). 안내 문장을 그 언어로 쓴다. */
+  locale: 'en' | 'ko';
   quote: string | null;
   hasEmail: boolean;
   /** 봇의 status_text(「보통 몇 분 안에 답해요」). 없으면 기대치 문장을 뺀다. */
@@ -161,8 +170,12 @@ export function escalationNotice(opts: {
   // 코드포인트 단위로 자른다 — 이모지(서로게이트 쌍) 가운데를 쪼개면 깨진 글자가 칩에 남는다
   const cps = Array.from(q);
   const cut = cps.length > HANDOFF_QUOTE_CHARS ? cps.slice(0, HANDOFF_QUOTE_CHARS).join('') + '…' : q;
-  const quoted = q ? `"${cut}" 를 ` : '';
   const when = (opts.statusText ?? '').trim();
+  if (opts.locale === 'en') {
+    const quotedEn = q ? `"${cut}" ` : 'Your request ';
+    return `${quotedEn}was passed to a person.${when ? ` ${when}.` : ''} We'll let you know here${opts.hasEmail ? ' and by email' : ''} when they reply 🙏`;
+  }
+  const quoted = q ? `"${cut}" 를 ` : '';
   const where = opts.hasEmail ? '여기와 이메일로' : '여기로';
   return `${quoted}상담원에게 전달했어요.${when ? ` ${when}.` : ''} 답이 오면 ${where} 알려드려요 🙏`;
 }

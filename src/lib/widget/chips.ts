@@ -20,6 +20,8 @@ interface WidgetHintSpec {
   hint: string;
   /** 프롬프트에 「시작 지점」으로 들어가는 이름. 칩이면 칩에 쓰인 문구 그대로다. */
   label: string;
+  /** 영어 위젯에 뜨는 칩 문구(messages/en/bots.json `chips.<hint>` 와 같다 — 테스트 대조). 칩이 아니면 없다. */
+  labelEn?: string;
   /** insights.category 후보 */
   category: string;
   /** 첫 화면 「의견 남기기」 줄에 칩으로 뜨는가 */
@@ -27,8 +29,8 @@ interface WidgetHintSpec {
 }
 
 export const WIDGET_HINTS = [
-  { hint: 'bug', label: '불편한 점이 있어요', category: 'bug', chip: true },
-  { hint: 'feature', label: '기능 제안이 있어요', category: 'feature_request', chip: true },
+  { hint: 'bug', label: '불편한 점이 있어요', labelEn: 'I have a problem', category: 'bug', chip: true },
+  { hint: 'feature', label: '기능 제안이 있어요', labelEn: 'I have a suggestion', category: 'feature_request', chip: true },
   // 시작 질문 칩이 쓰는 힌트. 칩 목록에는 없지만 서버가 받아들이는 유효한 값이다.
   // 예전의 「문의할 게 있어요」 칩을 대신한다 — 이제는 방문자가 막연한 문의 대신
   // 실제 질문 문장을 눌러 시작한다.
@@ -89,7 +91,7 @@ export function hintLine(hint: WidgetHint | null | undefined): string {
  * [분류] 버튼이 다시 주워 새 인사이트로 만들면 같은 문제가 뒷문으로 재발하고,
  * pending 에 세면 「분류할 게 남았다」가 영원히 0 이 되지 않는다.
  */
-export const CHIP_ONLY_LABELS: readonly string[] = WIDGET_CHIPS.map((c) => c.label);
+export const CHIP_ONLY_LABELS: readonly string[] = WIDGET_CHIPS.flatMap((c) => [c.label, c.labelEn]);
 
 /**
  * 이 문장이 칩 라벨 «그대로» 인가.
