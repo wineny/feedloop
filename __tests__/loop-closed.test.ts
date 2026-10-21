@@ -282,6 +282,30 @@ describe('closeLoopForRun — 기존 채널 무회귀', () => {
     expect(res.emailed).toBe(1);
   });
 
+  it('한 묶음의 대화가 각자 저장된 언어(conversations.locale)로 받는다 — 모르면(NULL) 제목의 한글 여부로 추정', async () => {
+    prMerged = true;
+    tables.insights = [
+      { id: 'i1', messages: { conversation_id: 'c-en' } },
+      { id: 'i2', messages: { conversation_id: 'c-ko' } },
+      { id: 'i3', messages: { conversation_id: 'c-null' } },
+    ];
+    tables.responses = [];
+    tables.conversations = [
+      { id: 'c-en', source: 'web', external_user_id: 'v1', locale: 'en' },
+      { id: 'c-ko', source: 'web', external_user_id: 'v2', locale: 'ko' },
+      { id: 'c-null', source: 'kakao', external_user_id: 'k1', locale: null },
+    ];
+
+    await mod.closeLoopForRun({ ...RUN, title: '쿠폰 버그' });
+
+    const rows = insertedResponses();
+    const bodyOf = (id: string) => rows.find((r) => r.conversation_id === id)!.response_body as string;
+    expect(bodyOf('c-en')).toContain('The problem you reported is fixed');
+    expect(bodyOf('c-ko')).toContain('말씀해주신 문제를 고쳤어요');
+    // locale 이 NULL 이면 예전처럼 제목에 한글이 있으니 ko
+    expect(bodyOf('c-null')).toContain('말씀해주신 문제를 고쳤어요');
+  });
+
   // 보안 리뷰 HIGH — 「재제보 합류」(B1)로 부르는 경로는 방문자가 스스로 연 «새» 대화에서
   // 출발한다. 연락처 이메일은 형식만 검증하고 저장하므로 남의 주소를 적어 넣을 수 있고,
   // 대화가 새로 생기니 유니크 인덱스도 못 막는다. 그래서 그 호출은 메일을 안 붙인다.

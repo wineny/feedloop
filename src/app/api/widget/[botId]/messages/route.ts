@@ -121,7 +121,7 @@ export async function POST(
   const reqStartedAt = Date.now();
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const body = await readJsonBody<{
     visitorId?: unknown;
@@ -135,12 +135,12 @@ export async function POST(
   const { visitorId, text } = payload;
   // 첫 화면 칩으로 시작한 메시지는 분류 힌트가 같이 온다. 모르는 값은 조용히 버린다.
   const hint = isWidgetHint(payload.hint) ? payload.hint : null;
-  if (!isUuid(visitorId)) return widgetError('visitorId 형식이 올바르지 않습니다', 400);
+  if (!isUuid(visitorId)) return widgetError(req, 'invalid_visitor', 400);
   if (typeof text !== 'string' || text.trim() === '') {
-    return widgetError('메시지가 비어 있습니다', 400);
+    return widgetError(req, 'message_empty', 400);
   }
   if (text.length > MAX_BODY_CHARS) {
-    return widgetError(`메시지는 ${MAX_BODY_CHARS}자까지 보낼 수 있어요`, 400);
+    return widgetError(req, 'message_too_long', 400, { max: MAX_BODY_CHARS });
   }
 
   // 봇 시간당 상한은 **여기서 끊지 않는다.** 그건 답을 막는 상한이지 제보를 버리는 상한이
@@ -165,8 +165,9 @@ export async function POST(
     botId,
     source: 'web',
     externalUserId: visitorId,
+    locale: widgetLocale(req),
   });
-  if (!conversation) return widgetError('대화를 열지 못했습니다', 500);
+  if (!conversation) return widgetError(req, 'conversation_failed', 500);
 
   const messageId = await saveWebMessage({
     widgetHint: hint,
@@ -185,7 +186,7 @@ export async function POST(
   // 일일 답변 예산(withReplyBudget)은 아래에서 올린다. 인메모리 IP 상한(checkWidgetWriteRate)만
   // 이미 올랐는데 되돌리지 않는다 — 장애 중 같은 IP 의 재시도가 60/분을 먹는 건 오히려 맞다.
   if (!messageId) {
-    return widgetError('잠시 후 다시 보내주세요', 503);
+    return widgetError(req, 'try_again', 503);
   }
 
   // 「화면에서 선택하기」 스크린샷(I-55). **같은 봇·같은 방문자·아직 안 붙은** 것만 붙는다 — 남의 shotId 를
@@ -612,11 +613,11 @@ export async function GET(
   const { botId } = await params;
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const visitorId = req.nextUrl.searchParams.get('visitorId');
   const afterAt = req.nextUrl.searchParams.get('after');
-  if (!isUuid(visitorId)) return widgetError('visitorId 형식이 올바르지 않습니다', 400);
+  if (!isUuid(visitorId)) return widgetError(req, 'invalid_visitor', 400);
 
   // 첫 호출이 곧 "위젯이 사이트에 붙었다"는 신호다. 온보딩 화면이 이걸 폴링한다.
   if (!afterAt) {

@@ -29,7 +29,7 @@ export async function GET(
   const { botId } = await params;
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const locale = widgetLocale(req);
   const displayName = bot.display_name?.trim() || bot.service_name;

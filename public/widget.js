@@ -3,7 +3,7 @@
  *
  * 붙이는 법:
  *   <script src="https://<도메인>/widget.js" data-feedloop="<botId>" async></script>
- *   언어 고정(선택): data-locale="en" 또는 "ko". 없으면 방문자 브라우저 언어(navigator.language)로 고른다.
+ *   언어 고정(선택): data-locale="en" 또는 "ko"(ko-KR 처럼 앞 두 글자만 본다). 없으면 방문자 브라우저 언어(navigator.language)로 고른다.
  *
  * 호스트 사이트의 CSS 가 위젯을 망가뜨리지 않도록 Shadow DOM 안에서 그린다.
  * iframe 이 아닌 이유는 호스트 origin 의 localStorage 를 그대로 써서 방문자 세션을 잇기 위해서다.
@@ -51,7 +51,7 @@
   // 고르는 순서: <script data-locale="en|ko"> (사업자가 고정) → navigator.language 가 ko 로 시작하면 ko → en.
   // 서버에도 ?locale= 로 알린다(기본 인사말·대기 문구 등 서버 기본 문구가 같은 언어로 온다).
   var LOCALE = (function () {
-    var forced = (script.getAttribute('data-locale') || '').toLowerCase();
+    var forced = (script.getAttribute('data-locale') || '').toLowerCase().slice(0, 2);   // ko-KR → ko
     if (forced === 'en' || forced === 'ko') return forced;
     return /^ko/i.test(navigator.language || '') ? 'ko' : 'en';
   })();
@@ -84,6 +84,7 @@
       pickRead: 'Could not read that element. Try picking another spot', pickLoad: 'Could not load the picker',
       saveFail: 'Could not save', netSave: 'Could not save because of a network error',
       passFail: 'Could not pass it on', netPass: 'Could not pass it on because of a network error',
+      e_rate_limited: 'Too many requests. Try again in a moment.',
       q1: '“', q2: '”'
     },
     ko: {
@@ -112,10 +113,13 @@
       pickRead: '요소 정보를 읽지 못했어요. 다른 곳을 짚어 주세요', pickLoad: '선택 도구를 불러오지 못했어요',
       saveFail: '저장하지 못했어요', netSave: '네트워크 오류로 저장하지 못했어요',
       passFail: '전달하지 못했어요', netPass: '네트워크 오류로 전달하지 못했어요',
+      e_rate_limited: '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.',
       q1: '「', q2: '」'
     },
   };
   function T(k) { return STR[LOCALE][k]; }
+  // 서버 오류는 { error: <코드>, message: <방문자 언어 문구> }. 코드가 STR 표(e_<코드>)에 있으면 그것을, 없으면 서버 message 를, 그것도 없으면 fb 키의 문구.
+  function errText(d, fb) { return (d && (STR[LOCALE]['e_' + d.error] || d.message)) || T(fb); }
   // 저장된 대기 문구는 서버 언어와 무관하게 ko·en 어느 쪽이든 올 수 있다 — 둘 다 알아보고 화면 언어로 보여준다
   function isHolding(b) { return b.indexOf(STR.ko.holdKey) >= 0 || b.indexOf(STR.en.holdKey) >= 0; }
   var KIND_EN = { '버튼': 'button', '링크': 'link', '입력칸': 'input', '선택칸': 'select', '이미지': 'image', '영역': 'area' };   // 서버로 가는 kind 값은 한국어 그대로(lib/widget/pick.ts)
@@ -1165,7 +1169,7 @@
         state.items = state.items.filter(function (it) { return it.id !== tmpId; });
         if (!res.ok) {
           restore();
-          state.error = res.data && res.data.error ? res.data.error : T('sendFail');
+          state.error = errText(res.data, 'sendFail');
           render();
           return;
         }
@@ -1278,7 +1282,7 @@
     var seq = shotSeq;
     state.shot = 1;
     state.shotP = loadJs('widget-shot.js', '__feedloopShot')
-      .then(function () { return window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId }); })
+      .then(function () { return window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId, locale: LOCALE }); })
       .catch(function () { return null; })
       .then(function (r) {
         if (seq === shotSeq) { state.shot = r || -1; render(); }
@@ -1323,7 +1327,7 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         if (!res.ok) {
-          state.error = res.data && res.data.error ? res.data.error : T('saveFail');
+          state.error = errText(res.data, 'saveFail');
         } else {
           takeContact(res.data.contact);
         }
@@ -1365,7 +1369,7 @@
         state.asking = false;
         if (!res.ok) {
           // 폼은 남긴다 — 고쳐 쓰거나 취소할 수 있게
-          state.error = res.data && res.data.error ? res.data.error : T('passFail');
+          state.error = errText(res.data, 'passFail');
         } else {
           state.handoff = false;
           state.hf = { text: '', name: '', mail: '' };
@@ -1405,7 +1409,7 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         unlock();
-        if (!res.ok) state.error = (res.data && res.data.error) || T('sendFail');
+        if (!res.ok) state.error = errText(res.data, 'sendFail');
         else markConfirmed(id, res.data.confirmation);
         render();
       })

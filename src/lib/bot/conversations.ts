@@ -97,6 +97,12 @@ export async function upsertConversation(params: {
   channelPersonId?: string;
   /** userChat | group. 채널톡만 채운다 */
   channelChatType?: string;
+  /**
+   * 방문자가 위젯에서 쓴 언어(en|ko). 위젯 라우트만 채운다 — 요청마다 덮어써서 «가장 최근에 쓴 언어»가 남는다
+   * (처음 값을 고정하면, 페이지 언어를 바꾼 방문자가 반영 알림을 옛 언어로 받는다). 카카오·채널톡은 보내지 않아 건드리지 않는다.
+   * 칼럼은 20261021_12_conversation_locale.sql — 코드보다 먼저 적용할 것.
+   */
+  locale?: 'en' | 'ko';
 }): Promise<Conversation | null> {
   const { data, error } = await db()
     .from('conversations')
@@ -111,6 +117,7 @@ export async function upsertConversation(params: {
         ...(params.channelChatType !== undefined
           ? { channel_chat_type: params.channelChatType }
           : {}),
+        ...(params.locale !== undefined ? { locale: params.locale } : {}),
       },
       { onConflict: 'bot_id,source,external_user_id' },
     )

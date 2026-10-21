@@ -1,13 +1,13 @@
 // 위젯이 서버에서 받는 방문자용 기본 문구 — 언어는 en|ko 둘뿐, 모르면 en.
 //
-// 위젯(public/widget.js)이 모든 요청에 `?locale=en|ko` 를 실어 보낸다. 서버는 그 값만 믿고
-// (`parseWidgetLocale`) 그 밖의 값·누락은 en 으로 본다.
+// 위젯(public/widget.js)이 모든 요청에 `?locale=en|ko` 를 실어 보낸다. 서버는 그 값을 먼저 보고
+// (`widgetLocale`), 없으면 Accept-Language, 그 밖의 값은 en 으로 본다.
 // 기본 인사말·운영자 이름·상태 문구·대기 문구는 화면 미리보기가 쓰는 사전(messages/<locale>/*.json)을
 // 그대로 읽는다 — 미리보기와 실제 위젯이 같은 문장이 되도록. 사전에 없는 안내(느림·상한·상담원 연결)는
 // 아래 표에 둔다.
 
 import { createTranslator } from 'next-intl';
-import type { NextRequest } from 'next/server';
+import { localeFromRequest } from '@/i18n/server-locale';
 import enBots from '../../../messages/en/bots.json';
 import koBots from '../../../messages/ko/bots.json';
 import enCommon from '../../../messages/en/common.json';
@@ -17,13 +17,9 @@ import type { ReplyNotices } from '@/lib/paypal/notices';
 
 export type WidgetLocale = 'en' | 'ko';
 
-/** 정확히 'ko' 만 ko, 나머지(없음·'ko-KR'·엉뚱한 값)는 en. */
-export function parseWidgetLocale(value: string | null | undefined): WidgetLocale {
-  return value === 'ko' ? 'ko' : 'en';
-}
-
-export function widgetLocale(req: NextRequest): WidgetLocale {
-  return parseWidgetLocale(req.nextUrl.searchParams.get('locale'));
+/** `?locale=` → Accept-Language(ko 로 시작하면 ko) → en. 옛 widget.js(`?locale` 없음)도 브라우저 언어를 따른다. */
+export function widgetLocale(req: Request): WidgetLocale {
+  return localeFromRequest(req, 'widget');
 }
 
 const MESSAGES = {

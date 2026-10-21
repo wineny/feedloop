@@ -137,13 +137,14 @@ describe('POST /api/widget/[botId]/escalate — 관문', () => {
   it('이메일 형식이 틀리면 400 — 저장 전에 거른다', async () => {
     const { status, body } = await post({ visitorId: VISITOR, text: '환불 문의', email: 'not-an-email' });
     expect(status).toBe(400);
-    expect(body.error).toContain('이메일');
+    expect(body.error).toBe('email_invalid');
+    expect(body.message).toBe('이메일 형식을 확인해주세요'); // post() 의 기본은 ?locale=ko
     expect(upsertConversation).not.toHaveBeenCalled();
   });
 
   it('속도 제한에 걸리면 그 응답을 그대로 돌려준다', async () => {
     const { widgetError } = await import('@/lib/widget/http');
-    checkWriteRate.mockResolvedValue(widgetError('잠시 후', 429));
+    checkWriteRate.mockResolvedValue(widgetError(new Request('http://localhost/x'), 'too_fast', 429));
     const { status } = await post({ visitorId: VISITOR, text: '환불 문의' });
     expect(status).toBe(429);
     expect(upsertConversation).not.toHaveBeenCalled();
@@ -169,6 +170,8 @@ describe('POST /api/widget/[botId]/escalate — 말을 남기는 경로', () => 
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
     // 내용이 있으면 대화를 만들어도 된다 — 운영자가 받을 말이 있다
     expect(upsertConversation).toHaveBeenCalledTimes(1);
+    // 방문자 언어를 대화에 남긴다(반영 알림이 그 언어로 간다) — post() 의 기본이 ?locale=ko
+    expect(upsertConversation).toHaveBeenCalledWith(expect.objectContaining({ locale: 'ko' }));
     const msg = saveWebMessage.mock.calls[0][0] as Record<string, unknown>;
     expect(msg).toMatchObject({ text: '환불은 어떻게 하나요?', handoff: true, origin: 'https://nulnul.vercel.app' });
     expect(msg).toHaveProperty('context');
@@ -297,7 +300,7 @@ describe('POST /api/widget/[botId]/escalate — 버튼만 누른 경로', () => 
 describe('widget.js — 상담원 연결', () => {
   const src = readFileSync(new URL('../public/widget.js', import.meta.url), 'utf8');
 
-  it('gzip 21KB 상한 안이다', () => {
+  it('gzip 24KB 상한 안이다', () => {
     // 위젯은 남의 사이트에 붙는다. 15 → 16KB 는 2026-09-13(상담원 연결 v2), 16 → 17KB 는
     // 2026-09-16 ny 결정(되돌림 확인을 카드 «안»에서 받기 — I-30), 17 → 18KB 는 같은 날 B3
     // 「화면에서 선택하기」 — 선택기 본체는 widget-pick.js 로 갈라 여기엔 로더·첨부·payload 몫만 들었다.

@@ -57,17 +57,17 @@ export async function POST(
   const locale = widgetLocale(req);
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const body = await readJsonBody<{ visitorId?: unknown; text?: unknown; name?: unknown; email?: unknown; context?: unknown }>(req);
   if (!body.ok) return body.response;
 
   const { visitorId } = body.value;
-  if (!isUuid(visitorId)) return widgetError('visitorId 형식이 올바르지 않습니다', 400);
+  if (!isUuid(visitorId)) return widgetError(req, 'invalid_visitor', 400);
 
   // 상담원에게 남길 말(선택). 있으면 그 자체가 메시지다.
   const text = typeof body.value.text === 'string' ? body.value.text.trim() : '';
-  if (text.length > MAX_BODY_CHARS) return widgetError(`메시지는 ${MAX_BODY_CHARS}자까지 보낼 수 있어요`, 400);
+  if (text.length > MAX_BODY_CHARS) return widgetError(req, 'message_too_long', 400, { max: MAX_BODY_CHARS });
 
   // 연락처(선택) — contact 라우트와 같은 규칙. 개행은 접는다(분류 프롬프트에 레코드 경계로 읽힌다).
   const field = (v: unknown) => {
@@ -77,7 +77,7 @@ export async function POST(
   };
   const name = field(body.value.name);
   const email = field(body.value.email);
-  if (email && !EMAIL_RE.test(email)) return widgetError('이메일 형식을 확인해주세요', 400);
+  if (email && !EMAIL_RE.test(email)) return widgetError(req, 'email_invalid', 400);
 
   // IP 기준 제한. 방문자 기준(messages 행 수)은 text 가 있을 때만 메시지를 만들어 그쪽에 잡힌다.
   const limited = await checkWriteRate(req, botId, visitorId);
@@ -90,8 +90,8 @@ export async function POST(
   let messageId: string | null = null;
   if (text) {
     // 내용이 있으면 대화를 만들어도 된다 — 운영자가 받을 «말»이 있다.
-    conversation = await upsertConversation({ botId, source: 'web', externalUserId: visitorId });
-    if (!conversation) return widgetError('대화를 열지 못했습니다', 500);
+    conversation = await upsertConversation({ botId, source: 'web', externalUserId: visitorId, locale });
+    if (!conversation) return widgetError(req, 'conversation_failed', 500);
     if (name || email) await saveContact(conversation.id, { name, email });
     const handoffContext = sanitizeWidgetContext(body.value.context);
     messageId = await saveWebMessage({
@@ -105,7 +105,7 @@ export async function POST(
       origin: req.headers.get('origin')?.slice(0, MAX_ORIGIN_CHARS) ?? null,
       handoff: true,
     });
-    if (!messageId) return widgetError('메시지를 저장하지 못했습니다', 500);
+    if (!messageId) return widgetError(req, 'message_save_failed', 500);
     // 「화면에서 선택하기」 스크린샷(I-55) — messages 라우트와 같은 규칙으로 붙이거나 뗀다.
     // 지금 위젯의 상담원 연결은 target 을 싣지 않아 늘 그냥 돌아온다 — 싣게 되면 그대로 동작하도록 둔 방어선
     // (남의 shotId 가 context 에 남지 않게)
@@ -114,7 +114,7 @@ export async function POST(
     // 말 없이 버튼만 — 대화를 «만들지 않는다». 한 마디도 안 한 방문자가 부르면 본문 없는 대화에
     // «답장을 보내야만 꺼지는» 배지가 남아 진짜 건을 밀어낸다(보안 리뷰 M1).
     const found = await findWebConversation(botId, visitorId);
-    if (!found || found.messageCount === 0) return widgetError('먼저 메시지를 남겨주세요', 400);
+    if (!found || found.messageCount === 0) return widgetError(req, 'message_first', 400);
     conversation = found;
   }
   // 두 갈래 다 여기서 끌어올린다. 말이 있으면 «저장이 성공한 뒤»여야 유령 대화가 안 생기고(I-29 근본 원인),
@@ -130,7 +130,7 @@ export async function POST(
   if (!already) {
     const marked = await markHandoffRequested(conversation.id);
     // 실패를 성공으로 포장하지 않는다 — 위젯은 escalated:true 를 받으면 버튼을 감춘다.
-    if (!marked) return widgetError('전달하지 못했어요. 잠시 후 다시 시도해주세요', 500);
+    if (!marked) return widgetError(req, 'handoff_failed', 500);
   }
 
   // 안내 칩. 말을 남겼으면 늘 붙고(새 내용), 버튼만이면 직전 칩이 아직 유효할 때 또 안 쌓는다(연타 멱등).

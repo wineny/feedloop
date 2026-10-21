@@ -3,7 +3,7 @@
 -- This file only loosens constraints; it does not touch any row, so the code that is
 -- running now (7ba9636) keeps working: it never sees a NULL it did not already handle.
 --   messages.author_name  DROP NOT NULL   (the new code writes NULL when no name is known)
---   bots.status_text      DEFAULT NULL    (the new code shows DEFAULT_STATUS_TEXT per locale)
+--   bots.status_text      DEFAULT NULL    (the new code shows the default in messages/<locale>/bots.json defaults.statusText)
 --
 -- Why this order:
 --   * Running B before the deploy: 7ba9636 RecentFeedback.tsx:88 calls f.userName.slice on a value that is

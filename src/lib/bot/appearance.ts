@@ -327,25 +327,15 @@ function isHttpsUrl(value: string): boolean {
   return url.protocol === 'https:';
 }
 
-// ── 폴백 문구 ───────────────────────────────────────
+// ── 폴백 ────────────────────────────────────────────
 //
-// 위젯 config 라우트(src/app/api/widget/[botId]/config/route.ts)와 운영자 미리보기가
-// 같은 문구를 쓴다. 이 모듈에 의존성이 없어서 서버·클라이언트 양쪽에서 import 할 수 있다.
-
-export const DEFAULT_STATUS_TEXT = '보통 몇 분 안에 답해요';
+// 비어 있는 상태 문구·인사말·운영자 이름의 기본 문구는 사전 `messages/<locale>/bots.json` 의 `defaults` 한 곳에 있다
+// (위젯 config 라우트는 lib/widget/strings.ts 로, 운영자 미리보기는 번역 훅으로 읽는다).
 
 // 색 기본값. widget.js 의 CSS 폴백(`var(--fl-accent, #F2645C)`)과 같은 값이어야 한다.
 // 한쪽만 고치면 운영자 미리보기와 실제 위젯이 다른 색으로 뜬다.
 export const DEFAULT_ACCENT_COLOR = '#f2645c';
 export const DEFAULT_VISITOR_BUBBLE_COLOR = '#191d1b';
-
-export function defaultGreeting(displayName: string): string {
-  return `안녕하세요! ${displayName} 이용 중 불편했던 점이나 바라는 점을 편하게 남겨주세요. 팀이 직접 읽고 답해드려요.`;
-}
-
-export function defaultOperatorName(displayName: string): string {
-  return `${displayName} 팀`;
-}
 
 // ── 파생 색 ─────────────────────────────────────────
 //

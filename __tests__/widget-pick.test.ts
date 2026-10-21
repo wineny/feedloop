@@ -294,7 +294,7 @@ describe('widget.js — 화면에서 짚기 (로더·첨부 칩·payload)', () =
 
   it('I-55 — 촬영기를 «누를 때» 받고, 촬영 상태를 칩에 싣고, 촬영이 보내기를 막지 않는다(최대 5초)', () => {
     expect(widgetSrc).toContain("loadJs('widget-shot.js', '__feedloopShot')");
-    expect(widgetSrc).toContain('window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId })');
+    expect(widgetSrc).toContain('window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId, locale: LOCALE })');
     expect(widgetSrc).toContain("' · 촬영 중…'");
     expect(widgetSrc).toContain("'화면은 담지 못했어요 · 위치는 함께 보내요'");
     expect(widgetSrc).toContain('setTimeout(ok, 5000)');

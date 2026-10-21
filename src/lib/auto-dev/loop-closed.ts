@@ -79,8 +79,8 @@ export function buildLoopClosedBody(
   prNumber: number | null,
   prUrl: string | null = null,
   /**
-   * 본문 언어. 되돌림은 PR 이 머지될 때 «요청 없이» 만들어져 방문자 언어를 모른다. 안 주면 제목에 한글이
-   * 있을 때만 ko(한국어로 받은 제보의 제목은 한국어), 아니면 en 이다.
+   * 본문 언어. 되돌림은 PR 이 머지될 때 «요청 없이» 만들어지므로 대화에 저장된 언어(conversations.locale)를
+   * 넘긴다. 안 주면(NULL — 옛 행·카카오·채널톡) 제목에 한글이 있을 때만 ko(한국어로 받은 제보의 제목은 한국어), 아니면 en 이다.
    */
   locale: 'en' | 'ko' = /[가-힣]/.test(title) ? 'ko' : 'en',
 ): string {
@@ -181,6 +181,8 @@ interface ConversationMeta {
   external_user_id: string;
   channel_person_id: string | null;
   last_message_at: string | null;
+  /** 방문자가 위젯에서 쓴 언어(conversations.locale). NULL = 모름(옛 행·카카오·채널톡) */
+  locale?: 'en' | 'ko' | null;
 }
 
 /**
@@ -303,7 +305,7 @@ export async function closeLoopForRun(
   //    조용히 사라지고, 화면에는 「확인 완료」로 뜬다.
   const { data: convRows, error: convMetaError } = await db()
     .from('conversations')
-    .select('id, source, external_user_id, channel_person_id, last_message_at')
+    .select('id, source, external_user_id, channel_person_id, last_message_at, locale')
     .in('id', conversationIds);
   if (convMetaError) throw new Error(convMetaError.message);
 
@@ -335,14 +337,15 @@ export async function closeLoopForRun(
   const skipped = byPerson.size - targets.length;
   if (targets.length === 0) return { ...base, merged: true, skipped };
 
-  const body = buildLoopClosedBody(run.title, run.pr_number, run.pr_url);
+  // 한 묶음의 대화가 여러 언어일 수 있다 — 대화마다 자기 언어로 쓴다. 언어를 모르면(NULL) 제목의 한글 여부로 추정한다.
+  const bodyOf = (c: ConversationMeta) => buildLoopClosedBody(run.title, run.pr_number, run.pr_url, c.locale ?? undefined);
   const now = new Date().toISOString();
 
   const rows = targets.map((c) => ({
     bot_id: run.bot_id,
     conversation_id: c.id,
     response_type: 'loop_closed',
-    response_body: body,
+    response_body: bodyOf(c),
     auto_dev_run_id: run.id,
     // 웹은 위젯이 폴링으로 바로 가져간다. 카카오는 대기열에 남겨 다음 발화 때 보낸다.
     // 채널톡은 일단 대기열로 만들고 바로 아래에서 보내 본다 — 보내기 전에 delivered 로
@@ -378,7 +381,7 @@ export async function closeLoopForRun(
   // ⚠️ 메일보다 **먼저** 부른다 — 채널톡 전송은 공유 마감(`deadline`)을 쓰는데 메일을 먼저
   // 돌리면 그 시간이 예산을 갉아먹어, 보낼 수 있었던 건이 deferred 로 밀린다.
   // 방금 만든 행만 보낸다 — 이미 있던 행은 지난 회차가 이미 보내거나 대기열에 넣었다.
-  const deferred = await deliverChannelRows(run.bot_id, created, targets, body, deadline);
+  const deferred = await deliverChannelRows(run.bot_id, created, targets, bodyOf, deadline);
 
   // 이메일을 남긴 방문자에게는 메일로도 알린다. 채널 전달과 별개로 지금 나간다 — 되돌림은
   // 며칠 뒤에 오는 소식이라 방문자가 사이트를 다시 열 이유가 없기 때문이다.
@@ -425,12 +428,12 @@ async function deliverChannelRows(
   botId: string,
   insertedRows: Array<{ id: string; conversation_id: string }>,
   targets: ConversationMeta[],
-  body: string,
+  bodyOf: (c: ConversationMeta) => string,
   deadline: number,
 ): Promise<number> {
-  const chatByConv = new Map(
-    targets.filter((c) => c.source === 'channel').map((c) => [c.id, c.external_user_id]),
-  );
+  const channelTargets = targets.filter((c) => c.source === 'channel');
+  const chatByConv = new Map(channelTargets.map((c) => [c.id, c.external_user_id]));
+  const metaByConv = new Map(channelTargets.map((c) => [c.id, c]));
 
   const channelRows = insertedRows.filter((r) => chatByConv.has(r.conversation_id));
   if (channelRows.length === 0) return 0;
@@ -445,7 +448,7 @@ async function deliverChannelRows(
       continue;
     }
 
-    const result = await sendBotMessage(botId, chatByConv.get(row.conversation_id)!, body, {
+    const result = await sendBotMessage(botId, chatByConv.get(row.conversation_id)!, bodyOf(metaByConv.get(row.conversation_id)!), {
       timeoutMs: CHANNEL_SEND_TIMEOUT_MS,
     });
 

@@ -30,14 +30,14 @@ import { GET } from '@/app/api/widget/[botId]/config/route';
 import { HOLDING_MESSAGE, HOLDING_MESSAGE_EN, applyHoldingPolicy, escalationNotice, isHoldingResponse } from '@/lib/bot/holding';
 import { buildLoopClosedBody } from '@/lib/auto-dev/loop-closed';
 import { CHIP_ONLY_LABELS, isChipOnlyText } from '@/lib/widget/chips';
-import { defaultReplyNotices, parseWidgetLocale } from '@/lib/widget/strings';
+import { defaultReplyNotices } from '@/lib/widget/strings';
 import enBots from '../messages/en/bots.json';
 import koBots from '../messages/ko/bots.json';
 import enCommon from '../messages/en/common.json';
 import koCommon from '../messages/ko/common.json';
 
-async function config(query: string) {
-  const req = new NextRequest(`http://localhost/api/widget/b1/config${query}`);
+async function config(query: string, headers?: Record<string, string>) {
+  const req = new NextRequest(`http://localhost/api/widget/b1/config${query}`, { headers });
   const res = await GET(req, { params: Promise.resolve({ botId: 'b1' }) });
   return (await res.json()) as {
     displayName: string;
@@ -73,8 +73,13 @@ describe('GET /api/widget/[botId]/config — ?locale=', () => {
     for (const q of ['', '?locale=fr', '?locale=KO', '?locale=ko-KR', '?locale=']) {
       expect((await config(q)).statusText).toBe(enBots.defaults.statusText);
     }
-    expect(parseWidgetLocale('ko')).toBe('ko');
-    expect(parseWidgetLocale(undefined)).toBe('en');
+  });
+
+  it('?locale 이 없으면(옛 widget.js 캐시) Accept-Language 로 고른다', async () => {
+    expect((await config('', { 'accept-language': 'ko-KR,ko;q=0.9' })).statusText).toBe(koBots.defaults.statusText);
+    expect((await config('', { 'accept-language': 'en-US,en;q=0.9' })).statusText).toBe(enBots.defaults.statusText);
+    // ?locale 이 있으면 그것이 우선
+    expect((await config('?locale=en', { 'accept-language': 'ko-KR' })).statusText).toBe(enBots.defaults.statusText);
   });
 
   it('운영자가 직접 쓴 값은 언어와 상관없이 그대로 나간다', async () => {
@@ -180,5 +185,29 @@ describe('public/widget.js 실행 — 언어 고르기', () => {
     ['ko-KR', 'fr', 'ko'],
   ])('navigator=%s data-locale=%s → %s', (lang, attr, want) => {
     expect(pick(lang, attr)).toBe(want);
+  });
+});
+
+describe('widget 오류 응답 — { error: 코드, message: 방문자 언어 문구 }', () => {
+  it('?locale 로 message 의 언어가 갈리고 error 는 항상 같은 코드', async () => {
+    const { widgetError } = await import('@/lib/widget/http');
+    const en = await widgetError(new Request('http://x/api/widget/b/messages?locale=en'), 'message_too_long', 400, { max: 2000 }).json();
+    const ko = await widgetError(new Request('http://x/api/widget/b/messages?locale=ko'), 'message_too_long', 400, { max: 2000 }).json();
+    expect(en).toEqual({ error: 'message_too_long', message: 'Messages can be up to 2000 characters' });
+    expect(ko).toEqual({ error: 'message_too_long', message: '메시지는 2000자까지 보낼 수 있어요' });
+  });
+
+  it('?locale 이 없으면 Accept-Language 로', async () => {
+    const { widgetError } = await import('@/lib/widget/http');
+    const res = widgetError(new Request('http://x/y', { headers: { 'accept-language': 'ko-KR,ko;q=0.9' } }), 'bot_not_found', 404);
+    expect((await res.json()).message).toBe('봇을 찾을 수 없습니다');
+  });
+
+  it('widget.js: 코드가 자기 표(e_<코드>)에 있으면 그것을, 없으면 서버 message 를 보이고, data-locale 은 앞 두 글자만 본다', () => {
+    const src = readFileSync(new URL('../public/widget.js', import.meta.url), 'utf8');
+    expect(src).toContain("STR[LOCALE]['e_' + d.error] || d.message");
+    expect(src).not.toContain('res.data.error');
+    expect(src).toContain(".toLowerCase().slice(0, 2)");
+    expect(src.match(/e_rate_limited:/g)).toHaveLength(2);
   });
 });
