@@ -61,3 +61,12 @@
 - 메일: 방문자에게 가는 메일은 `conversations.locale`, 사업자에게 가는 메일은 `OWNER_EMAIL_LOCALE`(`src/lib/email/notify.ts`, 지금 en).
 - GitHub PR 본문·제목·댓글은 영어 고정. 옛 한국어 PR 은 `draft-markers.ts`·`explanation.ts`·`picked-targets.ts` 가 계속 읽는다.
 - 5단계로 넘긴 것: LLM 프롬프트(`prompts.ts`, `ai-engine.ts` 의 지시문, `classify`, `groups`, `reply-context`, `bot/core.ts` 기본값), `HOLDING_MESSAGE` 비교, 요약 지시(`notify.ts` 의 「한국어 두 문장」), 위젯 맥락 요약(`widget/context.ts` 프롬프트용 줄).
+
+## 5단계 — LLM 프롬프트
+
+- 지시문은 영어. 출력 언어는 두 갈래다.
+  - **방문자에게 가는 답**(위젯·카카오·채널톡·텔레그램 봇 답변, 대기 문구, 이미 접수된 문제 안내): 방문자 언어. 위젯은 대화 언어(`conversations.locale`)를 `getSystemPrompt(profile, { replyLocale })` 로 넘기고, 카카오·채널톡·텔레그램은 안 넘긴다(모델이 방문자 말을 따라감). 서버가 넣는 문장은 `visitorTextLocale(text)` 로 고른다.
+  - **사업자가 보는 생성물**(인사이트 summary, 묶음 title·summary·impact reason, 스펙 초안, PR 제목·본문·explanation·unverified, 코드 검토 의견, 메일 AI 요약): `OWNER_CONTENT_LOCALE`(`src/i18n/owner-locale.ts`, 지금 en). 메일 언어 `OWNER_EMAIL_LOCALE` 과 같은 값이어야 한다.
+- 대기 문구는 모델이 쓰지 않는다. 응답 JSON 의 `"hold": true` 를 보고 서버(`applyHoldingPolicy(result, botId, locale)`)가 방문자 언어 문장을 넣고 escalate 를 켠다. 옛 데이터의 한국어·영어 대기 문장은 `isHoldingResponse` 가 계속 알아본다.
+- 한국어 예시는 하나만 남긴다: `SUMMARY_LANGUAGE_RULE`(`classify/taxonomy.ts`)의 「한국어 입력 → 영어 summary」.
+- 확인: `npx tsx scripts/i18n-prompt-smoke.ts` (실제 모델 호출, DB 안 씀).
