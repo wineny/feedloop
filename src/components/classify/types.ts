@@ -18,7 +18,7 @@ export interface Insight {
   updated_at?: string | null;
   messages: {
     body: string;
-    author_name: string;
+    author_name: string | null;
     chat_id: number;
     source?: string | null;
     detected_at: string;

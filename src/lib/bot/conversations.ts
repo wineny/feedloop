@@ -294,7 +294,7 @@ export async function saveWebMessage(params: {
         conversation_id: params.conversationId,
         source: 'web',
         external_user_id: params.visitorId,
-        author_name: params.authorName || '방문자',
+        author_name: params.authorName || null,
         body: params.text,
         context: params.context ?? null,
         origin: params.origin ?? null,

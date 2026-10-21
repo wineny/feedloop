@@ -22,6 +22,7 @@ import { markResponsesDelivered } from '@/lib/bot/conversations';
 import { sendBotMessage } from '@/lib/channel/client';
 import { recordDeliveryFailure, MAX_DELIVERY_ATTEMPTS } from '@/lib/channel/redeliver';
 import { reviewAndPromoteDraft } from '@/lib/auto-dev/draft-promotion';
+import { hasDraftWaitMarker } from '@/lib/auto-dev/draft-markers';
 
 /** 호출 1회(크론 또는 버튼) 전체가 채널톡 전송에 쓸 수 있는 총량. run 수와 무관하다. */
 export const CHANNEL_SEND_BUDGET_MS = 30_000;
@@ -126,7 +127,7 @@ async function getPrState(repoUrl: string, prNumber: number, botId: string): Pro
     await noteGithubError(botId, source, err);
     throw err;
   }
-  if (data.state === 'open' && !data.merged && data.draft && data.body?.includes('## 자동 검사 대기')) {
+  if (data.state === 'open' && !data.merged && data.draft && hasDraftWaitMarker(data.body)) {
     // 크론과 수동 머지 확인 모두 열린 초안을 검사한다. PR URL 은 레포 URL 로 정규화한다.
     try {
       await reviewAndPromoteDraft(`https://github.com/${parsed.owner}/${parsed.repo}`, prNumber, {

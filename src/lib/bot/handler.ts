@@ -21,7 +21,7 @@ import {
   updateCooldown,
 } from './db';
 import { resolveModel, LlmConfigError, type ResolvedModel } from '@/lib/llm/provider';
-import { classifyFailure, failureMessage } from '@/lib/llm/key';
+import { classifyFailure } from '@/lib/llm/key';
 import { markLlmKeyFailed, clearLlmKeyFailure } from '@/lib/llm/failure';
 
 /**
@@ -206,10 +206,7 @@ export async function recordLlmFailure(
   // 플랫폼 폴백(키 없는 봇)이 실패한 것은 «운영자 잘못이 아니다». bots 에 쓰지 않는다.
   if (!usingOwnKey) return;
 
-  await markLlmKeyFailed(
-    config.botId,
-    failureMessage(kind, resolved?.modelId ?? config.llmModel ?? null),
-  );
+  await markLlmKeyFailed(config.botId, kind);
 }
 
 /**

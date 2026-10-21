@@ -273,6 +273,13 @@ export type OwnerHandoffOutcome =
       reason: 'not_configured' | 'no_owner_email' | 'rate_limited' | 'bot_rate_limited' | 'lookup_failed' | 'send_failed' | 'delivery_unknown';
     };
 
+/** 대화 한 줄의 말한 사람. 문구가 아니라 코드값으로 비교하고, 출력할 때만 말로 바꾼다. */
+type TurnSpeaker = 'visitor' | 'notice' | 'service';
+
+function speakerLabel(who: TurnSpeaker, serviceName: string): string {
+  return who === 'visitor' ? '방문자' : who === 'notice' ? '안내' : serviceName;
+}
+
 /**
  * AI 한 줄 요약. 봇의 즉답 경로(BYOK·플랫폼 폴백)와 같은 모델을 쓴다. 실패·지연이면 null —
  * 요약은 메일을 좋게 하는 재료이지 전제가 아니다.
@@ -365,17 +372,19 @@ export async function emailOwnerHandoff(input: {
       getConversationOrigin(input.conversationId),
     ]);
     const recent = turns.map((t) => ({
-      who: t.kind === 'user' ? '방문자' : t.kind === 'notice' || t.kind === 'system' ? '안내' : serviceName,
+      who: (t.kind === 'user' ? 'visitor' : t.kind === 'notice' || t.kind === 'system' ? 'notice' : 'service') as TurnSpeaker,
       body: collapseWhitespace(t.body).slice(0, 300),
     }));
     // 방문자가 남긴 말이 방금 저장돼 최근 대화 끝에도 들어 있다. 「남긴 말」 칸에 따로 실으므로 겹치면 뺀다.
     const request = input.requestBody?.trim() || null;
-    if (request && recent.length && recent[recent.length - 1].who === '방문자' && recent[recent.length - 1].body === collapseWhitespace(request).slice(0, 300)) {
+    if (request && recent.length && recent[recent.length - 1].who === 'visitor' && recent[recent.length - 1].body === collapseWhitespace(request).slice(0, 300)) {
       recent.pop();
     }
-    const fallbackQuote = !request ? [...recent].reverse().find((t) => t.who === '방문자')?.body ?? null : null;
+    const fallbackQuote = !request ? [...recent].reverse().find((t) => t.who === 'visitor')?.body ?? null : null;
 
-    const summary = await summarizeForOwner(input.botId, recent, request ?? fallbackQuote, input.kind ?? 'handoff');
+    // 메일·요약에는 코드가 아니라 말하는 사람의 이름을 싣는다.
+    const labeledTurns = recent.map((t) => ({ who: speakerLabel(t.who, serviceName), body: t.body }));
+    const summary = await summarizeForOwner(input.botId, labeledTurns, request ?? fallbackQuote, input.kind ?? 'handoff');
 
     const base = (process.env.WEBHOOK_BASE_URL ?? '').trim().replace(/\/$/, '');
     const inboxUrl = base ? `${base}/inbox?c=${encodeURIComponent(input.conversationId)}` : null;
@@ -386,7 +395,7 @@ export async function emailOwnerHandoff(input: {
       visitorLabel,
       visitorEmail,
       requestBody: request ?? fallbackQuote,
-      recentTurns: recent,
+      recentTurns: labeledTurns,
       summary,
       pageUrl: origin,
       inboxUrl,

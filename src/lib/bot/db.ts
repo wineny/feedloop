@@ -39,7 +39,7 @@ export async function saveKakaoMessage(
     conversation_id: params.conversationId ?? null,
     source: 'kakao',
     external_user_id: params.userId,
-    author_name: params.userName || '카카오 사용자',
+    author_name: params.userName || null,
     body: params.utterance,
     detected_at: new Date().toISOString(),
   }).select('id').single();

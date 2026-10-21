@@ -2,6 +2,7 @@ import { acquireDraftGateLease, DraftGateLockError, type DraftGateLease } from '
 import { readGithubAppConfig } from '@/lib/github/app';
 import { parseRepoInfo } from '@/lib/github/repo-url';
 import { octokitForBot, noteGithubError } from './github-auth';
+import { DRAFT_PROMOTED_MARKER, hasDraftWaitMarker, hasPromotedMarker } from './draft-markers';
 import { getPrReview, mergeBlockedBy, safeExternalUrl, type GithubOpts, type PrReview } from './pr-review';
 
 export const DRAFT_GRACE_MS = 10 * 60 * 1000;
@@ -49,7 +50,7 @@ export async function reviewAndPromoteDraft(repoUrl: string, prNumber: number, o
     const review = await getPrReview(repoUrl, prNumber, opts);
     const humanPromotion = humanUnavailablePromotion(review, opts);
     if (review.draft && review.state === 'open' && !review.merged && review.draftGate !== 'unsupported'
-      && review.body?.includes('## 자동 검사 대기') && review.build.unavailable && !humanPromotion) {
+      && hasDraftWaitMarker(review.body) && review.build.unavailable && !humanPromotion) {
       return { ...review, draftGateBlocked: 'checks_unavailable' };
     }
     if (!humanPromotion && isNoop(review)) return review;
@@ -89,7 +90,7 @@ function markdownText(value: string): string {
 
 function isNoop(review: PrReview): boolean {
   return review.state !== 'open' || review.merged || review.draftGate === 'unsupported'
-    || !review.draft || !review.body?.includes('## 자동 검사 대기')
+    || !review.draft || !hasDraftWaitMarker(review.body)
     || decideDraftPromotion(review) === 'wait';
 }
 
@@ -124,7 +125,7 @@ async function applyGate(repoUrl: string, prNumber: number, review: PrReview, le
     ? c.user?.type === 'Bot' && c.user.login.toLowerCase() === `${slug}[bot]` && c.performed_via_github_app?.slug?.toLowerCase() === slug
     : c.user?.login.toLowerCase() === login);
   const promotion = trusted.find(c => c.body?.includes(DRAFT_PROMOTION_MARKER));
-  if (!humanPromotion && trusted.some(c => c.body?.includes(DRAFT_PROMOTION_MARKER) && c.body.includes('검토 요청으로 바꿨습니다'))) {
+  if (!humanPromotion && trusted.some(c => c.body?.includes(DRAFT_PROMOTION_MARKER) && hasPromotedMarker(c.body))) {
     return { ...review, draftGateBlocked: 'manual_draft' };
   }
   // A manual convert-to-draft survives even if the completion comment was lost.
@@ -137,7 +138,7 @@ async function applyGate(repoUrl: string, prNumber: number, review: PrReview, le
     if (!Array.isArray(conversions)) throw new Error('GitHub draft history unavailable');
     if (conversions.length) return { ...review, draftGateBlocked: 'manual_draft' };
   }
-  const promotionText = successText;
+  const promotionText = `${DRAFT_PROMOTED_MARKER}\n${successText}`;
   const reasonMarker = humanPromotion ? HUMAN_REASON : review.build.state === 'unknown' ? GRACE_REASON : '';
   if (decision === 'keep_failed') {
     if (!trusted.some((c) => c.body?.includes(DRAFT_FAILED_MARKER))) {

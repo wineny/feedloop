@@ -16,20 +16,11 @@ import {
   validateVerifyTokenInput,
 } from '@/lib/bot/channel-registration';
 import { verifyCredentials } from '@/lib/channel/client';
-import { PERSON_LABEL } from '@/lib/channel/labels';
 import { generateWebhookToken } from '@/lib/channel/verify';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { decrypt, encrypt } from '@/lib/utils/crypto';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * 익명화가 남기는 작성자 이름. 사람을 특정하지 않으면서 「누가 썼는지」 칸을 비우지 않는다.
- *
- * 화면이 부르는 호칭과 **같은 값이어야 한다** — 다르면 익명화된 메시지만 목록에서
- * 딴 이름으로 뜬다. 복제해 두면 한쪽만 고쳐지므로 공용 맵에서 가져온다.
- */
-const ANONYMIZED_AUTHOR = PERSON_LABEL.channel;
 
 /** 키·시크릿·토큰 암호문은 여기 없다. 목록에 없는 컬럼은 실수로도 못 나간다. */
 const SAFE_SELECT = 'id, channel_slug, channel_id, channel_bot_name, channel_connected_at';
@@ -333,10 +324,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .eq('bot_id', id)
     .eq('source', 'channel');
 
-  // 3) 작성자 이름을 고정 문자열로 바꾼다. 본문은 건드리지 않는다.
+  // 3) 작성자 이름을 NULL 로 비운다(화면은 NULL 이면 출처별 호칭 「채널톡 이용자」를 보인다). 본문은 건드리지 않는다.
   const { error: msgError } = await db
     .from('messages')
-    .update({ author_name: ANONYMIZED_AUTHOR })
+    .update({ author_name: null })
     .eq('bot_id', id)
     .eq('source', 'channel');
 

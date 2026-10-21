@@ -837,7 +837,9 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     mockStream(emptyWithRequest(undefined, '이미 방어 코드가 있어 고칠 것이 없다'));
     mockRepo();
 
-    await expect(prepareCodeFix(options)).rejects.toThrow(/수정할 파일이 없습니다 — 이미 방어 코드가/);
+    const rejected = expect(prepareCodeFix(options)).rejects;
+    await rejected.toThrow(/수정할 파일이 없습니다 — 이미 방어 코드가/);
+    await rejected.toMatchObject({ code: 'no_files' });
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 

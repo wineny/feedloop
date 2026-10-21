@@ -372,7 +372,7 @@ describe('DELETE — 익명화', () => {
   it('③ 작성자 이름만 치환하고 본문은 건드리지 않는다', async () => {
     const { msgs } = await disconnect();
 
-    expect(msgs.patch).toEqual({ author_name: '채널톡 이용자' });
+    expect(msgs.patch).toEqual({ author_name: null });
     expect(msgs.patch).not.toHaveProperty('body');
   });
 

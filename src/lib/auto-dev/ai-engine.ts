@@ -12,6 +12,7 @@ import {
   formatVerifiedForPrBody,
   type ContextItems,
 } from '@/lib/widget/verify-context';
+import { AutoDevError, autoDevErrorCode } from '@/lib/auto-dev/errors';
 import { selectImportNeighbors, truncateNeighbor, resolveImport } from '@/lib/auto-dev/imports';
 import {
   normalizeExplanation,
@@ -696,7 +697,7 @@ async function getAICodeFix(
 /** 모델이 「이미 막고 있다」「고칠 곳이 다른 파일」이라고 판단한 경우다. 그 판단을 버리지 않고 실어 보낸다. */
 function noFilesError(fix: CodeFix): Error {
   const why = typeof fix.analysis === 'string' && fix.analysis.trim() ? ` — ${fix.analysis.trim()}` : '';
-  return new Error(`AI 응답에 수정할 파일이 없습니다${why}`);
+  return new AutoDevError('no_files', `AI 응답에 수정할 파일이 없습니다${why}`);
 }
 
 /** 참고용 파일을 수정 대상으로 지목한 경로. 후보 선정이 틀렸다는 뜻이다. */
@@ -1492,7 +1493,7 @@ export async function callAutoDev(options: AutoDevOptions): Promise<AutoDevResul
       return stop('budget_exhausted', last);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
-      if (reason.includes('수정할 파일이 없습니다') || reason === 'root_cause_unknown') {
+      if (autoDevErrorCode(e) === 'no_files' || reason === 'root_cause_unknown') {
         return {
           status: 'stopped' as const,
           reason: reason === 'root_cause_unknown' ? reason : 'insufficient_evidence',

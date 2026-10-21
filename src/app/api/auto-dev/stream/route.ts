@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { claimRun, executeClaimedRun, loadRun, one, type LoadedRun } from '@/lib/auto-dev/execute-run';
+import { autoDevErrorCode } from '@/lib/auto-dev/errors';
 
 // Anthropic 스트리밍 생성 + Octokit 6~8회 왕복이 들어간다.
 // 기본값에 의존하지 않고 의도를 코드에 박는다.
@@ -138,7 +139,7 @@ export async function GET(req: NextRequest) {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
-        const step = message.includes('수정 대상 또는 저장소 URL') ? 'validation' : 'pipeline';
+        const step = autoDevErrorCode(err) === 'missing_target' ? 'validation' : 'pipeline';
         // executeClaimedRun persists the outcome before throwing; report that exact state.
         const persisted = await loadRun(runId).catch(() => null);
         send((persisted && terminalEvent(persisted)) || { type: 'error', step, message, recoverable: false });

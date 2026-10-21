@@ -40,6 +40,7 @@ import {
 } from '@/lib/bot/db';
 import { isOpenBuilderTest, type KakaoSkillPayload } from '@/lib/bot/kakao-test-payload';
 import { bumpKakaoUsage } from '@/lib/llm/usage';
+import { personLabel } from '@/lib/channel/labels';
 import {
   touchConversation,
   upsertConversation,
@@ -112,7 +113,7 @@ async function processUtterance(
       : Promise.resolve(),
   ]);
   const context = recent
-    .map((m: { author_name: string; body: string }) => `${m.author_name}: ${m.body}`)
+    .map((m: { author_name: string | null; body: string }) => `${m.author_name ?? personLabel('kakao')}: ${m.body}`)
     .join('\n');
 
   const systemPrompt = getSystemPrompt(config.serviceProfile);

@@ -52,6 +52,17 @@ export function failureMessage(kind: LlmFailureKind, modelId?: string | null): s
   }
 }
 
+const FAILURE_KINDS: readonly string[] = ['key_rejected', 'model_invalid', 'quota', 'connection'];
+
+/**
+ * `bots.llm_key_failed_reason` 에는 코드값(`LlmFailureKind`)을 저장한다. 화면에 낼 때 문장으로 바꾼다.
+ * 코드가 아닌 값(코드 전환 전에 저장된 문장)은 그대로 돌려준다.
+ */
+export function failureReasonText(stored: string | null, modelId?: string | null): string | null {
+  if (!stored) return null;
+  return FAILURE_KINDS.includes(stored) ? failureMessage(stored as LlmFailureKind, modelId) : stored;
+}
+
 // ── 실호출 검증 ─────────────────────────────────────
 //
 // 무과금 목록 호출을 쓴다. **키는 전부 헤더로 보낸다** — 쿼리스트링에 실으면

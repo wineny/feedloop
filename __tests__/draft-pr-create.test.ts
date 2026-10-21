@@ -30,6 +30,7 @@ describe('createDraftPr', () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({ title: params.title, head: params.head, base: params.base, draft: true, body: expect.stringContaining('Existing body') });
     expect(requests[0].body).toContain('## 자동 검사 대기');
+    expect(requests[0].body).toContain('<!-- feedloop:draft-wait -->');
     expect(requests[0].body).toContain('검토 요청');
     expect(beforeWrite).toHaveBeenCalledOnce();
   });

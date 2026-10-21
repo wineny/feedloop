@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { CATEGORY_LABEL } from '@/components/dashboard/InsightGroups';
 import { Check, ChevronRight, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { sourceLabel } from '@/lib/channel/labels';
+import { personLabel, sourceLabel } from '@/lib/channel/labels';
 import type { GroupRef, Insight } from './types';
 import { isGroupable } from '@/lib/classify/taxonomy';
 import { PickedShot } from '@/components/picked/PickedShot';
@@ -134,7 +134,7 @@ export function InsightRow({ insight, group, demo = false }: InsightRowProps) {
         )}
 
         <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-faint tabular-nums">
-          {msg && <span>{msg.author_name}</span>}
+          {msg && <span>{msg.author_name ?? personLabel(msg.source ?? '')}</span>}
           {source && (
             <>
               <Sep />

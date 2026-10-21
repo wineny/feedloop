@@ -10,6 +10,7 @@ import { loadTrustedValidationConfig } from './validation-config';
 import type { GenerationBudget } from './validation-budget';
 import { digest, type PublicationIntent, type ValidationEvidence, type ValidationTarget } from './validation';
 import { callAutoDev } from '@/lib/auto-dev/ai-engine';
+import { AutoDevError } from './errors';
 import {
   formatContextForPrompt,
   mergeContextsForPrompt,
@@ -215,7 +216,7 @@ export async function executeClaimedRun(
 
   if ((!group && !insight) || !bot?.github_repo_url) {
     await persist({ status: 'failed', error_message: 'Missing target or repo URL' });
-    throw new Error('수정 대상 또는 저장소 URL 정보가 없습니다');
+    throw new AutoDevError('missing_target', '수정 대상 또는 저장소 URL 정보가 없습니다');
   }
 
   try {
