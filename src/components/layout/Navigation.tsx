@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { BotScopeSelect } from '@/components/layout/BotScopeSelect';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { isPricingPath } from '@/lib/pricing/paths';
 
 // 순서가 곧 루프다: 대화(들어옴) → 피드백(분류) → 수정 PR(수정·되돌림).
@@ -71,6 +72,7 @@ export function Navigation() {
         <div className="ml-auto flex min-w-0 max-w-[calc(100%_-_140px)] items-center gap-3 lg:ml-0 [&>div]:min-w-0 [&>div>span]:max-w-32 [&>div>span]:truncate [&_button]:shrink-0">
           {/* 서비스 셀렉터(I-27) — 봇이 둘 이상인 계정에서만 나타난다 */}
           {isAuthenticated && <BotScopeSelect />}
+          <LocaleSwitcher className="text-muted-foreground" />
           <AuthButton />
         </div>
       </div>

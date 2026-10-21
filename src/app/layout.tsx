@@ -10,21 +10,28 @@ import { BotScopeProvider } from "@/lib/scope/BotScopeProvider";
 import { DemoBanner } from "@/components/demo/DemoBanner";
 import { SelfWidget } from "@/components/layout/SelfWidget";
 import { PostHogGate } from "@/components/layout/PostHogGate";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  metadataBase: new URL("https://ai-feedloop.vercel.app"),
-  title: "Feedloop — 고객 피드백이 들어오는 즉시 수정이 시작되고, 완료되면 자동으로 알립니다",
-  description: "고객 피드백이 들어오는 즉시 수정이 시작되고, 완료되면 보낸 분께 자동으로 알립니다. 설치는 5분이면 끝납니다.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta");
+  return {
+    metadataBase: new URL("https://ai-feedloop.vercel.app"),
+    title: t("title"),
+    description: t("description"),
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   return (
-    <html lang="ko" className="h-full antialiased">
+    <html lang={locale} className="h-full antialiased">
       <body className="min-h-full flex flex-col overflow-x-hidden">
+        <NextIntlClientProvider>
         <AuthProvider>
           <DemoProvider>
             {/* 봇 스코프(I-27) — 헤더 셀렉터가 고르고 네 탭이 읽는다. 세션 안쪽이어야 /api/bots 를 부를 수 있다 */}
@@ -38,6 +45,7 @@ export default function RootLayout({
             </BotScopeProvider>
           </DemoProvider>
         </AuthProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

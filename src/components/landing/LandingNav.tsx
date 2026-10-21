@@ -7,6 +7,7 @@ import { LoginLink, PrimaryCta } from './PrimaryCta';
 import { DemoAnchor, scrollToHash } from './LiveDemo';
 import { DEMO_LABEL, PRIMARY_CTA_LABEL } from './constants';
 import { LogoMark } from './Logo';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const links = [{ label: '작동 방식', href: '#how' }];
 
@@ -116,6 +117,7 @@ export function LandingNav() {
             <DemoAnchor className="text-[15px] font-medium" />
           </div>
           <div className="flex items-center gap-5">
+            <LocaleSwitcher className={fg} />
             <LoginLink className={cn('text-[15px] font-medium', fg)} />
             <PrimaryCta
               className={cn(
@@ -134,6 +136,8 @@ export function LandingNav() {
             <LogoMark size={22} className={onCoral ? 'text-white' : 'text-[var(--coral)]'} />
             Feedloop
           </Link>
+          <div className="flex items-center gap-2">
+          <LocaleSwitcher className={fg} />
           <button
             type="button"
             aria-label={open ? '메뉴 닫기' : '메뉴 열기'}
@@ -146,6 +150,7 @@ export function LandingNav() {
               {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
             </svg>
           </button>
+          </div>
         </nav>
       </div>
       {open && (
