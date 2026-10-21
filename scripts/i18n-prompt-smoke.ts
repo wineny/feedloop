@@ -11,6 +11,10 @@
 //   분류        한국어 3 + 영어 3 → category 가 열거값, summary 는 영어(OWNER_CONTENT_LOCALE)
 //   묶기·영향   한국어 피드백 묶음 → 영어 title·summary·impact reason
 //   PR 프롬프트 비싸고 GitHub 이 필요해 호출하지 않는다. 조립 결과의 지시문이 영어인지만 본다.
+//   회귀 비율  케이스마다 RUNS 번(기본 4, SMOKE_RUNS 로 조정) 돌려 비율로 본다(5d 에서 추가):
+//              감사·인사·맞장구에 response=null 이 안 나오는지(ko/en, 카카오 경로·위젯 경로),
+//              extends·Known issues ref 가 맞는 항목을 가리키는지(대괄호째 적어도 normalizeRef 가 벗기는지),
+//              언어 미지정 카카오 경로의 hold 판단, 한국어·영어가 섞인 묶기.
 
 import * as dotenv from 'dotenv';
 import path from 'path';
@@ -19,6 +23,10 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 delete process.env.NEXT_PUBLIC_SUPABASE_URL;
 delete process.env.POSTGRES_URL_NON_POOLING;
+delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+/** 비율 케이스(5번 절)를 몇 번씩 돌리나. 모델 출력이 흔들리므로 한 번으로는 회귀를 못 본다. */
+const RUNS = Number(process.env.SMOKE_RUNS ?? 4);
 
 type Lang = 'en' | 'ko' | 'mixed' | 'none';
 
@@ -237,6 +245,134 @@ async function main() {
     });
   }
 
+  // ── 5. 회귀 비율 — 같은 입력을 RUNS 번 돌려 센다 ─────────────────────
+  const { buildInsightRefMap, formatExtendableSection } = await import('../src/lib/bot/reply-context');
+  const { buildGroupRefMap, formatKnownIssuesSection } = await import('../src/lib/groups/existing-match');
+  const { normalizeRef } = await import('../src/lib/classify/ref');
+  const { visitorTextLocale } = await import('../src/lib/bot/holding');
+
+  interface RateRow { kase: string; input: string; metric: string; hits: number; runs: number; ok: boolean; note: string }
+  const rateRows: RateRow[] = [];
+  const call = async (system: string, user: string) => {
+    const raw = await callLlm(config, system, user, { timeoutMs: 60_000, recordKeyFailure: false });
+    return raw ? extractResult(raw) : null;
+  };
+
+  // 5a. 감사·인사·맞장구 — 카카오 경로(대화 언어 없음, 유저 턴 = `Visitor: …`, 상기 문구 없음).
+  //     response=null 이면 서버는 대기 안내를 보내고 사람에게 넘긴다(kakao webhook FALLBACK_TEXT).
+  const courtesy = ['감사합니다!', 'ok 감사합니다', '네 알겠어요', '안녕하세요', 'Thanks!', 'ok got it', 'hi there'];
+  for (const t of courtesy) {
+    let nulls = 0;
+    let holds = 0;
+    for (let i = 0; i < RUNS; i++) {
+      const r = await call(getSystemPrompt(config.serviceProfile), `Visitor: ${t}`);
+      if (!r || r.response === null) nulls++;
+      if (r?.hold) holds++;
+    }
+    rateRows.push({ kase: 'courtesy kakao', input: t, metric: 'response null', hits: nulls, runs: RUNS, ok: nulls === 0 && holds === 0, note: holds ? `hold ${holds}` : '' });
+  }
+
+  // 위젯 경로: 제보 → 꼬리질문 뒤의 감사. 「이 대화의 기존 제보」 목록과 상기 문구가 붙는다.
+  const coupon = { id: '33333333-aaaa-4bbb-8ccc-000000000009', category: 'bug', summary: 'White screen when opening the coupon box', source_message_ids: ['m0'] };
+  const extRefMap = buildInsightRefMap([coupon]);
+  const extendable = formatExtendableSection(extRefMap);
+  const wantExt = [...extRefMap.keys()][0];
+  const recentByLocale = {
+    ko: 'Visitor: 쿠폰함 들어가면 흰 화면이에요\nWander Korea: 앗 불편하셨겠어요! 어떤 기기에서 그러셨어요?',
+    en: 'Visitor: The coupon box shows a white screen\nWander Korea: Oh no, sorry about that! Which device were you on?',
+  } as const;
+  for (const [t, locale] of [['감사합니다!', 'ko'], ['Thanks!', 'en']] as const) {
+    let nulls = 0;
+    for (let i = 0; i < RUNS; i++) {
+      const u = buildWidgetUserTurn({ recent: recentByLocale[locale], extendable, text: t, hintLine: '', reminder: GROUNDING_REMINDER });
+      const r = await call(getSystemPrompt(config.serviceProfile, { replyLocale: locale }), u);
+      if (!r || r.response === null) nulls++;
+    }
+    rateRows.push({ kase: `courtesy widget ${locale}`, input: t, metric: 'response null', hits: nulls, runs: RUNS, ok: nulls === 0, note: '' });
+  }
+
+  // 5b. extends — 꼬리질문에 대한 답은 앞 제보에 합쳐져야 한다. 대괄호째 적어도 normalizeRef 가 벗긴다.
+  for (const [t, locale] of [['아이폰 사파리요', 'ko'], ['iPhone, Safari', 'en']] as const) {
+    let match = 0;
+    let bracketed = 0;
+    for (let i = 0; i < RUNS; i++) {
+      const u = buildWidgetUserTurn({ recent: recentByLocale[locale], extendable, text: t, hintLine: '', reminder: GROUNDING_REMINDER });
+      const r = await call(getSystemPrompt(config.serviceProfile, { replyLocale: locale }), u);
+      if (r?.extends && /[[\]]/.test(r.extends)) bracketed++;
+      if (normalizeRef(r?.extends) === wantExt) match++;
+    }
+    rateRows.push({ kase: `extends ${locale}`, input: t, metric: 'ref resolves', hits: match, runs: RUNS, ok: match === RUNS, note: `raw bracketed ${bracketed}` });
+  }
+
+  // 5c. Known issues — 묶음 제목이 한국어·영어로 섞인 목록. 방문자 말과 제목 언어가 달라도 같은 문제면 그 ref.
+  const KO_COUPON = { id: '11111111-aaaa-4bbb-8ccc-000000000001', title: '결제 화면에서 쿠폰 적용 버튼이 눌리지 않음', summary: '', category: 'bug', status: 'open', prNumber: null, prUrl: null };
+  const KO_MAP = { id: '11111111-aaaa-4bbb-8ccc-000000000002', title: '지도 화면 내 위치 버튼을 찾기 어려움', summary: '', category: 'ux', status: 'pr_created', prNumber: 7, prUrl: null };
+  const EN_BLANK = { id: '22222222-aaaa-4bbb-8ccc-000000000003', title: 'Tour detail page shows a blank screen', summary: '', category: 'bug', status: 'open', prNumber: null, prUrl: null };
+  const groupRefMap = buildGroupRefMap([KO_COUPON, KO_MAP, EN_BLANK]);
+  const knownIssues = formatKnownIssuesSection(groupRefMap);
+  const knownCases: { text: string; locale: 'en' | 'ko'; want: string | null }[] = [
+    { text: '투어 상세 들어가면 흰 화면이에요', locale: 'ko', want: EN_BLANK.id },
+    { text: '결제할 때 쿠폰 적용 버튼이 안 눌려요', locale: 'ko', want: KO_COUPON.id },
+    { text: "When I check out, tapping the apply-coupon button doesn't do anything", locale: 'en', want: KO_COUPON.id },
+    { text: "I can't find the my-location button on the map", locale: 'en', want: KO_MAP.id },
+    { text: 'The search filter resets every time I go back', locale: 'en', want: null },
+  ];
+  for (const c of knownCases) {
+    let match = 0;
+    let bracketed = 0;
+    for (let i = 0; i < RUNS; i++) {
+      const u = buildWidgetUserTurn({ recent: '', extendable: '', knownIssues, text: c.text, hintLine: '', reminder: GROUNDING_REMINDER });
+      const r = await call(getSystemPrompt(config.serviceProfile, { replyLocale: c.locale }), u);
+      const got = r?.matchesExistingGroup ?? null;
+      if (got && /[[\]]/.test(got)) bracketed++;
+      const resolved = groupRefMap.get(normalizeRef(got))?.id ?? null;
+      if (resolved === c.want) match++;
+    }
+    rateRows.push({ kase: `known ${c.locale}`, input: cut(c.text, 40), metric: c.want ? 'ref resolves' : 'stays null', hits: match, runs: RUNS, ok: match === RUNS, note: `raw bracketed ${bracketed}` });
+  }
+
+  // 5d. 언어 미지정 카카오 경로 — 사실 질문(지식 없음)은 hold, 피드백은 답, 답 언어는 방문자 말을 따른다.
+  const kakaoCases: { text: string; hold: boolean }[] = [
+    { text: '주차장 있나요?', hold: true },
+    { text: 'Is there parking at the meeting point?', hold: true },
+    { text: '예약하기 버튼 눌렀는데 아무 반응이 없어요', hold: false },
+  ];
+  for (const c of kakaoCases) {
+    let good = 0;
+    for (let i = 0; i < RUNS; i++) {
+      const r = await call(getSystemPrompt(config.serviceProfile), `Visitor: ${c.text}`);
+      if (!r) continue;
+      const replyOk = c.hold || (r.response !== null && langOf(r.response) === visitorTextLocale(c.text));
+      if ((r.hold === true) === c.hold && replyOk) good++;
+    }
+    rateRows.push({ kase: 'kakao no locale', input: cut(c.text, 40), metric: c.hold ? 'hold' : 'reply in visitor language', hits: good, runs: RUNS, ok: good === RUNS, note: '' });
+  }
+
+  // 5e. 섞인 언어 묶기 — 한국어 기존 묶음 + 영어 새 제보, 영어 기존 묶음 + 한국어 새 제보.
+  const mixedRuns = Math.min(RUNS, 3);
+  let mixedGood = 0;
+  const mixedNotes: string[] = [];
+  for (let i = 0; i < mixedRuns; i++) {
+    const fresh = [
+      { id: 'n-en-1', category: 'bug', summary: 'Coupon apply button does nothing on the checkout screen' },
+      { id: 'n-en-2', category: 'bug', summary: 'Reviews tab freezes when scrolling on Android' },
+      { id: 'n-ko-3', category: 'bug', summary: '투어 상세 페이지 열면 하얀 화면만 나와요' },
+    ];
+    try {
+      const gs = await proposeGroups(config, fresh, [KO_COUPON, KO_MAP, EN_BLANK], Date.now() + 90_000);
+      const where = (id: string) => {
+        const g = gs.find((x) => x.insight_ids?.includes(id));
+        return g ? (g.existing_group_id ?? 'NEW') : 'MISSING';
+      };
+      const ok = where('n-en-1') === KO_COUPON.id && where('n-en-2') === 'NEW' && where('n-ko-3') === EN_BLANK.id;
+      if (ok) mixedGood++;
+      else mixedNotes.push(`run${i}: en→ko ${where('n-en-1').slice(0, 8)}, unrelated ${where('n-en-2').slice(0, 8)}, ko→en ${where('n-ko-3').slice(0, 8)}`);
+    } catch (err) {
+      mixedNotes.push(`run${i}: ${cut(err instanceof Error ? err.message : String(err), 40)}`);
+    }
+  }
+  rateRows.push({ kase: 'mixed grouping', input: '3 new (en/en/ko) vs ko/ko/en groups', metric: 'all three placed right', hits: mixedGood, runs: mixedRuns, ok: mixedGood === mixedRuns, note: mixedNotes.join('; ') });
+
   // ── 표 ─────────────────────────────────────────────────────────
   const head = ['case', 'input', 'output', 'language', 'JSON', 'result'];
   const body = rows.map((r) => [r.kase, r.input, r.output, r.lang, r.json, r.ok ? 'PASS' : 'FAIL']);
@@ -246,7 +382,16 @@ async function main() {
   for (const b of body) console.log(`| ${b.map(esc).join(' | ')} |`);
   const failed = rows.filter((r) => !r.ok).length;
   console.log(`\n${rows.length - failed}/${rows.length} passed`);
-  if (failed > 0) process.exit(1);
+
+  const rateHead = ['case', 'input', 'metric', 'count', 'note', 'result'];
+  console.log(`\n| ${rateHead.join(' | ')} |`);
+  console.log(`|${rateHead.map(() => '---').join('|')}|`);
+  for (const r of rateRows) {
+    console.log(`| ${[r.kase, r.input, r.metric, `${r.hits}/${r.runs}`, r.note, r.ok ? 'PASS' : 'FAIL'].map(esc).join(' | ')} |`);
+  }
+  const rateFailed = rateRows.filter((r) => !r.ok).length;
+  console.log(`\n${rateRows.length - rateFailed}/${rateRows.length} rate cases passed (${RUNS} runs each)`);
+  if (failed > 0 || rateFailed > 0) process.exit(1);
 }
 
 main().catch((e) => {

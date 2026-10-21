@@ -45,7 +45,19 @@ export function buildRefMapBy<T>(
   return map;
 }
 
-/** 모델이 적어 온 ref 를 대조용으로 좁힌다. 16진수라 대소문자는 뜻이 같다. */
+/**
+ * 앞뒤에서 벗겨 낼 글자 — 공백, 목록 표기의 대괄호, 따옴표·백틱.
+ * holding.ts 의 ensureEscalationInsight 가 같은 규칙을 인라인으로 쓴다(그 모듈은 의존성 0 이라 import 하지 못한다).
+ */
+const REF_WRAPPER = /^[\s[\]"'`]+|[\s[\]"'`]+$/g;
+
+/**
+ * 모델이 적어 온 ref 를 대조용으로 좁힌다. 16진수라 대소문자는 뜻이 같다.
+ *
+ * 목록은 ref 를 `- [8f7cb09f] …` 로 싣는다. 영어 프롬프트로 바꾼 뒤(i18n 5단계) 모델이 대괄호째
+ * `[8f7cb09f]` 로 옮겨 적어 extends·Known issues 대조가 전부 빗나갔다(실측 4/4) — 보충 제보가 새
+ * 인사이트로 중복 저장되고 진행 상황 답도 사라졌다. 프롬프트도 고쳤지만 여기서도 벗긴다.
+ */
 export function normalizeRef(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return typeof value === 'string' ? value.replace(REF_WRAPPER, '').toLowerCase() : '';
 }

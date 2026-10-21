@@ -290,6 +290,12 @@ describe('resolveKnownIssue / formatKnownIssuesSection', () => {
     expect(out.reply).not.toContain('모델이 쓴 말');
   });
 
+  it('모델이 ref 를 대괄호째 적어도 같은 묶음을 찾는다', () => {
+    const open = [replyGroup({ id: 'g-open', status: 'open' })];
+    const ref = [...mod.buildGroupRefMap(open)][0][0];
+    expect(mod.resolveKnownIssue(`[${ref}]`, mod.buildGroupRefMap(open), null)!.group.id).toBe('g-open');
+  });
+
   it('열린 묶음이면 모델 문장을 살리고 뒤에 한 줄을 덧붙인다', () => {
     const open = [replyGroup({ id: 'g-open', status: 'open' })];
     const ref = [...mod.buildGroupRefMap(open)][0][0];

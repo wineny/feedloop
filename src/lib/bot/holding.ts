@@ -49,8 +49,9 @@ export const HOLDING_NOTICE = `말씀 잘 받았어요! ${HOLDING_MESSAGE}`;
 export const GROUNDING_REMINDER =
   '(Rule: if the message above asks for a fact about the service — policy, quantity, price, period, ' +
   'whether a feature exists, procedure — and neither the service context nor the answer knowledge supports an answer, ' +
-  'set "hold" to true, "escalate" to true and "response" to null. ' +
-  'If it is feedback, empathize as usual and ask one follow-up question.)';
+  'set "hold" to true and "escalate" to true. ' +
+  'If it is feedback, empathize as usual and ask one follow-up question. ' +
+  'Otherwise always write a reply in "response" — thanks and greetings get a short one.)';
 
 /** 정책이 보는 결과 모양. handler.ts 의 LlmResult 부분집합 — 순환 import 를 피하려고 구조적으로 둔다. */
 export interface HoldingCandidate {
@@ -152,8 +153,9 @@ export function ensureEscalationInsight<T extends EscalationCandidate>(
   if (result.escalate !== true) return result;
   if (result.insight) return result;
   if (result.parsed === false) return result;
-  // 16진수라 대소문자는 뜻이 같다(`planInsightWrite` 의 ref 대조와 같은 규칙).
-  const ref = typeof result.extends === 'string' ? result.extends.trim().toLowerCase() : '';
+  // classify/ref.ts 의 normalizeRef 와 같은 규칙(대소문자 무시, 앞뒤 공백·대괄호·따옴표 벗김).
+  // 그 모듈은 node:crypto 를 쓰므로 의존성 0 인 여기서는 import 하지 않고 같은 식을 둔다.
+  const ref = typeof result.extends === 'string' ? result.extends.replace(/^[\s[\]"'`]+|[\s[\]"'`]+$/g, '').toLowerCase() : '';
   if (ref && opts.refMap?.has(ref)) return result;
 
   const summary = text.replace(/\s+/g, ' ').trim().slice(0, ESCALATED_SUMMARY_CHARS);

@@ -4,6 +4,7 @@ import { getSystemPrompt } from '@/lib/bot/prompts';
 import { TAXONOMY_BLOCK } from '@/lib/classify/taxonomy';
 import { buildBatchSystemPrompt } from '@/lib/classify/batch';
 import { groupAction } from '@/lib/groups/policy';
+import { GROUNDING_REMINDER } from '@/lib/bot/holding';
 const profile = { botName:'안내',botTone:'친절',serviceName:'예약',serviceUrl:'',serviceDescription:'',serviceCompany:'',targetUsers:'',serviceFeatures:[],loginMethod:'',faq:[],knowledge:'' };
 describe('shared classification contract',()=>{
  it('puts explicit symptom priority before the ordered capability question in both prompts',()=>{
@@ -24,6 +25,20 @@ describe('shared classification contract',()=>{
   const prompt=getSystemPrompt(profile);
   expect(prompt).toContain('A follow-up asking about the progress of an earlier report is other');
   expect(prompt).toContain('plain agreement or thanks with nothing new, set insight and extends to null');
+ });
+ it('keeps response non-null except on hold, and asks for refs without brackets',()=>{
+  for(const knowledge of ['','Coupons: one per store per day.']){
+   const prompt=getSystemPrompt({...profile,knowledge});
+   expect(prompt).toContain('**response is null only when hold is true.**');
+   expect(prompt).toContain('Thanks, greetings,');
+   // response=null 지시는 hold 설명 한 곳에만 둔다 — 답변 규칙·상기 문구에 다시 쓰면 감사 턴까지 null 이 됐다(5d 실측)
+   expect(prompt.match(/set response to null/g)).toHaveLength(1);
+   expect(prompt).not.toContain('"response" to null');
+   expect(prompt.match(/the id inside the brackets, without the brackets/g)).toHaveLength(2);
+   expect(prompt).not.toContain('exactly as written');
+  }
+  expect(GROUNDING_REMINDER).not.toContain('"response" to null');
+  expect(GROUNDING_REMINDER).toContain('thanks and greetings get a short one');
  });
  // Fresh independent contract examples: declared expectations exercise policy routing only.
  it.each([
