@@ -149,10 +149,10 @@ describe('출력', () => {
       DEMO_REPO,
     );
     const body = formatVerifiedForPrBody(v);
-    expect(body).toContain('제보자 브라우저가 보낸 값');
-    expect(body).toContain('이 레포에서 확인되지 않았습니다');
-    expect(body.indexOf('제보자 브라우저가 보낸 값')).toBeLessThan(
-      body.indexOf('이 레포에서 확인되지 않았습니다'),
+    expect(body).toContain("Values sent by the reporter's browser");
+    expect(body).toContain('were not found in this repository');
+    expect(body.indexOf("Values sent by the reporter's browser")).toBeLessThan(
+      body.indexOf('were not found in this repository'),
     );
   });
 

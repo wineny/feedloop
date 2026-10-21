@@ -64,6 +64,16 @@ export const TARGET_KIND: Record<string, string> = {
 };
 export const TARGET_KIND_DEFAULT = '영역';
 
+/** 위젯이 보낸 한국어 요소 종류 → 영어. GitHub PR 본문(영어 고정)에 쓴다 */
+const TARGET_KIND_EN: Record<string, string> = {
+  버튼: 'button',
+  링크: 'link',
+  입력칸: 'input',
+  선택칸: 'select',
+  이미지: 'image',
+  영역: 'area',
+};
+
 /** 구역 라벨의 꼬리 — 「구역」. 위젯 칩과 같은 말(테스트 대조) */
 export const AREA_WORD = '구역';
 
@@ -88,4 +98,20 @@ export function targetLabel(
   if (!name) return kind;
   const cut = Array.from(name).length > max ? `${Array.from(name).slice(0, max).join('')}…` : name;
   return `「${cut}」 ${kind}`;
+}
+
+/** `targetLabel` 의 영어판 — GitHub PR 본문용. `"Join" button` · `"Today's PICK" section · 1120×973` */
+export function targetLabelEn(
+  t: Pick<WidgetTarget, 'kind' | 'text' | 'label'> & Partial<Pick<WidgetTarget, 'heading' | 'rect'>>,
+  max = 24,
+): string {
+  const kind = TARGET_KIND_EN[t.kind || TARGET_KIND_DEFAULT] ?? 'area';
+  const clip = (v: string) => (Array.from(v).length > max ? `${Array.from(v).slice(0, max).join('')}…` : v);
+  const heading = (t.heading || '').trim();
+  if (heading) {
+    const size = t.rect && t.rect.w > 0 && t.rect.h > 0 ? ` · ${t.rect.w}×${t.rect.h}` : '';
+    return `"${clip(heading)}" section${size}`;
+  }
+  const name = (t.text || t.label || '').trim();
+  return name ? `"${clip(name)}" ${kind}` : kind;
 }

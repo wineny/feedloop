@@ -45,10 +45,7 @@ export function groupAction(category: string): 'pr' | 'spec' | 'none' {
   return 'none';
 }
 
-/** 자동 PR 을 막을 때 화면·API 가 함께 쓰는 문구. */
-export function codeFixBlockedReason(category: string): string {
-  if (isSpecWorthy(category)) {
-    return '기능 요청은 코드 수정안 대신 스펙 초안으로 정리합니다. 무엇을 만들지는 사람이 정해야 합니다.';
-  }
-  return '이 분류(칭찬·문의 등)는 고칠 코드가 없어 자동 수정안 대상이 아닙니다.';
+/** 자동 PR 을 막을 때 API 가 쓰는 문구의 사전 키(`messages/<locale>/errors.json` 의 `api.<키>`). 이 모듈은 클라이언트도 import 해서 문구는 들고 있지 않다. */
+export function codeFixBlockedReasonKey(category: string): 'specCategory' | 'noCodeToFix' {
+  return isSpecWorthy(category) ? 'specCategory' : 'noCodeToFix';
 }

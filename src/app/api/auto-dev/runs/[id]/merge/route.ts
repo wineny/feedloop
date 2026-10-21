@@ -90,7 +90,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       baseRef: review.baseRef,
     }, { botId: run.botId });
   } catch (err) {
-    if (err instanceof MergeError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof MergeError) {
+      return NextResponse.json({ error: apiText(req, `merge_${err.code}`, { detail: err.detail ?? '' }) }, { status: err.status });
+    }
     console.error('[runs/merge] merge failed', { runId: run.id, message: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: apiText(req, 'mergeFailed') }, { status: 502 });
   }

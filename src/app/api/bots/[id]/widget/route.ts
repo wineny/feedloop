@@ -8,10 +8,11 @@
 import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
+import { apiText } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const auth = await resolveOwnedBots(id);
@@ -28,10 +29,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   if (error) {
     console.error(`[widget/${id}] disconnect failed:`, error.message);
-    return NextResponse.json({ error: '연결을 해제하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'channelDisconnectFailed') }, { status: 500 });
   }
   if (!data) {
-    return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
   }
 
   return NextResponse.json({ widget_connected: false });

@@ -173,8 +173,8 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
     expect(prompt).not.toContain('이 파일이 그린다');
     expect(prompt).toContain(TARGET.selector);
     const pr = formatVerifiedForPrBody(v);
-    expect(pr).toContain('«짚은 요소» (검증되지 않은 입력');
-    expect(pr).toContain('「쿠폰 받기」 버튼');
+    expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
+    expect(pr).toContain('"쿠폰 받기" button');
     // PR 본문(GitHub 에 남는 글)엔 html 뼈대가 없다. 프롬프트엔 있다 (보안 리뷰 H2)
     expect(pr).not.toContain('html:');
     expect(prompt).toContain('html:');
@@ -189,8 +189,8 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
     expect(prompt).toContain('짚은 요소 (DOM 값 — 레포 트리로는 대조 불가)');
     expect(prompt).toContain(TARGET.selector);
     const pr = formatVerifiedForPrBody(v);
-    expect(pr).toContain('«짚은 요소» (검증되지 않은 입력');
-    expect(pr).toContain('「쿠폰 받기」 버튼');
+    expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
+    expect(pr).toContain('"쿠폰 받기" button');
     expect(pr).not.toContain('html:');
   });
 
@@ -718,9 +718,9 @@ describe('confirmTargetClaims — 후보를 읽어 판정을 올린다', () => {
     expect(prompt).not.toContain('원인'); // 「그린다」까지만 — 「원인이 여기 있다」는 말은 안 한다(PR #6)
     expect(prompt).toContain('레포 원본에서 확인 못 함, 대조 불가'); // 두 번째 요소
     const pr = formatVerifiedForPrBody(v);
-    expect(pr).toContain('- 짚은 요소: 「서울 종로」 버튼 → `app/components/RegionSelector.tsx` 이(가) 그린다');
-    expect(pr).toContain('«짚은 요소» (검증되지 않은 입력');
-    expect(pr).toContain('「없는 글자」 버튼');
+    expect(pr).toContain('- Picked element: "서울 종로" button → `app/components/RegionSelector.tsx` renders it');
+    expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
+    expect(pr).toContain('"없는 글자" button');
     expect(pr).not.toContain('html:');
   });
 });

@@ -195,17 +195,17 @@ async function loadRepoContext(
   const { owner, repo } = parseRepoInfo(repoUrl);
   onProgress?.(
     tokenSource === 'installation'
-      ? 'GitHub 에 설치된 Feedloop 앱으로 연결'
+      ? 'Connected through the installed Feedloop GitHub App'
       : tokenSource === 'bot'
-        ? '봇에 등록된 GitHub 토큰으로 연결'
-        : 'Feedloop 공용 GitHub 계정으로 연결',
+        ? "Connected with the bot's GitHub token"
+        : 'Connected with the shared Feedloop GitHub account',
   );
 
   let entries: { path?: string; type?: string; sha?: string; size?: number; mode?: string }[];
   let defaultBranch: string;
   let baseSha: string;
   try {
-    onProgress?.('저장소 정보 조회 중...');
+    onProgress?.('Reading repository info…');
     const { data: repoData } = await octokit.repos.get({ owner, repo });
     defaultBranch = repoData.default_branch;
 
@@ -214,7 +214,7 @@ async function loadRepoContext(
     });
     baseSha = pinnedBaseSha ?? refData.object.sha;
 
-    onProgress?.('저장소 파일 트리 조회 중...');
+    onProgress?.('Reading the repository file tree…');
     const { data: tree } = await octokit.git.getTree({
       owner, repo, tree_sha: baseSha, recursive: 'true',
     });
@@ -238,10 +238,10 @@ async function loadRepoContext(
   const sourcePaths = filtered.slice(0, MAX_LISTED_FILES);
 
   if (sourcePaths.length === 0) {
-    throw new Error(`저장소 ${owner}/${repo} 에서 수정 가능한 소스 파일을 찾지 못했습니다`);
+    throw new Error(`No editable source files found in ${owner}/${repo}`);
   }
 
-  onProgress?.(`저장소 파일 ${sourcePaths.length}개 확인 (전체 ${entries.length} 엔트리)`);
+  onProgress?.(`Found ${sourcePaths.length} source files (${entries.length} entries in total)`);
 
   return {
     octokit, tokenSource, owner, repo, defaultBranch, baseSha,
@@ -264,7 +264,7 @@ export async function callClaude(
     await budget.onReserve?.(budget);
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다');
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -284,10 +284,10 @@ export async function callClaude(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Anthropic API 오류 (${response.status}): ${errorText}`);
+    throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
   }
 
-  if (!response.body) throw new Error('응답 스트림이 없습니다');
+  if (!response.body) throw new Error('The response has no stream');
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -318,7 +318,7 @@ export async function callClaude(
         if (event.type === 'content_block_delta' && event.delta?.text) {
           fullText += event.delta.text;
           if (fullText.length % 500 < event.delta.text.length) {
-            onProgress?.(`${label}... (${fullText.length}자)`);
+            onProgress?.(`${label}… (${fullText.length} chars)`);
           }
         }
       } catch {
@@ -327,11 +327,11 @@ export async function callClaude(
     }
   }
 
-  if (!fullText) throw new Error('AI로부터 응답을 받지 못했습니다');
+  if (!fullText) throw new Error('The AI returned no response');
   if (stopReason === 'max_tokens') {
     throw new Error(
-      `AI 응답이 출력 한도(${maxTokens} 토큰)에 걸려 잘렸습니다. ` +
-        '고칠 파일이 많거나 파일이 너무 큽니다 — 묶음을 더 좁히거나 대상 파일을 줄여야 합니다.',
+      `The AI response hit the output limit (${maxTokens} tokens) and was cut off. ` +
+        'There are too many files to fix, or they are too large. Narrow the group or reduce the target files.',
     );
   }
   return fullText;
@@ -339,7 +339,7 @@ export async function callClaude(
 
 function parseJsonResponse<T>(fullText: string): T {
   const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('AI 응답에서 JSON을 찾을 수 없습니다');
+  if (!jsonMatch) throw new Error('No JSON found in the AI response');
   return JSON.parse(jsonMatch[0]) as T;
 }
 
@@ -557,10 +557,10 @@ async function selectCandidateFiles(
   onProgress?: (msg: string) => void,
   evidence?: ContextEvidence,
 ): Promise<string[]> {
-  onProgress?.('AI에 수정 대상 파일 선정 요청 중...');
+  onProgress?.('Asking the AI to pick the files to fix…');
 
   const text = await callClaude(
-    buildSelectionPrompt(insight, ctx, evidence), 1024, '파일 선정 중', onProgress,
+    buildSelectionPrompt(insight, ctx, evidence), 1024, 'Picking files', onProgress,
   );
   const parsed = parseJsonResponse<{ reason?: string; candidates?: string[] }>(text);
 
@@ -574,12 +574,12 @@ async function selectCandidateFiles(
 
   if (candidates.length === 0) {
     throw new Error(
-      '저장소에 실제로 존재하는 수정 대상 파일을 찾지 못했습니다. ' +
-        `(AI 제안: ${JSON.stringify(parsed.candidates ?? [])})`,
+      'The AI did not name any file that exists in the repository. ' +
+        `(AI suggestion: ${JSON.stringify(parsed.candidates ?? [])})`,
     );
   }
 
-  onProgress?.(`수정 대상 선정: ${candidates.join(', ')}`);
+  onProgress?.(`Files to fix: ${candidates.join(', ')}`);
   return candidates;
 }
 
@@ -593,7 +593,7 @@ async function fetchFileContents(
   const sources: SourceFile[] = [];
 
   for (const path of paths) {
-    onProgress?.(`파일 원본 읽는 중: ${path}`);
+    onProgress?.(`Reading source: ${path}`);
     const { data } = await ctx.octokit.repos.getContent({
       // ref 는 «트리를 읽은 그 SHA» 다(main). 브랜치 머리로 읽으면 트리와 원본이 서로 다른 시점이 된다.
       owner: ctx.owner, repo: ctx.repo, path, ref: ctx.baseSha,
@@ -603,7 +603,7 @@ async function fetchFileContents(
       throw err;
     });
     if (Array.isArray(data) || data.type !== 'file' || typeof data.content !== 'string') {
-      throw new Error(`파일 내용을 읽지 못했습니다: ${path}`);
+      throw new Error(`Could not read the file: ${path}`);
     }
     sources.push({
       path,
@@ -629,28 +629,28 @@ async function fetchImportNeighbors(
   const keywordText = [insight.summary, insight.message_body, insight.context ?? ''].join(' ');
   const picked = selectImportNeighbors(sources, ctx.neighborPool, keywordText);
   if (picked.length === 0) {
-    onProgress?.('참고할 import 이웃 없음');
+    onProgress?.('No imported files to read for context');
     return [];
   }
 
   const neighbors: SourceFile[] = [];
   for (const n of picked) {
-    onProgress?.(`참고 파일 읽는 중: ${n.path} (${n.from} 가 import)`);
+    onProgress?.(`Reading context file: ${n.path} (imported by ${n.from})`);
     try {
       // 이웃은 못 읽어도 실행이 이어지는 경로라(아래 catch) 토큰 실패를 여기서 적지 않는다 — 후보 원본 읽기가 이미 판정했다
       const [file] = await fetchFileContents(ctx, [n.path], null);
       // GitHub 는 1MB 넘는 파일에 content:"" 를 준다. 빈 본문을 「실제 원본」이라 하면 모델이 방어가 없다고 읽는다.
       if (file.content.trim() === '') {
-        onProgress?.(`참고 파일이 비어 있어 건너뜀: ${n.path}`);
+        onProgress?.(`Skipped an empty context file: ${n.path}`);
         continue;
       }
       neighbors.push({ path: file.path, content: truncateNeighbor(file.content) });
     } catch (err) {
-      onProgress?.(`참고 파일을 읽지 못해 건너뜀: ${n.path} (${err instanceof Error ? err.message : String(err)})`);
+      onProgress?.(`Skipped a context file that could not be read: ${n.path} (${err instanceof Error ? err.message : String(err)})`);
     }
   }
 
-  onProgress?.(`import 이웃 ${neighbors.length}개를 참고용으로 추가`);
+  onProgress?.(`Added ${neighbors.length} imported files for context`);
   return neighbors;
 }
 
@@ -681,13 +681,13 @@ async function getAICodeFix(
   neighbors: SourceFile[] = [],
   tree?: Pick<RepoContext, 'sourcePaths' | 'truncated'>,
 ): Promise<CodeFix> {
-  onProgress?.('AI에 코드 수정안 요청 중...');
+  onProgress?.('Asking the AI for a code fix…');
 
   const text = await callClaude(
-    buildPatchPrompt(insight, sources, evidence, neighbors, tree), generationBudget.getStore() ? BUDGETED_PATCH_MAX_TOKENS : PATCH_MAX_TOKENS, '코드 분석 중', onProgress,
+    buildPatchPrompt(insight, sources, evidence, neighbors, tree), generationBudget.getStore() ? BUDGETED_PATCH_MAX_TOKENS : PATCH_MAX_TOKENS, 'Analyzing code', onProgress,
   );
 
-  onProgress?.('AI 응답 파싱 중...');
+  onProgress?.('Parsing the AI response…');
   const fix = parseJsonResponse<CodeFix>(text);
   if (!Array.isArray(fix.files)) fix.files = [];
   // 빈 files·참고용 파일 지목은 여기서 판정하지 않는다 — `prepareCodeFix` 가 「한 번 더 돌 근거」로 읽는다(I-24).
@@ -697,7 +697,7 @@ async function getAICodeFix(
 /** 모델이 「이미 막고 있다」「고칠 곳이 다른 파일」이라고 판단한 경우다. 그 판단을 버리지 않고 실어 보낸다. */
 function noFilesError(fix: CodeFix): Error {
   const why = typeof fix.analysis === 'string' && fix.analysis.trim() ? ` — ${fix.analysis.trim()}` : '';
-  return new AutoDevError('no_files', `AI 응답에 수정할 파일이 없습니다${why}`);
+  return new AutoDevError('no_files', `The AI response has no file to change${why}`);
 }
 
 /** 참고용 파일을 수정 대상으로 지목한 경로. 후보 선정이 틀렸다는 뜻이다. */
@@ -708,8 +708,8 @@ function touchedNeighbors(fix: CodeFix, neighbors: SourceFile[]): string[] {
 
 function touchedNeighborsError(touched: string[]): Error {
   return new Error(
-    `AI 가 참고용 파일을 수정 대상으로 지목했습니다: ${touched.join(', ')}. ` +
-      '고칠 곳이 후보 밖에 있다는 뜻입니다 — 그 파일을 대상으로 다시 실행하거나 직접 확인하세요.',
+    `The AI named a context-only file as the file to change: ${touched.join(', ')}. ` +
+      'The real fix is outside the candidates. Run again with that file as the target, or check it yourself.',
   );
 }
 
@@ -730,8 +730,8 @@ function unseenTargets(fix: CodeFix, sources: SourceFile[], tree: Pick<RepoConte
 
 function unseenTargetsError(unseen: string[]): Error {
   return new Error(
-    `AI 가 원본을 읽지 않은 파일을 수정 대상으로 지목했습니다: ${unseen.join(', ')}. ` +
-      '원본 없이 통째로 다시 쓴 파일은 PR 로 보내지 않습니다 — 그 파일을 대상으로 다시 실행하거나 직접 확인하세요.',
+    `The AI named a file it never read as the file to change: ${unseen.join(', ')}. ` +
+      'A file rewritten without reading its source is not sent as a PR. Run again with that file as the target, or check it yourself.',
   );
 }
 
@@ -747,7 +747,7 @@ function clip(text: unknown, max = 500): string {
 }
 function clipList(items: string[], max = 5): string {
   const shown = items.slice(0, max).map((p) => clip(p, 200));
-  return items.length > max ? `${shown.join(', ')} 외 ${items.length - max}개` : shown.join(', ');
+  return items.length > max ? `${shown.join(', ')} and ${items.length - max} more` : shown.join(', ');
 }
 
 /** 3-pass 에서 추가로 읽는 파일 상한. 프롬프트 규칙(「최대 한 번, 두 파일」)과 같은 값이다. */
@@ -882,25 +882,25 @@ export function validatePatches(
 ): { path: string; action: 'modified' | 'created'; content: string; sha?: string }[] {
   return files.map((file) => {
     if (typeof file.path !== 'string' || !safePath(file.path)) {
-      throw new Error('AI 응답에 파일 경로가 없습니다');
+      throw new Error('A file in the AI response has no path');
     }
     // CI 워크플로는 고칠 대상이 아니다. same-repo PR 의 워크플로는 머지 전에도 실행될 수 있어,
     // 익명 제보가 여기로 이어지면 PR 을 여는 것만으로 코드가 돌아간다.
     // `blobShas` 는 필터 «전» 트리로 만들어져 `.github` 가 들어 있으므로 `modified` 도
     // 경로 존재 검사를 통과했고, `created` 는 트리에 없어도 통과한다 — 양쪽 다 여기서 막는다.
     if (/(^|\/)\.github(\/|$)/.test(file.path)) {
-      throw new Error(`CI 워크플로 경로는 수정 대상이 될 수 없습니다: ${file.path}`);
+      throw new Error(`CI workflow paths cannot be changed: ${file.path}`);
     }
     if (typeof file.content !== 'string') {
-      throw new Error(`AI 응답에 파일 내용이 없습니다: ${file.path}`);
+      throw new Error(`A file in the AI response has no content: ${file.path}`);
     }
 
     const sha = blobShas.get(file.path);
 
     if (file.action === 'modified' && !sha) {
       throw new Error(
-        `저장소에 없는 경로를 수정 대상으로 지목했습니다: ${file.path}. ` +
-          '존재하지 않는 파일을 새로 만드는 PR 을 막기 위해 중단합니다.',
+        `The AI named a path that is not in the repository: ${file.path}. ` +
+          'Stopping to avoid a PR that creates a file that should not exist.',
       );
     }
 
@@ -937,7 +937,7 @@ export function composePrBody(
   if (fix.pr_body?.trim()) sections.push(fix.pr_body.trim());
 
   if (fix.analysis?.trim()) {
-    sections.push(`## 원인 분석\n\n${fix.analysis.trim()}`);
+    sections.push(`## Root cause\n\n${fix.analysis.trim()}`);
   }
 
   const feedback =
@@ -945,8 +945,8 @@ export function composePrBody(
       ? `${insight.message_body.slice(0, PR_FEEDBACK_CHARS)}…`
       : insight.message_body;
   sections.push(
-    `## 근거가 된 유저 피드백\n\n` +
-      `**${insight.summary}** (분류: ${insight.category})\n\n` +
+    `## User feedback behind this change\n\n` +
+      `**${insight.summary}** (category: ${insight.category})\n\n` +
       feedback
         .split('\n')
         .map((line) => `> ${line}`)
@@ -957,20 +957,20 @@ export function composePrBody(
   // 안 나누면 리뷰어가 조작된 값을 사실로 읽는다(PR #6 이 그렇게 났다).
   const contextBody = evidence?.prBody?.trim() || insight.context?.trim();
   if (contextBody) {
-    sections.push(`## 발생 환경\n\n${contextBody}`);
+    sections.push(`## Environment\n\n${contextBody}`);
   }
 
   sections.push(
-    `## 바뀐 파일\n\n` +
-      patches.map((p) => `- \`${p.path}\` (${p.action === 'created' ? '신규' : '수정'})`).join('\n'),
+    `## Changed files\n\n` +
+      patches.map((p) => `- \`${p.path}\` (${p.action === 'created' ? 'new' : 'modified'})`).join('\n'),
   );
 
   // 모델이 무엇을 보고 판단했는지 — 리뷰어가 "이 파일은 봤나?" 를 묻지 않게 한다.
   // PR #6 은 본문에 「coupon-session 원본이 제공되지 않아 확인하지 못했다」고 적혀 있었다.
   if (neighbors.length > 0) {
     sections.push(
-      `## 함께 읽은 파일 (수정 안 함)\n\n` +
-        '수정 대상이 import 하는 모듈의 원본을 참고용으로 함께 보고 판단했습니다.\n\n' +
+      `## Files read for context (not changed)\n\n` +
+        'The analysis also looked at the source of the modules the changed files import.\n\n' +
         neighbors.map((n) => `- \`${n.path}\``).join('\n'),
     );
   }
@@ -982,26 +982,26 @@ export function composePrBody(
   const checklist = [
     ...(evidence?.hasMissing
       ? [
-          '- [ ] ⚠️ 제보에 실린 경로 중 이 레포에서 확인되지 않은 것이 있습니다 — ' +
-            '증상이 실제로 이 레포에서 재현되는지 먼저 확인하세요',
+          '- [ ] ⚠️ Some paths in the report were not found in this repository. ' +
+            'First check that the symptom really comes from this repo',
         ]
       : []),
     ...(evidence?.hasUnverifiedTargets
       ? [
-          '- [ ] ⚠️ 제보자가 화면에서 짚은 요소를 레포 원본에서 확인하지 못했습니다 — ' +
-            '수정한 파일이 정말 그 요소를 그리는지 확인하세요',
+          '- [ ] ⚠️ The element the reporter picked on the screen was not found in the repository source. ' +
+            'Check that the changed file really renders that element',
         ]
       : []),
     ...notes.map((n) => `- [ ] ${n.trim()}`),
-    '- [ ] 이 수정이 실제로 위 증상을 없애는지 직접 확인',
-    '- [ ] 빌드·타입 검사 통과 확인',
+    '- [ ] Check yourself that this change removes the symptom above',
+    '- [ ] Check that the build and type check pass',
   ];
-  sections.push(`## 머지 전 확인\n\n${checklist.join('\n')}`);
+  sections.push(`## Before you merge\n\n${checklist.join('\n')}`);
 
   sections.push(
     '---\n\n' +
-      '🤖 이 PR 은 유저 피드백을 근거로 **Feedloop** 이 자동 생성했습니다. ' +
-      '사람이 검토하고 승인한 뒤 머지하세요 — 자동으로 머지되지 않습니다.',
+      '🤖 **Feedloop** created this PR automatically from user feedback. ' +
+      'A person should review and approve it before merging. It is never merged automatically.',
   );
 
   return sections.join('\n\n');
@@ -1073,7 +1073,7 @@ async function createGitHubPR(
     ? `\n\n## Executed validation\n${marker}\nSnapshot: ${validation.snapshotDigest}\nImage: ${validation.image}\n${
         validation.checks.map(c => `- ${c.stage}/${c.id}: exit=${c.exitCode}, ${c.durationMs}ms`).join('\n')
       }\nDeployment and user resolution remain unconfirmed.`
-    : `\n\n## ⚠️ 검증되지 않음\n${marker}\n이 수정은 격리 환경에서 **실행·검증되지 않았습니다** — 이 제보를 겨냥한 검증 프로필이 없습니다.\n증상이 실제로 재현되는지, 이 수정이 그 원인을 고치는지 **확인된 바 없습니다**.\n프리뷰에서 직접 확인한 뒤 반영하세요.`;
+    : `\n\n## ⚠️ Not validated\n${marker}\nThis change was **not run or validated** in an isolated environment: there is no validation profile for this report.\nIt is **not confirmed** that the symptom reproduces or that this change fixes its cause.\nCheck it yourself in the preview before you ship it.`;
   const { data: pr } = await createDraftPr(octokit, {
     owner, repo, title: fix.pr_title,
     body: composePrBody(fix, insight, patches, evidence, neighbors) + proof,
@@ -1110,13 +1110,13 @@ async function buildContextEvidence(
   const verified = verifyContextItems(items, ctx.blobShas.keys());
   const comparable = items.urls.length + items.errors.length + items.requests.length > 0;
   if (verified.hasMissing) {
-    onProgress?.('⚠️ 제보에 실린 경로 중 저장소에서 확인되지 않는 항목이 있습니다');
+    onProgress?.('⚠️ Some paths in the report were not found in the repository');
   } else if (comparable) {
-    onProgress?.('제보 맥락을 저장소 트리와 대조 완료');
+    onProgress?.('Checked the report context against the repository tree');
   } else {
     // targets 만 있는 실행이 「대조 완료」 안심 문구를 받으면 안 된다 — 트리로 대조한 게 없다(보안 리뷰 M1).
     // 원본 대조는 바로 아래서 따로 말한다
-    onProgress?.('제보 맥락 중 저장소 트리와 대조할 수 있는 항목이 없습니다(짚은 요소만)');
+    onProgress?.('Nothing in the report context can be checked against the tree (picked elements only)');
   }
 
   if (verified.targetClaims.length > 0) {
@@ -1130,14 +1130,14 @@ async function buildContextEvidence(
     const candidates = verified.targetClaims.reduce((n, c) => n + c.candidates, 0);
     if (confirmed.length > 0) {
       const files = Array.from(new Set(confirmed.flatMap((c) => c.files.map((f) => f.path))));
-      onProgress?.(`짚은 요소를 저장소 원본과 대조: ${files.length}개 파일에서 확인 (${files.join(', ')})`);
+      onProgress?.(`Checked picked elements against the source: confirmed in ${files.length} files (${files.join(', ')})`);
     } else if (read > 0) {
-      onProgress?.(`짚은 요소를 저장소 원본과 대조: 후보 ${read}개를 읽었으나 확인 못 함 — 대조 불가로 둡니다`);
+      onProgress?.(`Checked picked elements against the source: read ${read} candidates, found nothing; leaving them unverified`);
     } else if (candidates > 0) {
       // 「후보 없음」과 「못 읽음」은 다른 사건이다 — 권한·레이트리밋 문제가 휴리스틱 실패로 읽히면 안 된다(코드 리뷰)
-      onProgress?.(`⚠️ 짚은 요소의 후보 파일 ${candidates}개를 하나도 읽지 못했습니다(권한·네트워크) — 대조 불가로 둡니다`);
+      onProgress?.(`⚠️ Could not read any of the ${candidates} candidate files for the picked elements (permission or network); leaving them unverified`);
     } else {
-      onProgress?.('짚은 요소를 저장소 원본과 대조할 후보 파일이 없습니다(구조적 식별자 없음) — 대조 불가로 둡니다');
+      onProgress?.('No candidate files to check the picked elements against (no structural identifiers); leaving them unverified');
     }
   }
 
@@ -1193,7 +1193,7 @@ export async function prepareCodeFix(options: AutoDevOptions): Promise<PreparedF
   const timings: Record<string, number> = {};
   const lap = (label: string, since: number) => { timings[label] = Date.now() - since; };
 
-  onProgress?.('피드백 분석 시작...');
+  onProgress?.('Starting feedback analysis…');
 
   // Step 0: 레포를 먼저 읽는다. 모든 이후 단계가 실제 파일 목록 위에서 돈다.
   let t = Date.now();
@@ -1230,7 +1230,7 @@ export async function prepareCodeFix(options: AutoDevOptions): Promise<PreparedF
   if (retry.kind === 'forbidden') throw unseenTargetsError(retry.paths);
   if (retry.kind === 'unknown') {
     // 왜 멈췄는지 화면에 남긴다 — 지목 원문이 없으면 다음 사람이 프롬프트를 고칠 단서가 없다(실측 1회차에서 그랬다).
-    onProgress?.(`AI 가 지목한 ${clipList(retry.requested)} 은(는) 저장소 트리에 없거나 이미 읽은 파일이라 더 열 수 없습니다 — ${clip(fix.analysis)}`);
+    onProgress?.(`The AI named ${clipList(retry.requested)}, which is not in the repository tree or was already read, so it cannot be opened: ${clip(fix.analysis)}`);
     throw new Error('root_cause_unknown');
   }
   if (retry.kind !== 'none') {
@@ -1239,15 +1239,15 @@ export async function prepareCodeFix(options: AutoDevOptions): Promise<PreparedF
     const remaining = budget ? budget.deadline - Date.now() : Infinity;
     if (remaining < PATCH_RETRY_MIN_REMAINING_MS) {
       // 모델의 판단(어느 파일에 원인이 있는지)은 버리지 않고 남긴다 — 재시도해도 같은 벽이면 사람이 그 파일을 열어야 한다.
-      onProgress?.(`남은 시간 ${Math.max(0, Math.round(remaining / 1000))}초로는 추가 탐색(2-pass 한 번 더, ≈90초)을 마칠 수 없어 여기서 멈춥니다. AI 가 지목한 파일: ${list} — ${clip(fix.analysis)}`);
+      onProgress?.(`Only ${Math.max(0, Math.round(remaining / 1000))}s left, which is not enough for one more pass (about 90s), so it stops here. Files the AI named: ${list}: ${clip(fix.analysis)}`);
       throw new Error('budget_exhausted');
     }
     onProgress?.(
       retry.why === 'requested'
-        ? `AI 가 원인을 ${list} 에서 찾겠다고 해 그 파일을 더 읽고 다시 분석합니다 (추가 탐색 1/1)`
+        ? `The AI wants to look for the cause in ${list}; reading it and analyzing again (extra pass 1/1)`
         : retry.why === 'neighbor'
-          ? `AI 가 참고용 파일 ${list} 을 고치겠다고 해 수정 대상으로 올리고 다시 분석합니다 (추가 탐색 1/1)`
-          : `AI 가 원본을 읽지 않은 파일 ${list} 을 고치겠다고 해 먼저 읽고 다시 분석합니다 (추가 탐색 1/1)`,
+          ? `The AI wants to change the context file ${list}; promoting it to a target and analyzing again (extra pass 1/1)`
+          : `The AI wants to change ${list}, which it has not read; reading it first and analyzing again (extra pass 1/1)`,
     );
     t = Date.now();
     for (const path of retry.paths) {
@@ -1259,7 +1259,7 @@ export async function prepareCodeFix(options: AutoDevOptions): Promise<PreparedF
         sources.push(...await fetchFileContents(ctx, [path], held ? null : botId, onProgress));
       } catch (err) {
         if (!held) throw err;
-        onProgress?.(`참고용 본문을 다시 읽지 못해 이미 읽은 내용으로 진행: ${path} (${err instanceof Error ? err.message : String(err)})`);
+        onProgress?.(`Could not re-read the context file; continuing with what was already read: ${path} (${err instanceof Error ? err.message : String(err)})`);
         sources.push({ path: held.path, content: held.content });
       }
     }
@@ -1269,7 +1269,7 @@ export async function prepareCodeFix(options: AutoDevOptions): Promise<PreparedF
     lap('patch_retry', t);
     if (!fix.files.length) {
       // 재시도 뒤에도 비면 그 판단을 화면에 남긴다 — 「이미 고쳐져 있다」 같은 정답도 여기로 온다(실측 3회차).
-      onProgress?.(`추가로 읽고도 고칠 지점을 정하지 못했습니다 — ${clip(fix.analysis)}`);
+      onProgress?.(`Still could not decide where to fix after reading more: ${clip(fix.analysis)}`);
       throw new Error('root_cause_unknown');
     }
     const touched = touchedNeighbors(fix, neighbors);
@@ -1278,11 +1278,11 @@ export async function prepareCodeFix(options: AutoDevOptions): Promise<PreparedF
     if (unseen.length) throw unseenTargetsError(unseen);
   }
   validatePatches(fix.files,ctx.blobShas);
-  onProgress?.(`분석 완료: ${fix.analysis}`);
+  onProgress?.(`Analysis done: ${fix.analysis}`);
 
   const explanation = groundExplanation(fix, ctx);
-  if (!explanation) onProgress?.('담당자용 설명이 형식에 맞지 않아 싣지 않습니다 (수정안은 그대로)');
-  else if (explanation.unverified.length > 0) onProgress?.(`확인하지 못한 것 ${explanation.unverified.length}건을 함께 기록`);
+  if (!explanation) onProgress?.('The owner explanation was malformed and is left out (the fix itself is unchanged)');
+  else if (explanation.unverified.length > 0) onProgress?.(`Recorded ${explanation.unverified.length} unverified items`);
 
   return { ctx, fix, evidence, neighbors, explanation, timings };
 }
@@ -1483,7 +1483,7 @@ export async function callAutoDev(options: AutoDevOptions): Promise<AutoDevResul
           // 꽉 짜여 있어 올리면 재시도가 막힌다. 입력 400,000·달러 1.50 은 3-pass 뒤 수리 2회(회당 ≈110KB)까지 담는다
           // (validation-budget.ts 의 셈). 이 경로는 강한 경로(검증 프로필) 전용이라 오늘은 도달하지 않는다 —
           // 프로필을 쓰는 날 2-pass 와 같은 「본문이 안 담긴다」 문제가 여기서도 나오므로, 그때 누적 예산과 함께 올릴 것.
-          3000, '검증 실패 수정 중', options.onProgress,
+          3000, 'Repairing validation failure', options.onProgress,
         );
         fix = parseJsonResponse<CodeFix>(text);
         if (!Array.isArray(fix.files) || !fix.files.length) {

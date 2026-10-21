@@ -18,7 +18,7 @@
 // 그저 오늘과 같은 동작으로 돌아갈 뿐이다.
 
 import { formatTargetLines } from './context';
-import { targetLabel, type WidgetTarget } from './pick';
+import { targetLabel, targetLabelEn, type WidgetTarget } from './pick';
 
 /** 라우트·페이지 파일의 basename */
 const ROUTE_BASENAME = /^(route|page)\.(ts|tsx|js|jsx|mjs|cjs)$/;
@@ -41,6 +41,8 @@ export interface ContextClaim {
   status: ClaimStatus;
   /** `missing` 일 때 무엇을 못 찾았는지 */
   note?: string;
+  /** PR 본문(영어 고정)용 `note` */
+  noteEn?: string;
 }
 
 export interface VerifiedContext {
@@ -167,6 +169,7 @@ function verifyPath(
     note: wantApi
       ? '이 경로를 처리하는 라우트 파일이 레포에 없다'
       : '이 경로에 해당하는 페이지 파일이 레포에 없다',
+    noteEn: wantApi ? 'no route file for this path in the repo' : 'no page file for this path in the repo',
   };
 }
 
@@ -187,6 +190,7 @@ function verifyError(raw: string, allPaths: Set<string>): ContextClaim {
     value: raw,
     status: 'missing',
     note: `${missing.join(', ')} 이(가) 레포에 없다`,
+    noteEn: `${missing.join(', ')} not found in the repo`,
   };
 }
 
@@ -260,7 +264,7 @@ function targetClaimPromptLines(v: VerifiedContext): string[] {
 }
 
 /** 「data-testid 'claim', class 'RegionSelector_pill'」 — 무엇이 맞았는지 한 줄. 값은 이미 한 줄·백틱 없음 */
-function describeMatches(c: TargetClaim): string {
+function describeMatches(c: TargetClaim, lang: 'ko' | 'en' = 'ko'): string {
   const seen = new Set<string>();
   const parts: string[] = [];
   for (const f of c.files) {
@@ -268,7 +272,7 @@ function describeMatches(c: TargetClaim): string {
       if (seen.has(m)) continue;
       seen.add(m);
       const id = c.identifiers.find((i) => i.value === m);
-      parts.push(`${IDENT_KIND_LABEL[id?.kind ?? 'text']} '${m}'`);
+      parts.push(`${(lang === 'en' ? IDENT_KIND_LABEL_EN : IDENT_KIND_LABEL)[id?.kind ?? 'text']} '${m}'`);
     }
   }
   return parts.join(', ');
@@ -277,9 +281,9 @@ function describeMatches(c: TargetClaim): string {
 /** PR 본문용. 확인된 것과 확인 안 된 것을 나눠 사람이 바로 알아보게 한다 */
 export function formatVerifiedForPrBody(v: VerifiedContext): string {
   const all = [
-    ...v.urls.map((c) => ({ ...c, kind: '발생 페이지' })),
-    ...v.errors.map((c) => ({ ...c, kind: '콘솔 에러' })),
-    ...v.requests.map((c) => ({ ...c, kind: '실패한 요청' })),
+    ...v.urls.map((c) => ({ ...c, kind: 'Page' })),
+    ...v.errors.map((c) => ({ ...c, kind: 'Console error' })),
+    ...v.requests.map((c) => ({ ...c, kind: 'Failed request' })),
   ];
   const confirmedTargets = v.targetClaims.filter((c) => c.status === 'confirmed');
   const unverifiedTargets = v.targetClaims.filter((c) => c.status !== 'confirmed');
@@ -290,26 +294,26 @@ export function formatVerifiedForPrBody(v: VerifiedContext): string {
 
   const out: string[] = [];
   if (ok.length || confirmedTargets.length) {
-    out.push('제보자 브라우저가 보낸 값:');
+    out.push("Values sent by the reporter's browser:");
     for (const c of ok) out.push(`- ${c.kind}: \`${c.value}\``);
     for (const c of confirmedTargets) {
       // 「그린다」이지 「원인」이 아니다. 어떤 문자열이 맞았는지도 적어 리뷰어가 직접 확인할 수 있게 한다
       out.push(
-        `- 짚은 요소: ${c.label} → ${c.files.map((f) => `\`${f.path}\``).join(', ')} 이(가) 그린다 (원본에서 확인: ${describeMatches(c)})`,
+        `- Picked element: ${c.labelEn} → ${c.files.map((f) => `\`${f.path}\``).join(', ')} renders it (verified in the source: ${describeMatches(c, 'en')})`,
       );
     }
   }
   if (bad.length) {
     if (out.length) out.push('');
-    out.push('⚠️ **아래는 이 레포에서 확인되지 않았습니다** — 제보자가 보낸 값이지만 대응하는 파일이 없습니다:');
-    for (const c of bad) out.push(`- ${c.kind}: \`${c.value}\`${c.note ? ` — ${c.note}` : ''}`);
+    out.push('⚠️ **The following were not found in this repository.** The reporter sent these values, but no matching file exists:');
+    for (const c of bad) out.push(`- ${c.kind}: \`${c.value}\`${c.noteEn ? ` — ${c.noteEn}` : ''}`);
   }
   const unverifiedLines = v.targetClaims.length
     ? unverifiedTargets.flatMap((c) => c.prBodyLines)
     : v.targetsForPrBody;
   if (unverifiedLines.length) {
     if (out.length) out.push('');
-    out.push('제보자 브라우저가 보낸 «짚은 요소» (검증되지 않은 입력 — 레포 원본에서 확인하지 못함):');
+    out.push("Picked elements sent by the reporter's browser (unverified input — not found in the repository source):");
     for (const line of unverifiedLines) out.push(line.replace(/^  /, ''));
   }
   return out.join('\n');
@@ -351,6 +355,8 @@ export interface TargetIdentifier {
 export interface TargetClaim {
   /** 「「서울 종로」 버튼」 */
   label: string;
+  /** PR 본문(영어 고정)용 — `"서울 종로" button` */
+  labelEn: string;
   /** 프롬프트용(html 뼈대 포함). context.ts formatTargetLines 그대로 */
   lines: string[];
   /** PR 본문용(html 없음) */
@@ -390,6 +396,15 @@ const IDENT_KIND_LABEL: Record<TargetIdentifierKind, string> = {
   module: 'CSS 모듈 클래스',
   class: 'class',
   text: '글자',
+};
+
+const IDENT_KIND_LABEL_EN: Record<TargetIdentifierKind, string> = {
+  testid: 'data-testid',
+  id: 'id',
+  aria: 'aria-label',
+  module: 'CSS module class',
+  class: 'class',
+  text: 'text',
 };
 
 /** 뼈대 `html` 은 widget-pick.js 의 skeleton() 이 만든 «우리 형식»이다 — 값은 40자·따옴표는 `'` 로 치환됨 */
@@ -494,13 +509,14 @@ export function targetIdentifiers(t: WidgetTarget): TargetIdentifier[] {
 
 function initialTargetClaim(target: WidgetTarget, count: number): TargetClaim {
   const lines = formatTargetLines(target);
-  const prBodyLines = formatTargetLines(target, '  ', { html: false });
+  const prBodyLines = formatTargetLines(target, '  ', { html: false, lang: 'en' });
   if (count > 1) {
     lines[0] += ` (${count}건)`;
-    prBodyLines[0] += ` (${count}건)`;
+    prBodyLines[0] += ` (${count} reports)`;
   }
   return {
     label: targetLabel(target, 60),
+    labelEn: targetLabelEn(target, 60),
     lines, prBodyLines,
     identifiers: targetIdentifiers(target),
     status: 'unknown', files: [], candidates: 0, read: 0,

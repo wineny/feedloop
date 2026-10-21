@@ -172,6 +172,26 @@ describe('extractLegacyExplanation — 이 기능 전 실행의 PR 본문', () =
     expect(out.unverified.every((u) => u.verifiableBy === 'human')).toBe(true);
   });
 
+  it('영어 본문(i18n 4d 이후 composePrBody)도 같은 방식으로 읽는다', () => {
+    const en = [
+      'Moves `resolveCouponUserId()` into the try block.',
+      '',
+      '## Root cause',
+      '',
+      'The identity lookup was outside the try block.',
+      '',
+      '## Before you merge',
+      '',
+      '- [ ] The identity.ts internals were not visible',
+      '- [ ] Check yourself that this change removes the symptom above',
+      '- [ ] Check that the build and type check pass',
+    ].join('\n');
+    const out = extractLegacyExplanation(en)!;
+    expect(out.problem).toContain('outside the try block');
+    expect(out.change).toContain('try block');
+    expect(out.unverified.map((u) => u.text)).toEqual(['The identity.ts internals were not visible']);
+  });
+
   it('본문이 없거나 우리 형식이 아니면 null', () => {
     expect(extractLegacyExplanation(null)).toBeNull();
     expect(extractLegacyExplanation('')).toBeNull();

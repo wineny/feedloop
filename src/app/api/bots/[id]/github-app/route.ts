@@ -22,6 +22,8 @@ import { recheckInstallation } from '@/lib/github/installation-binding';
 // 화면과 함께 보는 모양은 «서버가 아닌» 모듈에 있다 — 클라이언트가 라우트 파일을 import 하지 않게(코드 리뷰 MEDIUM)
 import type { GithubAppState } from '@/lib/github/app-state-types';
 import { apiText } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
+import type { Locale } from '@/i18n/routing';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +64,7 @@ function installationIdOf(row: BotAppRow): number | null {
   return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function present(row: BotAppRow, userId: string): GithubAppState {
+function present(row: BotAppRow, userId: string, locale: Locale): GithubAppState {
   const config = readGithubAppConfig();
   const installationId = installationIdOf(row);
   const lost = Boolean(row.github_installation_lost_at);
@@ -79,7 +81,7 @@ function present(row: BotAppRow, userId: string): GithubAppState {
     connectedBy: row.github_installation_by,
     lostAt: row.github_installation_lost_at,
     lostReason: row.github_installation_lost_reason,
-    lostMessage: lost ? installationLostMessage(row.github_installation_lost_reason) : null,
+    lostMessage: lost ? installationLostMessage(row.github_installation_lost_reason, locale) : null,
     installUrl: config ? githubAppInstallUrl(config.slug, state) : null,
     authorizeUrl: config ? githubAppAuthorizeUrl(config, state) : null,
     manageUrl: installationId ? githubInstallationManageUrl(installationId) : null,
@@ -103,7 +105,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const bot = await loadBot(id);
   if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
-  return NextResponse.json(present(bot, auth.userId));
+  return NextResponse.json(present(bot, auth.userId, localeFromRequest(req)));
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -127,7 +129,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   const after = await loadBot(id);
   if (!after) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
-  return NextResponse.json({ ...present(after, auth.userId), recheck: outcome.kind });
+  return NextResponse.json({ ...present(after, auth.userId, localeFromRequest(req)), recheck: outcome.kind });
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -149,5 +151,5 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (error) return NextResponse.json({ error: apiText(req, 'disconnectFailed') }, { status: 500 });
   const bot = await loadBot(id);
   if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
-  return NextResponse.json(present(bot, auth.userId));
+  return NextResponse.json(present(bot, auth.userId, localeFromRequest(req)));
 }

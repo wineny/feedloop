@@ -140,10 +140,10 @@ export async function sendBotMessage(
 
   const creds = await loadChannelCredentials(botId);
   if (!creds) {
-    return { ok: false, status: 0, message: '채널 자격증명이 설정되지 않았습니다' };
+    return { ok: false, status: 0, message: 'Channel Talk credentials are not set' };
   }
   if (!creds.botName) {
-    return { ok: false, status: 0, message: '보낼 봇 이름이 설정되지 않았습니다' };
+    return { ok: false, status: 0, message: 'The bot name to send as is not set' };
   }
 
   const url =
@@ -169,14 +169,14 @@ export async function sendBotMessage(
   if (res.status === 0) {
     const reason = 'reason' in res ? res.reason : 'network';
     console.error(`[channel/${botId}] send failed: ${reason}`);
-    return { ok: false, status: 0, message: reason === 'timeout' ? '전송 시간 초과' : '전송 실패' };
+    return { ok: false, status: 0, message: reason === 'timeout' ? 'Send timed out' : 'Send failed' };
   }
 
   if (res.status >= 200 && res.status < 300) return { ok: true };
 
   const message = redact(readApiMessage(res.body), secrets);
   console.error(`[channel/${botId}] send rejected: status=${res.status}`);
-  return { ok: false, status: res.status, message: message || `전송이 거부됐습니다 (${res.status})` };
+  return { ok: false, status: res.status, message: message || `The send was rejected (${res.status})` };
 }
 
 /**
@@ -191,7 +191,7 @@ export async function verifyCredentials(
   opts: { timeoutMs?: number } = {},
 ): Promise<ChannelApiResult> {
   if (!accessKey || !accessSecret) {
-    return { ok: false, status: 0, message: '키와 시크릿이 모두 필요합니다' };
+    return { ok: false, status: 0, message: 'Both the key and the secret are required' };
   }
 
   const res = await requestJson(
@@ -209,7 +209,7 @@ export async function verifyCredentials(
     return {
       ok: false,
       status: 0,
-      message: reason === 'timeout' ? '채널톡 응답 시간 초과' : '채널톡에 연결하지 못했습니다',
+      message: reason === 'timeout' ? 'Channel Talk timed out' : "Couldn't connect to Channel Talk",
     };
   }
 
@@ -220,7 +220,7 @@ export async function verifyCredentials(
   return {
     ok: false,
     status: res.status,
-    message: message || (res.status === 401 ? '키가 올바르지 않습니다' : `확인 실패 (${res.status})`),
+    message: message || (res.status === 401 ? 'The key is not valid' : `Check failed (${res.status})`),
   };
 }
 
@@ -231,9 +231,9 @@ export async function verifyCredentials(
 // 그때까지 고객은 연결 화면에서 URL 을 복사해 직접 등록한다(설계 §3-(f) A).
 
 export async function registerWebhook(): Promise<never> {
-  throw new ChannelNotConfirmedError('웹훅 등록 API 의 경로·스코프 값이 실계정에서 확인되지 않았다');
+  throw new ChannelNotConfirmedError("The webhook registration API's path and scope are not confirmed on a real account");
 }
 
 export async function deleteWebhook(): Promise<never> {
-  throw new ChannelNotConfirmedError('웹훅 삭제 API 의 경로가 실계정에서 확인되지 않았다');
+  throw new ChannelNotConfirmedError("The webhook deletion API's path is not confirmed on a real account");
 }

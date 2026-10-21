@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getServiceRoleClient } from '@/lib/supabase';
-import { codeFixBlockedReason, isCodeFixable } from '@/lib/groups/policy';
+import { codeFixBlockedReasonKey, isCodeFixable } from '@/lib/groups/policy';
 import { apiText } from '@/lib/http/api-text';
 
 export async function POST(req: NextRequest) {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     // 기능 요청·칭찬·문의에 코드 수정 PR 을 여는 것은 대개 틀린 답이다 (설계: lib/groups/policy).
     // 화면에서도 버튼을 안 띄우지만, 직접 호출을 막는 건 여기다.
     if (!isCodeFixable(group.category)) {
-      return NextResponse.json({ error: codeFixBlockedReason(group.category) }, { status: 400 });
+      return NextResponse.json({ error: apiText(req, codeFixBlockedReasonKey(group.category)) }, { status: 400 });
     }
     targetBotId = group.bot_id;
   } else {
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     // 기능 요청·문의 인사이트에 직접 호출로 코드 PR 을 열 수 있었다
     // (화면의 「PR 만들기」 버튼도 feature_request 에 떠 있었다).
     if (!isCodeFixable(insight.category)) {
-      return NextResponse.json({ error: codeFixBlockedReason(insight.category) }, { status: 400 });
+      return NextResponse.json({ error: apiText(req, codeFixBlockedReasonKey(insight.category)) }, { status: 400 });
     }
     targetBotId = insight.bot_id;
     // I-10 — 인사이트 단건 PR 은 더 이상 만들지 않는다. 묶였으면 그 묶음으로 보내고,

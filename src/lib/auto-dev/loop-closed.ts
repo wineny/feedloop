@@ -122,7 +122,7 @@ export interface PrState {
  */
 async function getPrState(repoUrl: string, prNumber: number, botId: string): Promise<PrState> {
   const parsed = parseRepo(repoUrl);
-  if (!parsed) throw new Error(`잘못된 GitHub URL: ${repoUrl}`);
+  if (!parsed) throw new Error(`Invalid GitHub URL: ${repoUrl}`);
 
   // 설치 → 봇 토큰 → 공용 (B5 + 안 B). 옛 PR 이 다른 레포에 있으면 설치 계정과 소유자가 달라 토큰 경로로 간다.
   // 타임아웃은 이 호출에만 건다 — 없으면 「20회 ≈ 20초」가 강제되지 않아 GitHub 이 느린 날
@@ -503,7 +503,7 @@ export async function checkMergedRuns(
 
     const group = one<{ title?: string }>(r.insight_groups);
     const insight = one<{ summary?: string }>(r.insights);
-    const title = group?.title || insight?.summary || '요청하신 내용';
+    const title = group?.title || insight?.summary || 'Requested change';
 
     try {
       results.push(

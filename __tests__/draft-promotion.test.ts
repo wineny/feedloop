@@ -12,8 +12,8 @@ it('explicit human merge promotes unavailable draft without claiming check succe
   expect(await reviewAndPromoteDraft('https://github.com/o/r', 1, { allowUnavailableForMerge: true })).toMatchObject({ draft: false, draftGate: 'promoted' });
   expect(mocks.graphql).toHaveBeenCalledTimes(1);
   expect(mocks.comments).toHaveLength(1);
-  expect(mocks.comments[0].body).toContain('검사 결과를 읽을 권한이 없어 담당자 판단으로 반영');
-  expect(mocks.comments[0].body).not.toContain('자동 검사를 통과');
+  expect(mocks.comments[0].body).toContain('has no permission to read check results');
+  expect(mocks.comments[0].body).not.toContain('automatic checks passed');
 });
 it.each(['failure', 'pending'] as const)('human merge never overrides known %s despite unavailable signals', async state => {
   mocks.review.mockResolvedValue({ ...base, build: { ...base.build, state, unavailable: true } });
@@ -68,7 +68,7 @@ describe('draft gate executor', () => {
     expect(mocks.auth).toHaveBeenCalledWith('bot', { repoUrl: 'https://github.com/o/r', timeoutMs: 15000 });
     expect(mocks.graphql).toHaveBeenCalledWith(expect.stringContaining('markPullRequestReadyForReview'), { pullRequestId: 'PR_1' });
     expect(mocks.comments).toHaveLength(1);
-    expect(mocks.comments[0].body).toContain('자동 검사를 통과해 검토 요청으로 바꿨습니다');
+    expect(mocks.comments[0].body).toContain('Marked ready for review: automatic checks passed');
   });
   it('serializes concurrent polls and deduplicates mutation and comments', async () => {
     await Promise.all([reviewAndPromoteDraft('https://github.com/o/r', 1), reviewAndPromoteDraft('https://github.com/o/r', 1)]);
@@ -130,19 +130,19 @@ it('reports failures from both build sources with safe URLs', async () => {
 it('recovers a lost mutation response after GitHub made the PR ready', async () => {
   mocks.graphql.mockImplementationOnce(async () => { mocks.draft = false; throw new Error('lost response'); });
   expect((await reviewAndPromoteDraft('https://github.com/o/r', 1)).draftGate).toBe('promoted');
-  expect(mocks.comments[0].body).toContain('바꿨습니다');
+  expect(mocks.comments[0].body).toContain('Marked ready for review');
 });
 it('does not report promotion when GitHub rejects the transition', async () => {
   mocks.graphql.mockRejectedValueOnce(new Error('denied'));
   await expect(reviewAndPromoteDraft('https://github.com/o/r', 1)).resolves.toMatchObject({ draft: true, draftGateBlocked: 'write_failed' });
-  expect(mocks.comments[0].body).not.toContain('바꿨습니다');
+  expect(mocks.comments[0].body).not.toContain('Marked ready for review');
   expect(mocks.update).not.toHaveBeenCalled();
 });
 it('explains grace promotion without claiming checks passed', async () => {
   mocks.review.mockResolvedValue({ ...base, build: { ...base.build, state: 'unknown', unavailable: false } });
   expect((await reviewAndPromoteDraft('https://github.com/o/r', 1)).draft).toBe(false);
-  expect(mocks.comments[0].body).toContain('확인할 수 있는 검사가 없어');
-  expect(mocks.comments[0].body).not.toContain('검사를 통과');
+  expect(mocks.comments[0].body).toContain('no checks were available');
+  expect(mocks.comments[0].body).not.toContain('checks passed');
 });
 
 it('shared lease contention returns read-only without any GitHub writes', async () => {
@@ -230,7 +230,7 @@ it.each(['success', 'unknown'] as const)('still-draft retry persists current %s 
   mocks.comments.push({ id: 1, body: DRAFT_PROMOTION_MARKER + (state === 'success' ? '\n<!-- feedloop:draft-gate:reason:grace -->' : ''), user: { login: 'owner' } });
   mocks.review.mockResolvedValue({ ...base, build: { ...base.build, state } });
   await reviewAndPromoteDraft('https://github.com/o/r', 1);
-  expect(mocks.comments[0].body).toContain(state === 'success' ? '검사를 통과' : '확인할 수 있는 검사가 없어');
+  expect(mocks.comments[0].body).toContain(state === 'success' ? 'checks passed' : 'no checks were available');
   expect(mocks.update).toHaveBeenCalledTimes(2);
 });
 

@@ -100,7 +100,15 @@
     "runClosedAlready": "이미 닫힌 수정안이에요",
     "runReadRetry": "실행 기록을 읽지 못했습니다. 잠시 후 다시 시도해 주세요",
     "botForbidden": "해당 봇에 대한 권한이 없습니다",
-    "ownerOnly": "봇 주인만 할 수 있어요. 승인자는 환불 요청을 승인하거나 거절할 수 있어요"
+    "ownerOnly": "봇 주인만 할 수 있어요. 승인자는 환불 요청을 승인하거나 거절할 수 있어요",
+    "merge_unconfirmed": "GitHub이 머지 성공을 확인하지 않았습니다",
+    "merge_blocked": "GitHub 가 이 PR 의 머지를 막았어요 (브랜치 보호 규칙이나 필수 검사)",
+    "merge_conflict": "원본 코드가 그사이 바뀌어 충돌해요. GitHub 에서 충돌을 풀어야 반영할 수 있어요",
+    "merge_not_found": "PR 을 찾을 수 없어요. 이미 지워졌을 수 있어요",
+    "merge_forbidden": "GitHub 토큰에 이 저장소를 머지할 권한이 없어요",
+    "merge_failed": "GitHub 머지에 실패했어요: {detail}",
+    "specCategory": "기능 요청은 코드 수정안 대신 스펙 초안으로 정리합니다. 무엇을 만들지는 사람이 정해야 합니다.",
+    "noCodeToFix": "이 분류(칭찬·문의 등)는 고칠 코드가 없어 자동 수정안 대상이 아닙니다."
   },
   "widget": {
     "bot_not_found": "봇을 찾을 수 없습니다",
@@ -176,5 +184,12 @@
     "no_push": "이 저장소에 쓸(push) 수 없어요. 토큰의 Contents·Pull requests 가 Read and write 인지 확인해 주세요 — 브랜치 보호나 조직 정책일 수도 있어요",
     "connection": "GitHub 에 연결하지 못했어요",
     "unreadable": "저장된 토큰을 읽지 못했어요. 토큰을 다시 등록해 주세요"
+  },
+  "installLost": {
+    "uninstalled": "GitHub 에서 Feedloop 앱이 제거됐어요. 다시 설치하면 이어서 씁니다",
+    "suspended": "GitHub 에서 Feedloop 앱이 일시 정지됐어요. 설치 설정에서 정지를 풀어 주세요",
+    "repo_removed": "이 저장소가 앱의 접근 목록에서 빠졌어요. 설치 설정에서 저장소를 다시 추가해 주세요",
+    "missing": "이 저장소에서 Feedloop 앱 설치를 찾지 못했어요. 다시 설치해 주세요",
+    "default": "GitHub 앱 연결을 확인해 주세요"
   }
 }

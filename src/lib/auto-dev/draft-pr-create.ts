@@ -1,7 +1,7 @@
 import type { Octokit } from '@octokit/rest';
 import { DRAFT_WAIT_MARKER } from './draft-markers';
 
-export const DRAFT_UNSUPPORTED_NOTICE = '이 레포는 초안 PR 을 지원하지 않아 일반 PR 로 열었습니다';
+export const DRAFT_UNSUPPORTED_NOTICE = "This repository doesn't support draft PRs, so a regular PR was opened";
 export const DRAFT_UNSUPPORTED_MARKER = '<!-- feedloop:draft-unsupported -->';
 
 function draftUnsupported(error: unknown): boolean {
@@ -24,7 +24,7 @@ export async function createDraftPr(
   params: { owner: string; repo: string; title: string; body: string; head: string; base: string },
   beforeWrite: () => Promise<void>,
 ) {
-  const body = `${params.body}\n\n${DRAFT_WAIT_MARKER}\n## 자동 검사 대기\n자동 검사가 통과하면 초안에서 검토 요청으로 바뀝니다. 확인할 검사가 없으면 PR 생성 후 10분 뒤 검토 요청으로 바뀝니다.`;
+  const body = `${params.body}\n\n${DRAFT_WAIT_MARKER}\n## Waiting for automatic checks\nThis PR is marked ready for review when automatic checks pass. If there are no checks to run, it is marked ready for review 10 minutes after it was created.`;
   await beforeWrite();
   try {
     return await octokit.pulls.create({ ...params, body, draft: true });

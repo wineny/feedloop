@@ -9,7 +9,7 @@
 
 import type { ContextItems } from './verify-context';
 import { collapseWhitespace } from '@/lib/text';
-import { TARGET_KIND, TARGET_KIND_DEFAULT, targetLabel, type WidgetTarget } from './pick';
+import { TARGET_KIND, TARGET_KIND_DEFAULT, targetLabel, targetLabelEn, type WidgetTarget } from './pick';
 
 export interface WidgetContext {
   url?: string;
@@ -251,14 +251,20 @@ export function sanitizeWidgetContext(raw: unknown): WidgetContext | null {
  * 경로·html 조각. html 은 코드 펜스 없이 한 줄로 접는다 — 마크다운 안에서 태그가 살아나지 않게
  * 백틱으로 감싼다.
  */
-export function formatTargetLines(t: WidgetTarget, indent = '  ', opts: { html?: boolean } = {}): string[] {
+export function formatTargetLines(t: WidgetTarget, indent = '  ', opts: { html?: boolean; lang?: 'ko' | 'en' } = {}): string[] {
   // 저장된 값은 sanitizeTarget 을 지났지만(한 줄·백틱 없음), 옛 행이나 다른 경로가 있을 수 있어 한 번 더 접는다.
   const one = (s: string) => collapseWhitespace(s).replace(/`/g, "'");
-  const lines = [`${indent}· ${one(targetLabel(t, 60))} <${one(t.tag)}>${t.url ? ` — 페이지 ${one(t.url)}` : ''}`];
-  lines.push(`${indent}  셀렉터: \`${one(t.selector)}\``);
-  if (t.label && t.label !== t.text) lines.push(`${indent}  주변 라벨: ${one(t.label)}`);
-  if (t.path) lines.push(`${indent}  위치: ${one(t.path)}`);
-  if (t.rect) lines.push(`${indent}  화면 좌표: (${t.rect.x}, ${t.rect.y}) ${t.rect.w}×${t.rect.h}px`);
+  // 프롬프트용은 한국어(5단계에서 같이 손본다), GitHub PR 본문용(`lang: 'en'`)은 영어 고정
+  const en = opts.lang === 'en';
+  const L = en
+    ? { page: 'page', selector: 'selector', label: 'nearby label', path: 'position', rect: 'viewport coordinates' }
+    : { page: '페이지', selector: '셀렉터', label: '주변 라벨', path: '위치', rect: '화면 좌표' };
+  const head = en ? targetLabelEn(t, 60) : targetLabel(t, 60);
+  const lines = [`${indent}· ${one(head)} <${one(t.tag)}>${t.url ? ` — ${L.page} ${one(t.url)}` : ''}`];
+  lines.push(`${indent}  ${L.selector}: \`${one(t.selector)}\``);
+  if (t.label && t.label !== t.text) lines.push(`${indent}  ${L.label}: ${one(t.label)}`);
+  if (t.path) lines.push(`${indent}  ${L.path}: ${one(t.path)}`);
+  if (t.rect) lines.push(`${indent}  ${L.rect}: (${t.rect.x}, ${t.rect.y}) ${t.rect.w}×${t.rect.h}px`);
   // html 뼈대는 프롬프트에만(기본). PR 본문은 GitHub 에 남는 글이라 페이지 조각을 싣지 않는다(보안 리뷰 H2)
   if (t.html && opts.html !== false) lines.push(`${indent}  html: \`${one(t.html)}\``);
   return lines;
@@ -374,11 +380,11 @@ function topTargets(targets: Map<string, { t: WidgetTarget; n: number }>): { t: 
     .sort((a, b) => b.n - a.n)
     .slice(0, MAX_TARGETS);
 }
-function topTargetLines(targets: Map<string, { t: WidgetTarget; n: number }>, opts: { html?: boolean } = {}): string[] {
+function topTargetLines(targets: Map<string, { t: WidgetTarget; n: number }>, opts: { html?: boolean; lang?: 'ko' | 'en' } = {}): string[] {
   return topTargets(targets)
     .flatMap(({ t, n }) => {
       const lines = formatTargetLines(t, '  ', opts);
-      if (n > 1) lines[0] += ` (${n}건)`;
+      if (n > 1) lines[0] += opts.lang === 'en' ? ` (${n} reports)` : ` (${n}건)`;
       return lines;
     });
 }
@@ -402,7 +408,7 @@ export function collectContextItems(raws: unknown[]): ContextItems {
     requests: top(requests, MAX_REQUESTS),
     targets: topTargetLines(targets),
     // PR 본문용 — html 뼈대 없이. 방문자가 짚은 «표의 한 행» 같은 페이지 조각이 고객사 GitHub 에 남으면 안 된다
-    targetsForPrBody: topTargetLines(targets, { html: false }),
+    targetsForPrBody: topTargetLines(targets, { html: false, lang: 'en' }),
     // 원자료 — 엔진이 레포 «원본»과 대조하려면 문자열로는 안 된다(B3 3차). 위 두 줄과 같은 순서·같은 상한
     targetItems: topTargets(targets).map(({ t, n }) => ({ target: t, count: n })),
   };

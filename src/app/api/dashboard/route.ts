@@ -6,7 +6,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { resolveAccessibleBots } from '@/lib/auth/ownership';
-import { personLabel } from '@/lib/channel/labels';
+import { personLabelFor } from '@/lib/channel/labels-server';
 import { messageDelivery } from '@/lib/dashboard/feedback-delivery';
 import {
   EMPTY_LOOP_TIME,
@@ -333,7 +333,7 @@ export async function GET(req?: NextRequest) {
       : undefined;
     return {
       id: m.id,
-      userName: m.author_name ?? personLabel(m.source ?? ''),
+      userName: m.author_name ?? personLabelFor(m.source ?? '', localeFromRequest(req)),
       content: m.body,
       source: m.source ?? 'telegram',
       createdAt: m.detected_at ?? m.created_at,

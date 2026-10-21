@@ -125,7 +125,7 @@ describe('GET', () => {
     const body = await (await r.GET(req('GET'), params)).json();
     expect(body.installed).toBe(false);
     expect(body.lostMessage).toBe('연결을 확인해 주세요');
-    expect(installationLostMessage).toHaveBeenCalledWith('suspended');
+    expect(installationLostMessage).toHaveBeenCalledWith('suspended', 'en');
   });
   it('앱이 미설정이면 configured:false, installUrl/botLogin 은 null', async () => {
     readGithubAppConfig.mockReturnValue(null);

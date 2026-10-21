@@ -100,7 +100,15 @@
     "runClosedAlready": "This fix PR is already closed",
     "runReadRetry": "Couldn't read the run. Try again in a moment",
     "botForbidden": "You don't have access to this bot",
-    "ownerOnly": "Only the bot owner can do this. Approvers can approve or reject refund requests."
+    "ownerOnly": "Only the bot owner can do this. Approvers can approve or reject refund requests.",
+    "merge_unconfirmed": "GitHub didn't confirm that the merge succeeded",
+    "merge_blocked": "GitHub blocked the merge of this PR (a branch protection rule or a required check)",
+    "merge_conflict": "The base code changed and now conflicts. Resolve the conflict on GitHub before shipping",
+    "merge_not_found": "Couldn't find the PR. It may have been deleted",
+    "merge_forbidden": "The GitHub token isn't allowed to merge in this repository",
+    "merge_failed": "The GitHub merge failed: {detail}",
+    "specCategory": "Feature requests become a spec draft instead of a fix PR. A person has to decide what to build.",
+    "noCodeToFix": "This category (praise, questions and so on) has no code to fix, so it gets no automatic fix PR."
   },
   "widget": {
     "bot_not_found": "We couldn't find this chat",
@@ -176,5 +184,12 @@
     "no_push": "The token can't push to this repository. Check that Contents and Pull requests are set to Read and write — branch protection or an organization policy may also be blocking it",
     "connection": "Couldn't connect to GitHub",
     "unreadable": "Couldn't read the saved token. Add the token again"
+  },
+  "installLost": {
+    "uninstalled": "The Feedloop GitHub App was removed. Install it again to pick up where you left off",
+    "suspended": "The Feedloop GitHub App is suspended. Unsuspend it in the installation settings",
+    "repo_removed": "This repository was removed from the app's access list. Add it again in the installation settings",
+    "missing": "Couldn't find the Feedloop App installation for this repository. Install it again",
+    "default": "Check the GitHub App connection"
   }
 }

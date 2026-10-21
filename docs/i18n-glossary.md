@@ -52,3 +52,12 @@
 이번에 건드리지 않는 것(다른 단계): `/monitor`·`/classify` 화면(6), `src/components/demo/guided/*`·`src/lib/demo/mock-data.ts`(6·7, 랜딩의 데모 구역은 이 때문에 한국어가 남는다), API 오류 문구(4), 위젯 `public/*.js`(3), AI 프롬프트(5).
 
 사전 파일: `messages/<locale>/<namespace>.json` — `common`, `meta`, `notFound`, `landing`, `nav`, `auth`, `pricing` 등. 새 파일은 `src/i18n/namespaces.ts` 의 `MESSAGE_NAMESPACES` 에 넣는다.
+
+## 4단계 범위 — 서버가 사람에게 보여 주는 문구
+
+- 언어 고르기: `src/i18n/server-locale.ts` 의 `localeFromRequest(req, 'widget' | 'operator')`. 위젯 라우트는 쿼리 `?locale` → `Accept-Language`(첫 항목이 ko 로 시작하면 ko) → en. 운영자 화면이 부르는 API 는 쿠키 `NEXT_LOCALE` → `Accept-Language` → en.
+- 사전: `messages/<locale>/errors.json`(`api` 운영자 API 오류, `widget` 위젯 오류, `validation`·`fields` 검증, `llmFailure`·`githubFailure`·`installLost` 사유), `server.json`(대시보드 활동 피드 등), `email.json`(메일 6종). 코드에서는 `apiText(req, key)`(`src/lib/http/api-text.ts`)·`serverT(locale, 'ns.path')`(`src/i18n/server-messages.ts`).
+- 위젯 오류 응답은 `{ error: <코드>, message: <방문자 언어 문구> }`. 위젯은 코드가 자기 표(`e_<코드>`)에 있으면 그 문구, 없으면 `message`.
+- 메일: 방문자에게 가는 메일은 `conversations.locale`, 사업자에게 가는 메일은 `OWNER_EMAIL_LOCALE`(`src/lib/email/notify.ts`, 지금 en).
+- GitHub PR 본문·제목·댓글은 영어 고정. 옛 한국어 PR 은 `draft-markers.ts`·`explanation.ts`·`picked-targets.ts` 가 계속 읽는다.
+- 5단계로 넘긴 것: LLM 프롬프트(`prompts.ts`, `ai-engine.ts` 의 지시문, `classify`, `groups`, `reply-context`, `bot/core.ts` 기본값), `HOLDING_MESSAGE` 비교, 요약 지시(`notify.ts` 의 「한국어 두 문장」), 위젯 맥락 요약(`widget/context.ts` 프롬프트용 줄).

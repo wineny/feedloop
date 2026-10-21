@@ -9,6 +9,6 @@ export function parseRepoInfo(repoUrl: string): { owner: string; repo: string } 
     .trim()
     .replace(/\.git$/, '')
     .match(/^https?:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)\/?$/);
-  if (!match) throw new Error(`잘못된 GitHub URL: ${repoUrl}`);
+  if (!match) throw new Error(`Invalid GitHub URL: ${repoUrl}`);
   return { owner: match[1], repo: match[2] };
 }

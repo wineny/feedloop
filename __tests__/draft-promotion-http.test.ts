@@ -69,8 +69,8 @@ it.each([403, 404])('real HTTP %s pauses automatic promotion but allows explicit
   expect(mutations).toBe(0); expect(creates).toBe(0);
   expect(await reviewAndPromoteDraft('https://github.com/o/r', 1, { allowUnavailableForMerge: true })).toMatchObject({ draft: false, draftGate: 'promoted' });
   expect(mutations).toBe(1);
-  expect(comments[0].body).toContain('권한이 없어 담당자 판단으로 반영');
-  expect(comments[0].body).not.toContain('자동 검사를 통과');
+  expect(comments[0].body).toContain('has no permission to read check results');
+  expect(comments[0].body).not.toContain('automatic checks passed');
   await reviewAndPromoteDraft('https://github.com/o/r', 1, { allowUnavailableForMerge: true });
   expect(mutations).toBe(1);
 });
@@ -83,7 +83,7 @@ it('real Octokit and real review promote with correct GraphQL request once acros
   expect((await reviewAndPromoteDraft('https://github.com/o/r', 1)).draftGate).toBe('promoted');
   expect((await reviewAndPromoteDraft('https://github.com/o/r', 1)).draft).toBe(false);
   expect(mutations).toBe(1); expect(creates).toBe(1);
-  expect(comments[0].body).toContain('자동 검사를 통과해 검토 요청으로 바꿨습니다');
+  expect(comments[0].body).toContain('Marked ready for review: automatic checks passed');
 });
 it('real pagination finds marker on HTTP page two and avoids failure comment duplication', async () => {
   failed = true;

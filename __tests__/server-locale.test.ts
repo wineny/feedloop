@@ -71,6 +71,17 @@ describe('apiText / apiValidation', () => {
   });
 });
 
+describe('MergeError 코드', () => {
+  it('각 코드가 errors.api 의 merge_<code> 로 번역된다', () => {
+    for (const code of ['unconfirmed', 'blocked', 'conflict', 'not_found', 'forbidden', 'failed']) {
+      const req = new Request('http://x/y');
+      expect(apiText(req, `merge_${code}`, { detail: 'boom' })).not.toMatch(/^merge_/);
+      expect(apiText(new Request('http://x/y', { headers: { cookie: 'NEXT_LOCALE=ko' } }), `merge_${code}`, { detail: 'boom' })).toMatch(/[가-힣]/);
+    }
+    expect(apiText(new Request('http://x/y'), 'merge_failed', { detail: 'boom' })).toBe('The GitHub merge failed: boom');
+  });
+});
+
 describe('코드에서 쓰는 키가 사전에 있다', () => {
   const en = loadMessages('en') as { errors: { api: Record<string, string>; widget: Record<string, string> } };
   const ko = loadMessages('ko') as typeof en;

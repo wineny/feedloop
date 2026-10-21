@@ -133,7 +133,7 @@ async function collectGroupEvidence(
 
   if (bodies.length === 0) return { body: fallback, context, contextItems };
   return {
-    body: `${fallback}\n\n실제 제보 ${bodies.length}건:\n${bodies.map((b) => `- ${b}`).join('\n')}`,
+    body: `${fallback}\n\n${bodies.length} actual reports:\n${bodies.map((b) => `- ${b}`).join('\n')}`,
     context,
     contextItems,
   };
@@ -216,7 +216,7 @@ export async function executeClaimedRun(
 
   if ((!group && !insight) || !bot?.github_repo_url) {
     await persist({ status: 'failed', error_message: 'Missing target or repo URL' });
-    throw new AutoDevError('missing_target', '수정 대상 또는 저장소 URL 정보가 없습니다');
+    throw new AutoDevError('missing_target', 'Missing target or repository URL');
   }
 
   try {
@@ -229,7 +229,7 @@ export async function executeClaimedRun(
     const target = validationInput.insight;
 
     if (group) {
-      onProgress(`묶음 "${group.title}" 으로 수정안을 만듭니다`);
+      onProgress(`Creating a fix for group "${group.title}"`);
     }
 
     const repository = new URL(bot.github_repo_url).pathname.replace(/^\/|\/$/g,'').replace(/\.git$/,'');

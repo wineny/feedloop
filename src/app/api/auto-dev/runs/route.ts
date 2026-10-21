@@ -11,7 +11,9 @@ import { getServiceRoleClient } from '@/lib/supabase';
 import type { ValidationEvidence } from '@/lib/auto-dev/validation';
 import type { CloseReason } from '@/lib/auto-dev/close-reason';
 import { parseStoredExplanation, type RunExplanation } from '@/lib/auto-dev/explanation';
-import { personLabel } from '@/lib/channel/labels';
+import { personLabelFor } from '@/lib/channel/labels-server';
+import { localeFromRequest } from '@/i18n/server-locale';
+import type { Locale } from '@/i18n/routing';
 import { apiText } from '@/lib/http/api-text';
 
 export interface RunReturn {
@@ -75,9 +77,9 @@ function one<T>(v: unknown): T | null {
  * 한 군데가 빠지고, 채널톡 이용자가 「방문자 #」로 잘못 불린다 — 운영자가
  * 되돌림이 어디로 갔는지 화면만 보고 알 수 없게 된다.
  */
-function displayName(c: { contact_name: string | null; external_user_id: string; source: string }): string {
+function displayName(c: { contact_name: string | null; external_user_id: string; source: string }, locale: Locale): string {
   if (c.contact_name) return c.contact_name;
-  return `${personLabel(c.source)} #${c.external_user_id.slice(0, 4)}`;
+  return `${personLabelFor(c.source, locale)} #${c.external_user_id.slice(0, 4)}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -145,7 +147,7 @@ export async function GET(req: NextRequest) {
     list.push({
       conversationId: r.conversation_id as string,
       source: conv.source,
-      name: displayName(conv),
+      name: displayName(conv, localeFromRequest(req)),
       deliveredAt: (r.delivered_at as string | null) ?? null,
       confirmation: (r.user_confirmation as RunReturn['confirmation']) ?? null,
       confirmedAt: (r.user_confirmed_at as string | null) ?? null,

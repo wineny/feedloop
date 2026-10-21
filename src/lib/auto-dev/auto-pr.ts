@@ -312,9 +312,9 @@ export async function runAutoPrForBot(botId: string, deadline = Date.now() + 240
     result.runId=pending.id;result.groupId=pending.group_id;
     try {
       const token=await claimRun(pending.id);
-      if(!token){result.error='실행권 획득 실패';return result;}
+      if(!token){result.error='Could not acquire the run lease';return result;}
       const loaded=await loadRun(pending.id);
-      if(!loaded)throw new Error('run 재조회 실패');
+      if(!loaded)throw new Error('Could not reload the run');
       const pr=await executeClaimedRun(loaded,token,(m)=>console.log(`[auto-pr] ${botId}: ${m}`),deadline);
       result.prUrl=pr.pr_url;
     }catch(error){result.error=error instanceof Error?error.message:'publication_recovery_failed';}
@@ -347,7 +347,7 @@ export async function runAutoPrForBot(botId: string, deadline = Date.now() + 240
   const {data: runId,error:runError} = await db().rpc('create_pipeline_run',{p_bot_id:botId,p_group_id:picked.id,p_insight_id:null});
   const run = runId ? {id:runId} : null;
   if (runError || !run) {
-    result.error = `run 생성 실패: ${runError?.message ?? 'unknown'}`;
+    result.error = `Could not create the run: ${runError?.message ?? 'unknown'}`;
     return result;
   }
   result.runId = run.id as string;
@@ -355,12 +355,12 @@ export async function runAutoPrForBot(botId: string, deadline = Date.now() + 240
   // 4. 실행권 획득 후 실행. 실패는 execute-run 이 DB 에 남기므로 여기서는 요약만 담는다.
   const leaseToken = await claimRun(result.runId);
   if (!leaseToken) {
-    result.error = '실행권 획득 실패';
+    result.error = 'Could not acquire the run lease';
     return result;
   }
   const loaded = await loadRun(result.runId);
   if (!loaded) {
-    result.error = 'run 재조회 실패';
+    result.error = 'Could not reload the run';
     return result;
   }
 
