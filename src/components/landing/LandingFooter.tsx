@@ -12,7 +12,6 @@ export function LandingFooter() {
           Feedloop
         </div>
         <div className="mt-2 lg:mt-0 lg:text-right">
-          <div>{t('footer.entry')}</div>
           {/* PostHog 고지 — 로그아웃 방문만, 입력칸·위젯은 가린다(src/lib/analytics/posthog.ts) */}
           <div className="text-xs">{t('footer.privacy')}</div>
         </div>

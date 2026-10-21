@@ -5,12 +5,16 @@
 
 | 한국어 | 영어 | 메모 |
 |---|---|---|
-| 봇 | bot | 사업자가 만든 Feedloop 응대 봇 한 개. 화면에서는 「서비스(service)」로도 부르는 자리가 있다(`service_name`) |
+| 봇 | bot | 사업자가 만든 Feedloop 응대 봇 한 개. 화면에서는 「service」라고 쓰지 않고 bot 으로 통일(`service_name` 입력칸도 「Bot name」). 사업자의 제품·사이트는 product / site |
 | 챗봇(방문자 쪽) · 위젯 | chat widget / widget | 사업자 사이트에 붙는 채팅창. 랜딩에서는 「Feedloop chat widget」 |
 | 받은편지함 · 대화 | Inbox · conversation | 탭 이름 「대화」 = Inbox, 한 건 = conversation |
 | 승인 카드 | approval card | 결제 처리(환불 등)를 승인자에게 묻는 카드 |
 | 승인자 | approver | 승인 카드에 답하는 사람 |
 | 사업자 · 주인 · 운영자 · 담당자 | owner | 봇을 가진 사람. 「담당자에게 넘긴다」 = hand off to the owner |
+| 결제한 사람 | buyer | 결제 검사·승인 카드 문구에서 customer 대신 buyer |
+| 입구 · 접수 경로 (웹 위젯·채널톡) | feedback channel | entrance / door 는 쓰지 않는다 |
+| 연결됨 표시 | Connected status | 「mark」는 쓰지 않는다. 지우기 = Reset status |
+| GitHub 앱 | GitHub App | 「GitHub app」·「Feedloop app」 대신 「GitHub App」·「Feedloop GitHub App」 |
 | 방문자 | visitor | 위젯으로 말을 거는 사람. 결제한 사람은 buyer |
 | 고객 | customer | 마케팅 문구(랜딩)에서만 |
 | 피드백 | feedback | 탭 이름 「피드백」(분류 화면) = Feedback |

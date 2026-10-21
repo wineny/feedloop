@@ -3,7 +3,6 @@ import { useTranslations } from 'next-intl';
 import { HeroPhone } from './HeroPhone';
 import { PrimaryCta } from './PrimaryCta';
 import { DemoAnchor } from './LiveDemo';
-import { AWARD_RATIO } from './constants';
 
 /**
  * 히어로 — 제출용 대표 이미지(`docs/15-제출/cover/hero.html`)의 디자인을 그대로 가져왔다.
@@ -44,18 +43,8 @@ export function HeroSection() {
       <div /* 위 여백 = 나브 높이 + 원래 여백. 나브는 sticky·h-0 이라 흐름에서 자리를 안 차지한다 */
         className="relative mx-auto grid max-w-[1200px] gap-12 px-6 pb-16 pt-[calc(var(--nav-h)+24px)] lg:grid-cols-[minmax(0,1fr)_540px] lg:items-center lg:gap-10 lg:pb-[104px] lg:pt-[calc(var(--nav-h)+32px)]">
         <div>
-          {/* 수상 알약 — 예전 알약과 같은 흰 반투명 결에, 테두리·바탕만 한 단계 진하게 해 첫눈에 걸리게 했다 */}
-          <div
-            className="inline-flex h-8 items-center gap-2 whitespace-nowrap rounded-full border border-white/45 bg-white/15 px-3.5 text-[13px] font-semibold text-white lg:h-9 lg:px-4 lg:text-[14px]"
-            style={fadeUp(0)}
-          >
-            <span aria-hidden="true">🏆</span>
-            {t('hero.award')}
-            <span className="hidden font-medium text-white/75 sm:inline">· {AWARD_RATIO}</span>
-          </div>
-
           <h1
-            className="mt-6 font-extrabold"
+            className="font-extrabold"
             style={{
               fontSize: 'clamp(34px, 6.4vw, 82px)',
               lineHeight: 1.12,

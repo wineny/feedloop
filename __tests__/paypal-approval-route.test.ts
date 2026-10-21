@@ -273,8 +273,8 @@ describe('GET /api/inbox/[conversationId] — paymentActions', () => {
       reason: 'too slow',
       checks: [
         { key: 'amount_within_max', label: 'Amount within auto limit', passed: false },
-        { key: 'within_days', label: 'Paid recently enough', passed: true },
-        { key: 'customer_known', label: 'Customer identified', passed: true },
+        { key: 'within_days', label: 'Within refund window', passed: true },
+        { key: 'customer_known', label: 'Buyer identified', passed: true },
       ],
     });
   });

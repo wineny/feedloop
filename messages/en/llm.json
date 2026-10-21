@@ -21,17 +21,17 @@
     "failedNote": "Feedback that arrived in the meantime is saved and visible in the Inbox. Only the automatic replies were lost.",
     "lastCallFailed": "The last call failed",
     "status": {
-      "keyRemoved": "Key removed. Replies now use the default setup",
-      "modelChanged": "Model changed. The key is unchanged",
-      "keySaved": "Key verified and saved. Replies now use this key"
+      "keyRemoved": "Key removed. Replies now use the default setup.",
+      "modelChanged": "Model changed. The key is unchanged.",
+      "keySaved": "Key verified and saved. Replies now use this key."
     },
     "errors": {
-      "network": "Could not save because of a network error",
-      "save": "Could not save"
+      "network": "Couldn't save because of a network error",
+      "save": "Couldn't save"
     },
     "loading": "Loading…",
-    "loadError": "Could not load the key settings. Please reload.",
-    "freeNote": "Without a key, {name}'s bot answers up to {limit, number} messages a day for free (default model: {model}). If a factual question is not covered by its knowledge, it does not make something up: it hands off with “{holding}” and marks the conversation “{badge}” in the Inbox. Add your own API key to choose the model and answer without a limit. You are billed through your key.",
+    "loadError": "Couldn't load the key settings. Please reload.",
+    "freeNote": "Without a key, {name}'s bot answers up to {limit, number} messages a day for free (default model: {model}). If a factual question isn't covered by its knowledge, it doesn't make something up: it hands off with “{holding}” and marks the conversation “{badge}” in the Inbox. Add your own API key to choose the model and answer without a limit. You are billed through your key.",
     "budget": {
       "noLimit": "Replies run on your key with <b>no limit</b>. You are billed through that key.",
       "freeLimit": "Right now up to <b>{limit, number}</b> replies a day are free.",
@@ -41,7 +41,7 @@
     }
   },
   "fields": {
-    "customNote": "You can use a model that is not on the list. We just cannot check the name when you save, so a wrong name shows up as a failure on the first reply.",
+    "customNote": "You can use a model that isn't on the list. We just can't check the name when you save, so a wrong name shows up as a failure on the first reply.",
     "customLabel": "Model name you entered",
     "customPlaceholder": "e.g. gemini-3.8-flash",
     "custom": "Enter manually…",
@@ -51,7 +51,7 @@
     "step2": "2. Which model",
     "providerLabel": "AI provider",
     "step1": "1. Which provider",
-    "recommended": "recommended",
+    "recommended": "Recommended",
     "providerKeyPlaceholder": "Paste your {provider} API key",
     "keyNote": "Before saving, we ask {provider} once to confirm the key actually works. After saving only the last 4 characters are shown, and the original never appears on any screen again.",
     "auto": "Auto — uses the recommended model ({model})"
@@ -75,13 +75,13 @@
     "intro": "{name}'s bot does a different job at each step of the loop. The beta is on, so <b>Feedloop pays for organizing feedback and creating fix PRs.</b> All four steps run even if you add no key.",
     "open": "You can run this on your own key",
     "locked": "Feedloop pays during the beta",
-    "lockedLabel": "{title} — cannot be configured during the beta",
+    "lockedLabel": "{title} — can't be configured during the beta",
     "lockedModel": "Model — chosen after the beta",
     "lockedKey": "API key — not needed for now",
     "reply": {
       "stage": "Incoming feedback",
       "title": "Answer customers",
-      "what": "When a visitor talks to the widget or a channel, it answers on the spot. A person cannot be kept waiting, so it has to finish within 10 seconds.",
+      "what": "Visitors are waiting, so it must reply within 10 seconds.",
       "guide": "A fast, cheap model fits here. As the knowledge grows, though, we have seen cheaper models miss the rule of handing off to the owner instead of making things up."
     },
     "organize": {

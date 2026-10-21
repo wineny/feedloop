@@ -8,7 +8,7 @@
   "home": "Home",
   "reload": "Reload",
   "recovering": "Loading the new version…",
-  "errorTitle": "This page could not be loaded",
+  "errorTitle": "This page couldn't be loaded",
   "errorBody": "This may be a brief glitch. Try again, and reload the page if it happens again.",
   "errorDigest": "Error ID {digest}",
   "save": "Save",
@@ -36,15 +36,15 @@
       "empty": "Enter your API key",
       "whitespace": "The API key has spaces or line breaks around it",
       "format": {
-        "gemini": "That key does not look right. Gemini keys start with AIza",
-        "anthropic": "That key does not look right. Anthropic keys start with sk-ant-",
-        "openai": "That key does not look right. OpenAI keys start with sk-"
+        "gemini": "That key doesn't look right. Gemini keys start with AIza",
+        "anthropic": "That key doesn't look right. Anthropic keys start with sk-ant-",
+        "openai": "That key doesn't look right. OpenAI keys start with sk-"
       }
     },
     "github": {
       "empty": "Enter your GitHub token",
       "whitespace": "The token has spaces or line breaks around it",
-      "format": "That token does not look right. Fine-grained tokens start with github_pat_, classic tokens with ghp_ (gho_ from gh auth token works too)"
+      "format": "That token doesn't look right. Fine-grained tokens start with github_pat_, classic tokens with ghp_ (gho_ from gh auth token works too)"
     },
     "model": {
       "notString": "The model name must be text",
@@ -60,7 +60,7 @@
       "tooLong": "Each starter question can be up to {max} characters"
     },
     "form": {
-      "serviceNameMin": "Service name must be at least 2 characters.",
+      "serviceNameMin": "Bot name must be at least 2 characters.",
       "urlInvalid": "Enter a valid URL.",
       "githubUrlInvalid": "Enter a valid GitHub URL.",
       "providerRequired": "Choose an AI provider",

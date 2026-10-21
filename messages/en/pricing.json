@@ -2,8 +2,9 @@
   "sandboxBadge": "PayPal sandbox · no real money moves",
   "title": "Pick a plan, pay once",
   "intro": "Feedloop is a support agent that settles payments with PayPal. Buy a plan below with a PayPal sandbox buyer account, then ask the chat in the corner about your payment — for example, a refund.",
+  "demoStore": "This is Feedloop's own demo store. Purchases run in the PayPal sandbox, and the plans aren't real products.",
   "canceled": "Checkout canceled. Nothing was charged.",
-  "notSetUp": "The demo shop is not set up yet. Run <code>npm run db:seed-demo</code> to add the demo bot and its products.",
+  "notSetUp": "The demo shop isn't set up yet. Run <code>npm run db:seed-demo</code> to add the demo bot and its products.",
   "oneTime": "one-time",
   "footnote": "Payments run in the PayPal sandbox during the PayPal AI Hackathon. Prices are placeholders and no real money moves.",
   "buy": {
@@ -23,7 +24,7 @@
     },
     "created": {
       "title": "Waiting for PayPal",
-      "body": "This order has not been approved on PayPal yet. This page updates on its own."
+      "body": "This order hasn't been approved on PayPal yet. This page updates on its own."
     },
     "expired": {
       "title": "Checkout canceled",

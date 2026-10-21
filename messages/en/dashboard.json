@@ -1,7 +1,7 @@
 {
   "title": "Loop dashboard",
   "subtitleEmpty": "See at a glance how far incoming feedback has gotten in the loop.",
-  "subtitle": "You received <strong>{received, plural, one {# piece} other {# pieces}}</strong> of feedback and delivered <strong>{returned, plural, one {# notification} other {# notifications}}</strong>.",
+  "subtitle": "<strong>{received, plural, one {# feedback item} other {# feedback items}}</strong> received · <strong>{returned, plural, one {# notification} other {# notifications}}</strong> sent",
   "notes": {
     "unknown": "Classification detail unavailable",
     "pending": "Waiting {count}",
@@ -9,23 +9,23 @@
     "failed": "Failed {count}",
     "exhausted": "Limit reached {count}",
     "none": "Nothing left unclassified",
-    "returnQueued": "{count} waiting to send",
+    "returnQueued": "{count, plural, one {# notification} other {# notifications}} waiting to send",
     "prShippedOpen": "Shipped {merged} · waiting {open}",
     "prShipped": "Shipped {merged}"
   },
   "slowMerge": "Checking PRs on GitHub one by one. This can take up to 2 minutes.",
   "merge": {
-    "failed": "{count} failed to check · see the errors in the Fix PRs screen",
-    "delivered": "{count} sent back to users",
-    "already": "Fixes already shipped were notified · check deploy and resolution in the details",
+    "failed": "{count, plural, one {# PR} other {# PRs}} failed to check · see the errors in the Fix PRs screen",
+    "delivered": "Notified {count, plural, one {# person} other {# people}}",
+    "already": "Shipped fixes already notified · see details",
     "none": "No shipped fixes yet",
-    "deferred": "{count} will be sent next time",
-    "skipped": "{count} runs will be checked next time",
+    "deferred": "{count, plural, one {# notification} other {# notifications}} will be sent next time",
+    "skipped": "{count, plural, one {# run} other {# runs}} will be checked next time",
     "demo": "Checked whether fixes shipped. Nothing new shipped (this is a practice screen, so the examples stay as they are)."
   },
   "errors": {
     "api": "API error: {status}",
-    "load": "Could not load the data",
+    "load": "Couldn't load the data",
     "classify": "The classification recovery request failed. Please try again.",
     "classifyShort": "Classification recovery failed",
     "check": "Check failed"
@@ -40,7 +40,7 @@
     "title": "Feedback channels",
     "settings": "Bots",
     "web": "Web widget",
-    "webSub": "Recommended entrance · one script line",
+    "webSub": "Recommended channel · one script line",
     "channel": "Channel Talk",
     "channelSub": "Optional channel · support webhook",
     "on": "Connected",
@@ -64,14 +64,14 @@
     }
   },
   "quality": {
-    "avgLabel": "Report → notification average",
+    "avgLabel": "Avg. time from report to notification",
     "none": "Not yet",
-    "failed": "Could not count",
-    "avgFailed": "Could not read the whole sample · please reload",
+    "failed": "Couldn't count",
+    "avgFailed": "Couldn't read the whole sample · please reload",
     "avgBasis": "Based on {count, plural, one {# notification} other {# notifications}}",
     "avgWait": "Measured once notifications go out",
     "yesLabel": "“Yes, it works” rate",
-    "yesFailed": "Could not read all the answers · please reload",
+    "yesFailed": "Couldn't read all the answers · please reload",
     "yesBasis": "Web widget only · {fixed} of {answered} answered",
     "yesRate": " · response rate {rate}",
     "yesNoAnswer": "Web widget only · no answer yet from {delivered} notifications",
@@ -132,7 +132,7 @@
     "due": "{count, plural, one {# item} other {# items}} · grouping automatically in about {secs} seconds (waiting for follow-up reports)",
     "soon": "Grouping {count, plural, one {# item} other {# items}} shortly",
     "idle": "{count, plural, one {# item is} other {# items are}} not grouped yet",
-    "unreadable": "Could not read the grouping status",
+    "unreadable": "Couldn't read the grouping status",
     "runNow": "Group now"
   },
   "groups": {
@@ -153,28 +153,28 @@
     },
     "demoGroup": {
       "title": "Endless redirect after a 401 error",
-      "summary": "Reports that after the session expires, the login screen and the service screen keep sending users back to each other and they cannot get out.",
-      "reason": "Cannot get out of the login step after the session expires"
+      "summary": "Reports that after the session expires, the login screen and the service screen keep sending users back to each other and they can't get out.",
+      "reason": "Can't get out of the login step after the session expires"
     },
     "notices": {
-      "nothing": "No feedback can be grouped (questions and praise are not grouped)",
+      "nothing": "No feedback can be grouped (questions and praise aren't grouped)",
       "one": "Grouped 1 item",
       "busy": "Already grouping automatically. Reloading shortly",
-      "deferred": "Processing was put on hold. {count} left",
+      "deferred": "Processing was put on hold. {count, plural, one {# item} other {# items}} left.",
       "grouped": "Grouped {count, plural, one {# item} other {# items}}",
       "dismissed": "Group closed. This is a practice screen, so it comes back when you reload."
     },
     "errors": {
       "group": "Grouping failed",
-      "groupBots": "Grouping failed for {count} bots: {reasons}",
-      "pr": "Could not start creating the fix PR",
-      "spec": "Could not create the spec draft"
+      "groupBots": "Grouping failed for {count, plural, one {# bot} other {# bots}}: {reasons}",
+      "pr": "Couldn't start creating the fix PR",
+      "spec": "Couldn't create the spec draft"
     },
     "title": "Feedback groups",
     "sub": "People who raised the same problem are bundled into one fix PR. A group forms by itself 1–2 minutes after a report.",
     "tryThis": "Try this first",
     "empty": "No groups yet. People who raised the same problem are gathered into one PR — feedback classified as bug, UX or feature request is grouped by itself within 1–2 minutes of the report.",
-    "order": "Not fixed yet first · most people affected and core flow blocked first",
+    "order": "Sorted by: unfixed first, then most people affected",
     "core": "Core flow",
     "followUp": "Follow-up check · linked to an existing group. No new PR until deploy and resolution are confirmed.",
     "feedbackCount": "Feedback <b>{count}</b>",
@@ -183,7 +183,7 @@
     "shipped": "Shipped",
     "prOpen": "PR open",
     "viewPr": "View PR #{number}",
-    "tryPr": "Now click this",
+    "tryPr": "Try this next",
     "createPr": "Create fix PR",
     "viewSpec": "View spec",
     "draftSpec": "Draft spec",

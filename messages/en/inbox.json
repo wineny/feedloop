@@ -45,7 +45,7 @@
     "failed": "Handoff email: failed to send. Check the request in your inbox.",
     "unknown": "Handoff email: delivery unconfirmed. Resending is on hold until the provider's records are checked."
   },
-  "approverNote": "You are an approver on this bot: approve or reject refund requests above. Replies and closing the conversation are for the bot owner.",
+  "approverNote": "You're an approver for this bot. Approve or reject refund requests above. Only the owner can reply or close the conversation.",
   "channelReply": "Reply in Channel Talk Desk",
   "channelNote": "Channel Talk conversations are answered in Desk. Feedloop triages the report and only sends the notification once the fix ships.",
   "replyHint": "Write a reply here",
@@ -59,19 +59,19 @@
   },
   "errors": {
     "api": "API error: {status}",
-    "loadList": "Could not load conversations",
-    "open": "Could not open the conversation",
-    "close": "Could not close the conversation",
-    "reply": "Could not send the reply",
+    "loadList": "Couldn't load conversations",
+    "open": "Couldn't open the conversation",
+    "close": "Couldn't close the conversation",
+    "reply": "Couldn't send the reply",
     "noConversation": "No conversation is open.",
     "decisionFailed": "The decision failed ({status}).",
     "alreadyDecided": "This request was already decided by someone else. The card shows the current state.",
-    "notCompleted": "The decision was saved but could not be completed ({status})."
+    "notCompleted": "The decision was saved but couldn't be completed ({status})."
   },
   "notices": {
-    "deepLinkMissing": "Could not find the conversation from your email in the list. Please pick it from the list.",
+    "deepLinkMissing": "Couldn't find the conversation from your email in the list. Please pick it from the list.",
     "demoClosed": "Conversation closed. This is a practice screen, so nothing is actually closed. Reload to reset.",
-    "demoReplied": "Reply sent. This is a practice screen, so it is not delivered. Reload to reset.",
+    "demoReplied": "Reply sent. This is a practice screen, so it isn't delivered. Reload to reset.",
     "closed": "Conversation closed."
   },
   "payment": {
@@ -80,13 +80,13 @@
     "capture": "PayPal capture",
     "requested": "Requested",
     "refund": "PayPal refund",
-    "detail": "Detail",
-    "why": "Why it waits for you",
+    "detail": "Details",
+    "why": "Why this needs your approval",
     "approve": "Approve {amount}",
     "approveBare": "Approve",
     "reject": "Reject",
-    "once": "Approving sends exactly this amount to PayPal. Decided once.",
-    "saveFailed": "The decision could not be saved. Reload and try again.",
+    "once": "Approving sends exactly this amount to PayPal. This can't be undone.",
+    "saveFailed": "The decision couldn't be saved. Reload and try again.",
     "status": {
       "pending": "Waiting for approval",
       "executing": "Sending to PayPal",
@@ -98,12 +98,12 @@
     },
     "checks": {
       "amount_within_max": "Amount within auto limit",
-      "within_days": "Paid recently enough",
+      "within_days": "Within refund window",
       "no_prior_refund": "No earlier refund on this payment",
       "currency_matches": "Currency matches the store",
       "daily_cap_ok": "Daily refund cap not exceeded",
-      "customer_known": "Customer identified",
-      "customer_cap_ok": "Customer refund cap not exceeded",
+      "customer_known": "Buyer identified",
+      "customer_cap_ok": "Buyer refund cap not exceeded",
       "no_dispute": "No open dispute",
       "not_propose_only": "Store allows automatic refunds",
       "not_paused": "Automatic refunds not paused"

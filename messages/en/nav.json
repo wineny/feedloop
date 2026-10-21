@@ -7,10 +7,10 @@
     "bots": "Bots"
   },
   "scope": {
-    "configuring": "Service being configured",
-    "viewing": "Service being viewed",
-    "all": "All services",
-    "settings": "Settings for this service",
+    "configuring": "Bot being configured",
+    "viewing": "Bot being viewed",
+    "all": "All bots",
+    "settings": "Settings for this bot",
     "only": "<b>{name}</b> only · "
   },
   "demoBanner": {

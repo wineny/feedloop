@@ -34,6 +34,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         <p className="max-w-[640px] text-base leading-7 text-muted-foreground">
           {t('intro')}
         </p>
+        <p className="max-w-[640px] text-sm leading-6 text-muted-foreground">{t('demoStore')}</p>
       </section>
 
       {canceled === '1' ? (
@@ -80,7 +81,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
       )}
 
       <p className="text-xs leading-5 text-muted-foreground">
-        Payments run in the PayPal sandbox during the PayPal AI Hackathon. Prices are placeholders and no real money moves.
+        {t('footnote')}
       </p>
 
       {shop ? <DemoWidget botId={shop.botId} /> : null}

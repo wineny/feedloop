@@ -39,7 +39,7 @@ describe('PaymentActionCard (approval card)', () => {
     expect(html).toContain('Waiting for approval');
     expect(html).toContain('Approve $29.50');
     expect(html).toContain('Reject');
-    expect(html).toContain('Why it waits for you');
+    expect(html).toContain('Why this needs your approval');
     expect(html).toContain('Amount within auto limit');
     expect(html).not.toContain('No open dispute'); // passed checks are not listed
     expect(html).toContain('Server label for a key the dictionary lacks'); // unknown key falls back to the server label

@@ -14,6 +14,6 @@
   "missing": {
     "noShot": "This report has no screen · only the position is shown",
     "expired": "The screen was deleted after the retention period · only the position is shown",
-    "failed": "Could not load the screen · only the position is shown"
+    "failed": "Couldn't load the screen · only the position is shown"
   }
 }
