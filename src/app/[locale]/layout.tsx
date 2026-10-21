@@ -16,6 +16,9 @@ import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
 
 // 언어별로 빌드 때 미리 그린다 — 주소에는 언어가 없고 proxy 가 이 경로로 rewrite 한다.
+// en/ko 밖의 값(`/nope.txt` 처럼 proxy 를 안 거친 점 경로)은 이 레이아웃을 건너뛰고 app/global-not-found.tsx 가 받는다.
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }

@@ -11,5 +11,10 @@
     "pricingDescription": "Feedloop plans, paid once with PayPal. Support for every purchase runs through the Feedloop widget.",
     "receiptTitle": "Receipt — Feedloop",
     "loginTitle": "Log in — Feedloop"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "The page you are looking for does not exist or has moved.",
+    "home": "Back to home"
   }
 }

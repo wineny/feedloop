@@ -5,6 +5,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['better-sqlite3'],
+  // 점 든 경로(/nope.txt)처럼 언어를 못 고르는 404 를 app/global-not-found.tsx 가 받는다(Next 16.3 실험 기능).
+  experimental: { globalNotFound: true },
   // 온보딩 캡처는 작은 글씨투성이라 기본 q=75 로는 글자가 뭉갠다.
   // Next 16 은 여기 없는 quality 값을 조용히 기본값으로 떨어뜨린다.
   images: {
