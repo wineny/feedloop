@@ -23,6 +23,7 @@ import { sendBotMessage } from '@/lib/channel/client';
 import { recordDeliveryFailure, MAX_DELIVERY_ATTEMPTS } from '@/lib/channel/redeliver';
 import { reviewAndPromoteDraft } from '@/lib/auto-dev/draft-promotion';
 import { hasDraftWaitMarker } from '@/lib/auto-dev/draft-markers';
+import { isChipOnlyText } from '@/lib/widget/chips';
 
 /** 호출 1회(크론 또는 버튼) 전체가 채널톡 전송에 쓸 수 있는 총량. run 수와 무관하다. */
 export const CHANNEL_SEND_BUDGET_MS = 30_000;
@@ -69,10 +70,22 @@ export function parseRepo(url: string): { owner: string; repo: string } | null {
   }
 }
 
+/** 따옴표 안에 넣을 한 줄. 줄바꿈·연속 공백을 접고 `max` 자에서 자른다(코드 포인트 기준). */
+function quoteText(raw: string, max = 60): string {
+  const flat = raw.replace(/\s+/g, ' ').replace(/"/g, "'").trim();
+  const chars = Array.from(flat);
+  return chars.length > max ? `${chars.slice(0, max).join('')}…` : flat;
+}
+
 /**
  * 되돌림 본문. PR URL 을 본문 끝에 그대로 싣는다 — 위젯(`widget.js` systemCard)이
  * 본문에서 URL 을 뽑아 「PR 보기 →」 링크로 바꾸고, 카카오는 텍스트 그대로 나간다.
  * 리허설(2026-09-06)에서 "(PR #5)" 텍스트만 있어 카드에 링크가 안 붙는 걸 발견해 추가했다.
+ *
+ * 무엇을 따옴표로 인용하나 — 묶음 제목은 사업자 언어(OWNER_CONTENT_LOCALE = en)로 만들어져 방문자 언어와 다를 수 있다.
+ * 한국어 문장 안에 영어 제목을 인용하면 방문자가 자기가 쓴 적 없는 말을 보게 된다. 그래서:
+ *   · 제목의 언어(한글이 있으면 ko, 아니면 en)가 본문 언어와 같으면 제목을 인용하고,
+ *   · 다르면 `ownMessage`(그 방문자가 처음 남긴 말)를 인용하고, 그것도 없으면 인용 없이 쓴다.
  */
 export function buildLoopClosedBody(
   title: string,
@@ -83,13 +96,42 @@ export function buildLoopClosedBody(
    * 넘긴다. 안 주면(NULL — 옛 행·카카오·채널톡) 제목에 한글이 있을 때만 ko(한국어로 받은 제보의 제목은 한국어), 아니면 en 이다.
    */
   locale: 'en' | 'ko' = /[가-힣]/.test(title) ? 'ko' : 'en',
+  /** 그 방문자가 처음 남긴 말. 제목 언어가 본문 언어와 다를 때만 쓴다 */
+  ownMessage?: string | null,
 ): string {
+  const titleLocale = /[가-힣]/.test(title) ? 'ko' : 'en';
+  const quoted = titleLocale === locale ? quoteText(title) : ownMessage ? quoteText(ownMessage) : '';
+  const lead = quoted ? `"${quoted}" ` : '';
   const head =
     locale === 'ko'
-      ? `"${title}" 말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요.`
-      : `"${title}" The problem you reported is fixed. It may take a little while to reach the service.`;
+      ? `${lead}말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요.`
+      : `${lead}The problem you reported is fixed. It may take a little while to reach the service.`;
   const withNumber = prNumber ? `${head} (${locale === 'ko' ? '수정' : 'fix'} #${prNumber})` : head;
   return prUrl ? `${withNumber} ${prUrl}` : withNumber;
+}
+
+/**
+ * 대화마다 방문자가 처음 남긴 말(칩 라벨만 있는 «시작 신호»는 건너뜀). 조회가 실패하면 빈 맵 — 인용 없이 쓰면 되므로
+ * 되돌림을 막지 않는다.
+ */
+async function firstOwnMessages(conversationIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (conversationIds.length === 0) return out;
+  const { data, error } = await db()
+    .from('messages')
+    .select('conversation_id, body, detected_at')
+    .in('conversation_id', conversationIds)
+    .order('detected_at', { ascending: true })
+    .limit(500);
+  if (error) {
+    console.error('[loop-closed] 첫 메시지 조회 실패 — 인용 없이 보낸다:', error.message);
+    return out;
+  }
+  for (const m of (data ?? []) as { conversation_id: string | null; body: string | null }[]) {
+    if (!m.conversation_id || out.has(m.conversation_id) || !m.body?.trim() || isChipOnlyText(m.body)) continue;
+    out.set(m.conversation_id, m.body);
+  }
+  return out;
 }
 
 export interface CloseResult {
@@ -340,8 +382,13 @@ export async function closeLoopForRun(
   // 한 묶음의 대화가 여러 언어일 수 있다 — 대화마다 자기 언어로 쓴다. 언어를 모르면(NULL) 카카오·채널톡은 한국어
   // 서비스라 ko(메일의 visitorMailLocale 과 같은 규칙), 웹은 제목의 한글 여부로 추정한다.
   // 카카오·채널톡을 제목으로 추정하지 않는 이유: 묶음 제목은 사업자 언어(OWNER_CONTENT_LOCALE = en)로 생성된다.
+  const localeOf = (c: ConversationMeta) => c.locale ?? (c.source !== 'web' ? 'ko' : undefined);
+  // 제목 언어가 그 대화의 언어와 다르면 제목 대신 방문자 자신의 말을 인용한다 — 그런 대화만 첫 메시지를 읽는다
+  const titleLocale = /[가-힣]/.test(run.title) ? 'ko' : 'en';
+  const needsOwn = targets.filter((c) => (localeOf(c) ?? titleLocale) !== titleLocale);
+  const ownById = await firstOwnMessages(needsOwn.map((c) => c.id));
   const bodyOf = (c: ConversationMeta) =>
-    buildLoopClosedBody(run.title, run.pr_number, run.pr_url, c.locale ?? (c.source !== 'web' ? 'ko' : undefined));
+    buildLoopClosedBody(run.title, run.pr_number, run.pr_url, localeOf(c), ownById.get(c.id) ?? null);
   const now = new Date().toISOString();
 
   const rows = targets.map((c) => ({

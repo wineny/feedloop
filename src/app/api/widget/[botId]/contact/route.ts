@@ -2,7 +2,7 @@
 // 로그인을 강제하지 않는 대신, 답장 받을 곳을 방문자가 직접 남긴다.
 
 import { NextRequest } from 'next/server';
-import { widgetLocale } from '@/lib/widget/strings';
+import { explicitWidgetLocale } from '@/i18n/server-locale';
 import { upsertConversation, saveContact, touchConversation } from '@/lib/bot/conversations';
 import { collapseWhitespace } from '@/lib/text';
 import {
@@ -66,7 +66,7 @@ export async function POST(
     botId,
     source: 'web',
     externalUserId: visitorId,
-    locale: widgetLocale(req),
+    locale: explicitWidgetLocale(req),
   });
   if (!conversation) return widgetError(req, 'conversation_failed', 500);
 

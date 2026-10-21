@@ -70,9 +70,26 @@ describe('GET /api/widget/[botId]/config — ?locale=', () => {
   });
 
   it('locale 이 없거나 en|ko 가 아니면 en', async () => {
-    for (const q of ['', '?locale=fr', '?locale=KO', '?locale=ko-KR', '?locale=']) {
+    for (const q of ['', '?locale=fr', '?locale=korean', '?locale=']) {
       expect((await config(q)).statusText).toBe(enBots.defaults.statusText);
     }
+  });
+
+  it('?locale=ko-KR·en-US 처럼 지역이 붙은 값은 앞 언어 코드로 받는다', async () => {
+    for (const q of ['?locale=ko-KR', '?locale=KO', '?locale=ko_KR']) {
+      expect((await config(q)).statusText).toBe(koBots.defaults.statusText);
+    }
+    expect((await config('?locale=en-US', { 'accept-language': 'ko' })).statusText).toBe(enBots.defaults.statusText);
+  });
+
+  it('?locale 이 없을 때만 CDN 이 언어별로 따로 들게 Vary: Accept-Language 를 붙인다', async () => {
+    const vary = async (q: string) => {
+      const res = await GET(new NextRequest(`http://localhost/api/widget/b1/config${q}`), { params: Promise.resolve({ botId: 'b1' }) });
+      return res.headers.get('vary');
+    };
+    expect(await vary('')).toContain('Accept-Language');
+    expect(await vary('?locale=fr')).toContain('Accept-Language');
+    expect(await vary('?locale=ko')).toBeNull();
   });
 
   it('?locale 이 없으면(옛 widget.js 캐시) Accept-Language 로 고른다', async () => {

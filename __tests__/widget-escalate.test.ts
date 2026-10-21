@@ -99,10 +99,10 @@ beforeEach(() => {
   emailOwnerHandoff.mockResolvedValue({ sent: true, to: 'owner@example.com' });
 });
 
-async function post(body: unknown, botId = BOT_ID, locale: 'ko' | 'en' = 'ko') {
+async function post(body: unknown, botId = BOT_ID, locale: 'ko' | 'en' | null = 'ko') {
   const { NextRequest } = await import('next/server');
   const { POST } = await import('@/app/api/widget/[botId]/escalate/route');
-  const req = new NextRequest(`https://feedloop.test/api/widget/${botId}/escalate?locale=${locale}`, {
+  const req = new NextRequest(`https://feedloop.test/api/widget/${botId}/escalate${locale ? `?locale=${locale}` : ''}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: 'https://nulnul.vercel.app' },
     body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -161,6 +161,12 @@ describe('POST /api/widget/[botId]/escalate — 말을 남기는 경로', () => 
       '"How do I get a refund?" was passed to a person.' +
         ' Usually replies in a few minutes. We\'ll let you know here when they reply 🙏',
     );
+  });
+
+  it('?locale 없이 온 요청은 대화에 저장된 언어를 덮어쓰지 않는다(Accept-Language 짐작은 저장하지 않는다)', async () => {
+    const { status } = await post({ visitorId: VISITOR, text: '환불은 어떻게 하나요?' }, BOT_ID, null);
+    expect(status).toBe(200);
+    expect(upsertConversation).toHaveBeenCalledWith(expect.objectContaining({ locale: undefined }));
   });
 
   it('메시지를 handoff 로 저장하고(AI 답 없음), 상태를 찍고, 인용 칩을 남기고, 소유자에게 메일을 보낸다', async () => {

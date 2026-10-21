@@ -7,6 +7,7 @@
 import { NextRequest } from 'next/server';
 import { WIDGET_CHIPS, resolveWidgetBot, widgetError, widgetJson, widgetOptions } from '@/lib/widget/http';
 import { getServiceRoleClient } from '@/lib/supabase';
+import { explicitWidgetLocale } from '@/i18n/server-locale';
 // 폴백 문구·시작 질문 조립은 운영자 화면(위젯 모양 미리보기)과 한 곳을 공유한다 —
 // 두 화면이 어긋나면 운영자가 "미리보기와 다른 위젯"을 보게 된다.
 import { readFaqFallback, resolveStarterQuestions } from '@/lib/bot/appearance';
@@ -75,6 +76,10 @@ export async function GET(
     },
     200,
     // 모양은 자주 안 바뀐다. 사이트 방문자마다 DB 를 때리지 않도록 CDN 에 1분 얹는다.
-    { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
+    // `?locale` 이 없으면 언어를 Accept-Language 로 고르므로 CDN 이 언어별로 따로 들고 있어야 한다.
+    {
+      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      ...(explicitWidgetLocale(req) ? {} : { Vary: 'Accept-Language' }),
+    },
   );
 }

@@ -42,6 +42,19 @@ describe('messages: en / ko', () => {
     expect(diff).toEqual([]);
   });
 
+  it('키 이름에 점(.)이 없다 — 점은 중첩 경로라서 `a.b` 라는 한 키는 t("a.b") 로 읽히지 않는다', () => {
+    const dotted: string[] = [];
+    const walk = (node: unknown, prefix: string) => {
+      if (typeof node !== 'object' || node === null) return;
+      for (const [k, v] of Object.entries(node)) {
+        if (k.includes('.')) dotted.push(`${prefix}${k}`);
+        walk(v, `${prefix}${k}/`);
+      }
+    };
+    for (const locale of ['en', 'ko'] as const) walk(loadMessages(locale), `${locale}:`);
+    expect(dotted).toEqual([]);
+  });
+
   it('빈 문구가 없다', () => {
     expect([...en, ...ko].filter(([, v]) => v.trim() === '')).toEqual([]);
   });

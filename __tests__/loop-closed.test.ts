@@ -211,6 +211,32 @@ describe('buildLoopClosedBody', () => {
   });
 });
 
+describe('buildLoopClosedBody — 따옴표로 무엇을 인용하나', () => {
+  it('제목 언어와 본문 언어가 같으면 제목을 인용한다', () => {
+    expect(mod.buildLoopClosedBody('Coupon bug', null, null, 'en')).toBe('"Coupon bug" The problem you reported is fixed. It may take a little while to reach the service.');
+    expect(mod.buildLoopClosedBody('쿠폰 버그', null, null, 'ko')).toContain('"쿠폰 버그" 말씀해주신');
+  });
+
+  it('영어 제목을 한국어 문장 안에 인용하지 않는다 — 방문자가 처음 남긴 말을 인용하고, 없으면 인용 없이 쓴다', () => {
+    expect(mod.buildLoopClosedBody('Coupon button is not clickable', null, null, 'ko', '쿠폰 버튼이 안 눌려요')).toBe(
+      '"쿠폰 버튼이 안 눌려요" 말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요.',
+    );
+    const none = mod.buildLoopClosedBody('Coupon button is not clickable', 7, null, 'ko');
+    expect(none).toBe('말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요. (수정 #7)');
+    expect(none).not.toContain('Coupon');
+  });
+
+  it('한국어 제목은 영어 문장 안에서도 같은 규칙이다', () => {
+    expect(mod.buildLoopClosedBody('쿠폰 버그', null, null, 'en', 'The coupon button does nothing')).toContain('"The coupon button does nothing" The problem you reported is fixed');
+    expect(mod.buildLoopClosedBody('쿠폰 버그', null, null, 'en')).not.toContain('쿠폰');
+  });
+
+  it('인용은 한 줄 60자로 줄이고 따옴표를 홑따옴표로 바꾼다', () => {
+    const body = mod.buildLoopClosedBody('Title', null, null, 'ko', `"안녕"\n${'가'.repeat(80)}`);
+    expect(body).toContain(`"'안녕' ${'가'.repeat(55)}…"`);
+  });
+});
+
 describe('closeLoopForRun — 기존 채널 무회귀', () => {
   it('머지가 안 됐으면 아무것도 만들지 않는다', async () => {
     prMerged = false; prFailure = false;
@@ -304,6 +330,33 @@ describe('closeLoopForRun — 기존 채널 무회귀', () => {
     expect(bodyOf('c-ko')).toContain('말씀해주신 문제를 고쳤어요');
     // locale 이 NULL 이면 예전처럼 제목에 한글이 있으니 ko
     expect(bodyOf('c-null')).toContain('말씀해주신 문제를 고쳤어요');
+  });
+
+  it('영어 묶음 제목 + 한국어 방문자 — 제목 대신 그 방문자가 처음 남긴 말(칩 제외)을 인용한다', async () => {
+    prMerged = true;
+    tables.insights = [
+      { id: 'i1', messages: { conversation_id: 'c-ko' } },
+      { id: 'i2', messages: { conversation_id: 'c-en' } },
+    ];
+    tables.responses = [];
+    tables.conversations = [
+      { id: 'c-ko', source: 'web', external_user_id: 'v1', locale: 'ko' },
+      { id: 'c-en', source: 'web', external_user_id: 'v2', locale: 'en' },
+    ];
+    tables.messages = [
+      { conversation_id: 'c-ko', body: '불편한 점이 있어요' }, // 칩 라벨은 «시작 신호» — 건너뛴다
+      { conversation_id: 'c-ko', body: '쿠폰 버튼이 안 눌려요' },
+      { conversation_id: 'c-ko', body: '두 번째 말' },
+    ];
+
+    await mod.closeLoopForRun({ ...RUN, title: 'Coupon button is not clickable' });
+
+    const rows = insertedResponses();
+    const bodyOf = (id: string) => rows.find((r) => r.conversation_id === id)!.response_body as string;
+    expect(bodyOf('c-ko')).toContain('"쿠폰 버튼이 안 눌려요" 말씀해주신 문제를 고쳤어요');
+    expect(bodyOf('c-ko')).not.toContain('Coupon');
+    // 영어 방문자는 영어 제목을 그대로 인용한다
+    expect(bodyOf('c-en')).toContain('"Coupon button is not clickable" The problem you reported is fixed');
   });
 
   // 보안 리뷰 HIGH — 「재제보 합류」(B1)로 부르는 경로는 방문자가 스스로 연 «새» 대화에서

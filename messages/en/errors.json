@@ -147,18 +147,22 @@
     "required": "{field} is required",
     "channelSlugFormat": "The channel address can use lowercase letters, numbers and hyphens only",
     "webhookTokenFormat": "The webhook token is 8 to 128 characters: letters, numbers, hyphens and underscores. Paste the value Channel Talk shows you as it is",
-    "knowledge.textNotString": "Answer knowledge must be text",
-    "knowledge.textTooLong": "Answer knowledge can be up to {max, number} characters (now {count, number})",
-    "knowledge.faqNotList": "FAQ must be a list",
-    "knowledge.faqItemShape": "Each FAQ item must have a question and an answer",
-    "knowledge.faqNotString": "FAQ questions and answers must be text",
-    "knowledge.faqQuestionTooLong": "FAQ questions can be up to {max, number} characters",
-    "knowledge.faqAnswerTooLong": "FAQ answers can be up to {max, number} characters",
-    "knowledge.faqTooMany": "You can add up to {max, number} FAQ items (now {count, number})",
-    "closeReason.required": "close_reason is required",
-    "closeReason.invalid": "close_reason must be one of {allowed}, or null",
-    "closeReason.noteNotString": "close_note must be text",
-    "closeReason.noteTooLong": "close_note can be up to {max, number} characters"
+    "knowledge": {
+      "textNotString": "Answer knowledge must be text",
+      "textTooLong": "Answer knowledge can be up to {max, number} characters (now {count, number})",
+      "faqNotList": "FAQ must be a list",
+      "faqItemShape": "Each FAQ item must have a question and an answer",
+      "faqNotString": "FAQ questions and answers must be text",
+      "faqQuestionTooLong": "FAQ questions can be up to {max, number} characters",
+      "faqAnswerTooLong": "FAQ answers can be up to {max, number} characters",
+      "faqTooMany": "You can add up to {max, number} FAQ items (now {count, number})"
+    },
+    "closeReason": {
+      "required": "close_reason is required",
+      "invalid": "close_reason must be one of {allowed}, or null",
+      "noteNotString": "close_note must be text",
+      "noteTooLong": "close_note can be up to {max, number} characters"
+    }
   },
   "fields": {
     "serviceName": "Bot name",

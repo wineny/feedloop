@@ -14,6 +14,7 @@
 import { NextRequest, after } from 'next/server';
 import { escalationNotice } from '@/lib/bot/holding';
 import { defaultStatusText, widgetLocale } from '@/lib/widget/strings';
+import { explicitWidgetLocale } from '@/i18n/server-locale';
 import {
   findWebConversation,
   getRecentTurns,
@@ -90,7 +91,7 @@ export async function POST(
   let messageId: string | null = null;
   if (text) {
     // 내용이 있으면 대화를 만들어도 된다 — 운영자가 받을 «말»이 있다.
-    conversation = await upsertConversation({ botId, source: 'web', externalUserId: visitorId, locale });
+    conversation = await upsertConversation({ botId, source: 'web', externalUserId: visitorId, locale: explicitWidgetLocale(req) });
     if (!conversation) return widgetError(req, 'conversation_failed', 500);
     if (name || email) await saveContact(conversation.id, { name, email });
     const handoffContext = sanitizeWidgetContext(body.value.context);

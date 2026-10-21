@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { localeFromAcceptLanguage, localeFromHeaders, localeFromRequest } from '../src/i18n/server-locale';
+import { explicitWidgetLocale, localeFromAcceptLanguage, localeFromHeaders, localeFromRequest } from '../src/i18n/server-locale';
 import { apiText, apiValidation } from '../src/lib/http/api-text';
 import { loadMessages } from './helpers/intl';
 
@@ -47,6 +47,30 @@ describe('localeFromRequest — operator (쿠키 → Accept-Language → en)', (
   });
 });
 
+describe('지역이 붙은 언어값·깨진 쿠키', () => {
+  it('?locale=en-US·ko_KR 은 앞 언어 코드로 받는다', () => {
+    expect(localeFromRequest(req('/x?locale=en-US', { 'accept-language': 'ko' }), 'widget')).toBe('en');
+    expect(localeFromRequest(req('/x?locale=ko-KR', { 'accept-language': 'en' }), 'widget')).toBe('ko');
+    expect(localeFromRequest(req('/x?locale=KO_kr'), 'widget')).toBe('ko');
+    expect(localeFromRequest(req('/x?locale=english'), 'widget')).toBe('en'); // 알 수 없는 값은 Accept-Language 없음 → en
+    expect(localeFromRequest(req('/x?locale=ennui', { 'accept-language': 'ko' }), 'widget')).toBe('ko'); // en 으로 시작해도 en 이 아니다
+  });
+  it('깨진 퍼센트 인코딩 쿠키는 던지지 않고 없는 것으로 본다(운영자 API 가 500 이 되면 안 된다)', () => {
+    expect(() => localeFromRequest(req('/x', { cookie: 'NEXT_LOCALE=%E0%A4%A' }))).not.toThrow();
+    expect(localeFromRequest(req('/x', { cookie: 'NEXT_LOCALE=%E0%A4%A', 'accept-language': 'ko' }))).toBe('ko');
+    expect(() => localeFromHeaders(new Headers({ cookie: 'NEXT_LOCALE=%' }))).not.toThrow();
+  });
+});
+
+describe('explicitWidgetLocale — 저장해도 되는 언어', () => {
+  it('?locale 을 직접 보냈을 때만 값이 있고, Accept-Language 짐작은 undefined', () => {
+    expect(explicitWidgetLocale(req('/x?locale=ko'))).toBe('ko');
+    expect(explicitWidgetLocale(req('/x?locale=en-US'))).toBe('en');
+    expect(explicitWidgetLocale(req('/x', { 'accept-language': 'ko-KR' }))).toBeUndefined();
+    expect(explicitWidgetLocale(req('/x?locale=fr'))).toBeUndefined();
+  });
+});
+
 describe('Accept-Language', () => {
   it('첫 항목이 ko 로 시작하면 ko', () => {
     expect(localeFromAcceptLanguage('ko')).toBe('ko');
@@ -68,6 +92,13 @@ describe('apiText / apiValidation', () => {
     expect(apiValidation(req('/x', { cookie: 'NEXT_LOCALE=ko' }), r)).toBe('액세스 키 은(는) 문자열이어야 합니다');
     expect(apiValidation(req('/x'), { error: '한국어만' })).toBe('한국어만');
     expect(apiValidation(req('/x'), { error: 'x', code: 'key.empty' })).toBe('Enter your API key');
+  });
+  it('점이 든 코드(knowledge.textNotString · closeReason.noteTooLong)도 사전으로 읽힌다 — 한국어 error 로 떨어지면 안 된다', () => {
+    for (const code of ['knowledge.textNotString', 'knowledge.faqTooMany', 'closeReason.required', 'closeReason.invalid', 'closeReason.noteTooLong']) {
+      const en = apiValidation(req('/x'), { error: '한국어 폴백', code, vars: { max: 500, count: 3, allowed: 'a, b' } });
+      expect(en, code).not.toMatch(/[가-힣]/);
+      expect(apiValidation(req('/x', { cookie: 'NEXT_LOCALE=ko' }), { error: '한국어 폴백', code, vars: { max: 500, count: 3, allowed: 'a, b' } }), code).toMatch(/[가-힣]/);
+    }
   });
 });
 

@@ -14,8 +14,10 @@ export type RequestLocaleKind = 'widget' | 'operator';
 // routing.ts 의 localeCookie.name 과 같은 이름(그쪽을 바꾸면 여기도).
 const LOCALE_COOKIE = 'NEXT_LOCALE';
 
+// `en`·`ko` 뿐 아니라 `en-US`·`ko_KR` 처럼 지역이 붙은 값도 앞 언어 코드로 받는다(브라우저·임베드 코드가 그렇게 보낸다).
 function asLocale(value: string | null | undefined): Locale | null {
-  return value === 'en' || value === 'ko' ? value : null;
+  const m = /^(en|ko)(?:[-_].*)?$/i.exec((value ?? '').trim());
+  return m ? (m[1].toLowerCase() as Locale) : null;
 }
 
 function cookieValue(header: string | null, name: string): string | null {
@@ -23,7 +25,14 @@ function cookieValue(header: string | null, name: string): string | null {
   for (const part of header.split(';')) {
     const eq = part.indexOf('=');
     if (eq < 0) continue;
-    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+    if (part.slice(0, eq).trim() === name) {
+      // 깨진 퍼센트 인코딩(`%E0%A4%A`)이 URIError 로 번지면 운영자 API 전체가 500 이 된다 — 쿠키가 없는 것으로 본다
+      try {
+        return decodeURIComponent(part.slice(eq + 1).trim());
+      } catch {
+        return null;
+      }
+    }
   }
   return null;
 }
@@ -34,6 +43,14 @@ function queryLocale(req: Request): Locale | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 요청이 `?locale=` 로 «직접» 알린 언어. 없으면 undefined.
+ * `conversations.locale` 처럼 저장하는 자리는 이 값이 있을 때만 쓴다 — Accept-Language 짐작으로는 저장값을 덮어쓰지 않는다.
+ */
+export function explicitWidgetLocale(req: Request): Locale | undefined {
+  return queryLocale(req) ?? undefined;
 }
 
 /** Accept-Language 의 첫 언어가 ko 로 시작하면 ko, 아니면 en. */

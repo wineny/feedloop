@@ -22,6 +22,7 @@ import { NO_PAYMENT_ROUTE, routePayment } from '@/lib/paypal/router';
 import { paymentAgentPrompt, paymentAgentSystemPrompt, runPaymentAgent } from '@/lib/paypal/agent';
 import { PAYMENT_AGENT_FALLBACK, PAYMENT_NOTICES } from '@/lib/paypal/notices';
 import { defaultReplyNotices, widgetLocale } from '@/lib/widget/strings';
+import { explicitWidgetLocale } from '@/i18n/server-locale';
 import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
 import { appOrigin } from '@/lib/paypal/checkout';
 import { supabasePaymentsStore } from '@/lib/paypal/store';
@@ -167,7 +168,8 @@ export async function POST(
     botId,
     source: 'web',
     externalUserId: visitorId,
-    locale: visitorLocale,
+    // 저장은 방문자가 ?locale 로 직접 알린 언어만 — Accept-Language 짐작으로 저장된 언어를 덮어쓰지 않는다
+    locale: explicitWidgetLocale(req),
   });
   if (!conversation) return widgetError(req, 'conversation_failed', 500);
 
