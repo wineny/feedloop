@@ -283,7 +283,71 @@ BEGIN
     RAISE EXCEPTION 'case20 anon must not execute conversation_clear_refund_attention';
   END IF;
 
-  RAISE NOTICE 'guardrail scenario: 20 cases OK';
+  -- 21. (5/6) the visitor's sentence is the database's write: once per (row, status), only for the row's
+  --     CURRENT status. CAP-30 (auto, executing, conversation c0) falls to unknown, then finishes executed.
+  UPDATE payment_actions SET status = 'unknown' WHERE target_id = 'CAP-30';
+  IF NOT payment_action_announce((SELECT id FROM payment_actions WHERE target_id = 'CAP-30'), 'unknown', 'Your $5 refund is being processed.') THEN
+    RAISE EXCEPTION 'case21 the first announce of a status must write';
+  END IF;
+  IF payment_action_announce((SELECT id FROM payment_actions WHERE target_id = 'CAP-30'), 'unknown', 'Your $5 refund is being processed.') THEN
+    RAISE EXCEPTION 'case21 a second announce of the same status must not write';
+  END IF;
+  IF (SELECT count(*) FROM responses WHERE conversation_id = '00000000-0000-4000-8000-0000000000c0' AND response_type = 'payment') <> 1 THEN
+    RAISE EXCEPTION 'case21 expected exactly one payment line after two announces';
+  END IF;
+  -- the row moves on; a stale caller's sentence for the old status is dropped
+  UPDATE payment_actions SET status = 'executed', paypal_ref = 'REF-30' WHERE target_id = 'CAP-30';
+  IF payment_action_announce((SELECT id FROM payment_actions WHERE target_id = 'CAP-30'), 'unknown', 'Your $5 refund is being processed.') THEN
+    RAISE EXCEPTION 'case21 a sentence for a status the row has left must not be written';
+  END IF;
+  IF NOT payment_action_announce((SELECT id FROM payment_actions WHERE target_id = 'CAP-30'), 'executed', 'Refund of $5 sent to PayPal.') THEN
+    RAISE EXCEPTION 'case21 the executed line must write once';
+  END IF;
+  IF (SELECT count(*) FROM responses WHERE conversation_id = '00000000-0000-4000-8000-0000000000c0' AND response_type = 'payment'
+        AND response_body IN ('Your $5 refund is being processed.', 'Refund of $5 sent to PayPal.')) <> 2 THEN
+    RAISE EXCEPTION 'case21 expected the processing and the executed line, one each';
+  END IF;
+  IF (SELECT response_id FROM payment_announcements WHERE status = 'executed'
+        AND action_id = (SELECT id FROM payment_actions WHERE target_id = 'CAP-30')) IS NULL THEN
+    RAISE EXCEPTION 'case21 the announcement must point at the response it wrote';
+  END IF;
+  -- a row without a conversation has nobody to tell
+  IF payment_action_announce((SELECT id FROM payment_actions WHERE conversation_id IS NULL AND status = 'pending' LIMIT 1), 'pending', 'waiting') THEN
+    RAISE EXCEPTION 'case21 a row without a conversation must not be announced';
+  END IF;
+  BEGIN
+    PERFORM payment_action_announce((SELECT id FROM payment_actions WHERE target_id = 'CAP-30'), 'executing', 'x');
+    RAISE EXCEPTION 'case21 executing is never announced';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM LIKE 'case21%' THEN RAISE; END IF;
+  END;
+  IF has_function_privilege('anon', 'payment_action_announce(uuid,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'case21 anon must not execute payment_action_announce';
+  END IF;
+
+  -- 22. the reaper's list: rows whose current status was never spoken. CAP-31 and CAP-32 were rejected in
+  --     case 20 with no line; CAP-30 has its executed line; rows without a conversation are never listed.
+  IF (SELECT count(*) FROM payment_actions_unannounced(50)) <> 2 THEN
+    RAISE EXCEPTION 'case22 expected the two silent rejected rows, got %', (SELECT count(*) FROM payment_actions_unannounced(50));
+  END IF;
+  IF EXISTS (SELECT 1 FROM payment_actions_unannounced(50) WHERE target_id = 'CAP-30' OR conversation_id IS NULL) THEN
+    RAISE EXCEPTION 'case22 an announced row or a row without a conversation must not be listed';
+  END IF;
+  IF (SELECT count(*) FROM payment_actions_unannounced(1)) <> 1 THEN
+    RAISE EXCEPTION 'case22 the limit must apply';
+  END IF;
+  IF NOT payment_action_announce((SELECT id FROM payment_actions WHERE target_id = 'CAP-31'), 'rejected', 'The store did not approve it.') THEN
+    RAISE EXCEPTION 'case22 the rejected line must write';
+  END IF;
+  IF (SELECT count(*) FROM payment_actions_unannounced(50)) <> 1
+     OR (SELECT target_id FROM payment_actions_unannounced(50)) <> 'CAP-32' THEN
+    RAISE EXCEPTION 'case22 once spoken, a row leaves the list';
+  END IF;
+  IF has_function_privilege('anon', 'payment_actions_unannounced(integer)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'case22 anon must not execute payment_actions_unannounced';
+  END IF;
+
+  RAISE NOTICE 'guardrail scenario: 22 cases OK';
 END $$;
 
 -- (v2) the demo bot can only live in the sandbox

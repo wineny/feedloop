@@ -32,7 +32,7 @@ async function runRefundSweep(): Promise<SweepResult & { ok: boolean }> {
     return { ...sweep, ok: true };
   } catch (err) {
     console.error('[cron/check-merged] 환불 정리 실패', err instanceof Error ? err.message : err);
-    return { expired: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0, ok: false };
+    return { expired: 0, announced: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0, ok: false };
   }
 }
 

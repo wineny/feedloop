@@ -5,7 +5,7 @@ vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from: () => ({
 vi.mock('@/lib/auto-dev/loop-closed', () => ({ checkMergedRuns: check }));
 vi.mock('@/lib/widget/shots', () => ({ cleanupShots: async () => ({ orphans: 0, expired: 0, failed: false }) }));
 vi.mock('@/lib/paypal/reconcile', () => ({
-  sweepStuckActions: async () => ({ expired: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0 }),
+  sweepStuckActions: async () => ({ expired: 0, announced: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0 }),
 }));
 import { GET } from '@/app/api/cron/check-merged/route';
 beforeEach(() => { vi.clearAllMocks(); process.env.CRON_SECRET = 'local-test'; });

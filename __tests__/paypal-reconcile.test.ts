@@ -514,12 +514,37 @@ describe('sweepStuckActions', () => {
       store,
       paypalFor: async (botId) => (botId === BOT ? pp.client : null),
     });
-    expect(result).toEqual({ expired: 1, scanned: 2, executed: 1, failed: 0, stillPending: 0, unreachable: 0, skipped: 1, errors: 0, deferred: 0 });
+    // announced: 1 = the copied foreign-bot row's `unknown` had never been spoken; the sweep writes it
+    expect(result).toEqual({ expired: 1, announced: 1, scanned: 2, executed: 1, failed: 0, stillPending: 0, unreachable: 0, skipped: 1, errors: 0, deferred: 0 });
     expect(store.actions[0]).toMatchObject({ status: 'executed', target_id: captureId, reconcile_attempts: 1 });
     expect(store.actions[1].status).toBe('expired');
     expect(store.actions[2]).toMatchObject({ status: 'unknown', reconcile_attempts: 0 });
     expect(store.actions[3]).toMatchObject({ status: 'unknown', reconcile_attempts: 1 }); // skipped rows rotate too
     expect(pp.refunds).toHaveLength(1);
+  });
+
+  it('writes the sentences an earlier failure left out of conversations, oldest first, and never twice', async () => {
+    const { store, pp, deps, base } = setup();
+    const real = store.announceAction;
+    store.announceAction = async () => {
+      throw new Error('db hiccup');
+    };
+    await requestRefund(deps, base); // executed, visitor told nothing
+    store.nextDecision = 'pending';
+    const other = pp.seedCaptured('ORDER0000002', '10.00');
+    await requestRefund(deps, { ...base, captureId: other, customerKey: 'x@y.z' }); // pending, visitor told nothing
+    store.announceAction = real;
+    expect(store.responses).toHaveLength(0);
+
+    const sweepDeps = { store, paypalFor: async () => pp.client };
+    const result = await sweepStuckActions(sweepDeps);
+    expect(result).toMatchObject({ announced: 2, scanned: 0, errors: 0 });
+    expect(store.responses.map((r) => r.body)).toEqual([
+      'Refund of $29 sent to PayPal. It usually shows up within a few days.',
+      "Your refund request for $10 is waiting for the store's approval. You'll see the result here.",
+    ]);
+    expect((await sweepStuckActions(sweepDeps)).announced).toBe(0);
+    expect(store.responses).toHaveLength(2);
   });
 
   it('a row behind 50 still-pending stragglers is reached on the next sweep (fair rotation)', async () => {

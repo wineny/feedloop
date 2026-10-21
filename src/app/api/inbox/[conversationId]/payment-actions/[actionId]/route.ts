@@ -16,7 +16,7 @@ import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getConversationOwner } from '@/lib/bot/conversations';
 import { toPaymentActionView } from '@/lib/paypal/action-view';
 import { resolvePayPalBot } from '@/lib/paypal/bot';
-import { executeApprovedAction } from '@/lib/paypal/refund';
+import { announceStatus, executeApprovedAction } from '@/lib/paypal/refund';
 import { supabasePaymentsStore } from '@/lib/paypal/store';
 
 export async function POST(
@@ -71,6 +71,10 @@ export async function POST(
   });
 
   if (decision === 'reject') {
+    // The visitor's sentence for the rejection — written by the database once per (row, status); if it
+    // cannot be written now, the reaper writes it later. (Executed / failed sentences come from the
+    // executor when its settle applies.)
+    await announceStatus(store, decided.action, 'rejected');
     return NextResponse.json({ decision, outcome: { status: 'rejected' }, action: toPaymentActionView(decided.action), escalationCleared });
   }
 

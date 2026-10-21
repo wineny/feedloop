@@ -46,7 +46,7 @@ interface InboxItem {
 
 interface TimelineItem {
   id: string;
-  kind: 'user' | 'ai' | 'operator' | 'system' | 'notice';
+  kind: 'user' | 'ai' | 'operator' | 'system' | 'notice' | 'payment';
   body: string;
   at: string;
 }
@@ -98,6 +98,7 @@ const KIND_LABEL: Record<TimelineItem['kind'], string> = {
   operator: '내 답장',
   system: '알림',
   notice: '안내',
+  payment: 'PayPal',
 };
 
 /** 위젯이 붙은 사이트. 프로토콜은 떼고 호스트만 보여준다 — 길어서 헤더를 밀어낸다. */
@@ -170,6 +171,18 @@ function Bubble({ item, userLabel, context, shot }: { item: TimelineItem; userLa
           <CornerDownLeft className="h-3 w-3" aria-hidden />
           {item.body}
         </span>
+      </div>
+    );
+  }
+
+  // 결제 카드(3단계) — 서버 고정 영어 문장(환불 결과·결제 링크). 링크 줄은 운영자에겐 텍스트로만 보인다.
+  if (item.kind === 'payment') {
+    return (
+      <div className="self-end max-w-[72%]">
+        <div className="rounded-[16px] rounded-br-[4px] border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed">
+          <span className="mb-1 block text-[12.5px] font-semibold text-muted-foreground">PayPal · {formatAt(item.at)}</span>
+          <span className="whitespace-pre-wrap break-words">{item.body}</span>
+        </div>
       </div>
     );
   }

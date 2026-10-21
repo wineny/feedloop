@@ -11,7 +11,7 @@
 // recently stamped, so fifty rows that stay PENDING at PayPal cannot hide a newer row forever.
 
 import type { PayPalClient } from './client';
-import { reconcileAction } from './refund';
+import { announceStatus, reconcileAction } from './refund';
 import type { PaymentsStore } from './store';
 
 /** A row is "stuck" once this long has passed since its last change. Below that it may still be in flight. */
@@ -33,6 +33,8 @@ export interface SweepDeps {
 
 export interface SweepResult {
   expired: number;
+  /** Sentences an earlier failure left out of a conversation, written now (payment_actions_unannounced). */
+  announced: number;
   scanned: number;
   executed: number;
   failed: number;
@@ -53,12 +55,23 @@ export async function sweepStuckActions(
   const startedAt = Date.now();
   const budgetMs = opts.budgetMs ?? SWEEP_BUDGET_MS;
   const result: SweepResult = {
-    expired: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0,
+    expired: 0, announced: 0, scanned: 0, executed: 0, failed: 0, stillPending: 0, unreachable: 0, skipped: 0, errors: 0, deferred: 0,
   };
 
   result.expired = await deps.store.expirePendingActions({
     olderThan: new Date(now.getTime() - (opts.expireAfterMs ?? PENDING_EXPIRES_AFTER_MS)).toISOString(),
   });
+
+  // Sentences the database still owes a conversation (an insert that failed at the time). Idempotent:
+  // the database writes each (row, status) once and only while the row is still in that status.
+  try {
+    for (const action of await deps.store.listUnannouncedActions(opts.limit ?? SWEEP_LIMIT)) {
+      if (await announceStatus(deps.store, action)) result.announced += 1;
+    }
+  } catch (err) {
+    result.errors += 1;
+    console.error('[paypal] sweep: unannounced list failed', { message: (err as Error).message });
+  }
 
   const stuck = await deps.store.listStuckActions({
     olderThan: new Date(now.getTime() - (opts.stuckAfterMs ?? STUCK_AFTER_MS)).toISOString(),

@@ -6,6 +6,7 @@
 import { createSign, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { PayPalClient } from '@/lib/paypal/client';
+import { isAnnouncedStatus } from '@/lib/paypal/store';
 import type {
   NewOrderRow,
   OpenRefundInput,
@@ -37,6 +38,8 @@ export interface MemoryStore extends PaymentsStore {
   orders: OrderRow[];
   events: { event_id: string; event_type: string; processed_at: string | null; error: string | null }[];
   responses: { botId: string; conversationId: string; body: string }[];
+  /** `${actionId}:${status}` once that status was announced — the payment_announcements primary key. */
+  announcements: Set<string>;
   verifications: VerificationRow[];
   actions: (PaymentActionRow & { payload?: unknown; result?: unknown })[];
   /**
@@ -58,6 +61,7 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     orders: [...(initial.orders ?? [])],
     events: [],
     responses: [],
+    announcements: new Set(),
     verifications: [],
     actions: [],
     nextDecision: 'auto',
@@ -111,6 +115,29 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     },
     async insertPaymentResponse(input) {
       store.responses.push(input);
+    },
+    // Mirrors payment_action_announce: the row's CURRENT status must match, once per (row, status).
+    async announceAction(actionId, status, body) {
+      const a = store.actions.find((r) => r.id === actionId);
+      if (!a || !a.conversation_id || a.status !== status) return false;
+      const key = `${actionId}:${status}`;
+      if (store.announcements.has(key)) return false;
+      store.announcements.add(key);
+      store.responses.push({ botId: a.bot_id, conversationId: a.conversation_id, body });
+      return true;
+    },
+    async listUnannouncedActions(limit) {
+      return store.actions
+        .filter(
+          (a) =>
+            a.kind === 'refund' &&
+            a.conversation_id !== null &&
+            isAnnouncedStatus(a.status) &&
+            !store.announcements.has(`${a.id}:${a.status}`),
+        )
+        .sort((x, y) => x.updated_at.localeCompare(y.updated_at))
+        .slice(0, limit)
+        .map((a) => ({ ...a }));
     },
     async upsertVerification(row) {
       const i = store.verifications.findIndex((v) => v.conversation_id === row.conversation_id && v.order_id === row.order_id);

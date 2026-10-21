@@ -38,8 +38,16 @@
 
 import { isUncertainPayPalError, type PayPalClient } from './client';
 import { describeError } from './checkout';
-import { centsToValue, valueToCents } from './money';
-import { STUCK_ACTION_STATUSES, type PaymentActionRow, type PaymentActionStatus, type PaymentsStore } from './store';
+import { centsToValue, formatMoney, valueToCents } from './money';
+import { refundExecutedLine, refundFailedLine, refundPendingLine, refundProcessingLine, refundRejectedLine } from './sentences';
+import {
+  STUCK_ACTION_STATUSES,
+  isAnnouncedStatus,
+  type AnnouncedStatus,
+  type PaymentActionRow,
+  type PaymentActionStatus,
+  type PaymentsStore,
+} from './store';
 
 export interface RefundDeps {
   store: PaymentsStore;
@@ -131,8 +139,13 @@ export async function requestRefund(deps: RefundDeps, input: RefundRequest): Pro
     captureTotalCents: captureCents,
   });
 
-  if (!decision.created) return { status: 'already_open', action: decision.action };
+  if (!decision.created) {
+    // A repeat request is also a chance to write a sentence an earlier failure lost (idempotent in the DB).
+    await announceStatus(deps.store, decision.action);
+    return { status: 'already_open', action: decision.action };
+  }
   if (!decision.auto) {
+    await announceStatus(deps.store, decision.action, 'pending');
     return { status: 'pending', action: decision.action, amountCents, currency, checks: decision.checks ?? {} };
   }
 
@@ -140,7 +153,7 @@ export async function requestRefund(deps: RefundDeps, input: RefundRequest): Pro
   const action = decision.action;
   if (signal?.aborted) {
     const payload = refundPayload(amountCents, currency);
-    await settle(deps.store, action.id, { status: 'failed', error: 'canceled_before_send', payload });
+    await settle(deps.store, action, { status: 'failed', error: 'canceled_before_send', payload });
     return { status: 'failed', action, reason: 'canceled' };
   }
 
@@ -230,7 +243,7 @@ async function classifyRefundResource(
   if (status === 'COMPLETED' && refundId) {
     // Money moved. If the settle write fails the row stays as it was (executing/unknown): still live,
     // same id, reconciliation finishes it. The outcome stays "executed" — that is what happened.
-    const settled = await settle(deps.store, action.id, { status: 'executed', paypalRef: refundId, payload: ctx.payload, result }, ctx.from);
+    const settled = await settle(deps.store, action, { status: 'executed', paypalRef: refundId, payload: ctx.payload, result }, ctx.from);
     if (!settled) {
       console.error('[paypal] refund completed but the row could not be settled; left for reconciliation', {
         actionId: action.id,
@@ -276,7 +289,7 @@ async function settleOrReadBack(
   intended: ExecuteOutcome,
   opts?: { onlyIfNeverSent?: boolean; onlyIfFirstAttempt?: boolean },
 ): Promise<ExecuteOutcome> {
-  const applied = await settle(deps.store, action.id, outcome, from, opts);
+  const applied = await settle(deps.store, action, outcome, from, opts);
   if (applied) return intended;
   // Not applied: another caller moved the row (or a guard refused). Whatever the row says now is the
   // truth; a refused definite close becomes "unknown" — never "failed" on a stale basis.
@@ -358,11 +371,11 @@ export async function executeApprovedAction(deps: RefundDeps, action: PaymentAct
   const payload = refundPayload(action.amount_cents, action.currency);
   const check = await precheckCapture(deps, action);
   if (!check.ok && check.reason === 'unreadable') {
-    await settle(deps.store, action.id, { status: 'unknown', error: NOT_SENT_CAPTURE_UNREADABLE, payload });
+    await settle(deps.store, action, { status: 'unknown', error: NOT_SENT_CAPTURE_UNREADABLE, payload });
     return { status: 'unknown', action };
   }
   if (!check.ok) {
-    await settle(deps.store, action.id, { status: 'failed', error: 'CAPTURE_NOT_REFUNDABLE', payload });
+    await settle(deps.store, action, { status: 'failed', error: 'CAPTURE_NOT_REFUNDABLE', payload });
     return { status: 'capture_not_refundable', action };
   }
   return executeRefundCall(deps, action, { amountCents: action.amount_cents, currency: action.currency });
@@ -399,7 +412,13 @@ export async function reconcileAction(
   action: PaymentActionRow,
   opts: { signal?: AbortSignal } = {},
 ): Promise<ReconcileOutcome> {
-  if (!isStuckAction(action) || action.kind !== 'refund') return { status: 'noop', action };
+  if (action.kind !== 'refund') return { status: 'noop', action };
+  if (!isStuckAction(action)) {
+    // A finished row met again (webhook, sweep, a visitor asking): the one thing left to check is that
+    // its sentence reached the conversation. Idempotent in the database; nothing about money is touched.
+    await announceStatus(deps.store, action);
+    return { status: 'noop', action };
+  }
   if (action.amount_cents === null || !action.currency) return { status: 'noop', action };
   const ctx = { amountCents: action.amount_cents, currency: action.currency, from: STUCK_ACTION_STATUSES };
 
@@ -425,7 +444,7 @@ export async function reconcileAction(
     //   refused → read the row back; re-send ONLY on positive persisted evidence that it was sent
     //             (sent_at set), otherwise answer with whatever the row says now.
     const payload = refundPayload(ctx.amountCents, ctx.currency);
-    const closed = await settleTri(deps.store, action.id, { status: 'failed', error: 'CAPTURE_NOT_REFUNDABLE', payload }, STUCK_ACTION_STATUSES, {
+    const closed = await settleTri(deps.store, action, { status: 'failed', error: 'CAPTURE_NOT_REFUNDABLE', payload }, STUCK_ACTION_STATUSES, {
       onlyIfNeverSent: true,
     });
     if (closed === 'applied') return { status: 'failed', action, reason: 'paypal_failed' };
@@ -453,31 +472,82 @@ function refundPayload(amountCents: number, currency: string) {
 /** settleAction that never throws: a DB hiccup here must not be mistaken for a PayPal answer. */
 async function settle(
   store: PaymentsStore,
-  actionId: string,
+  action: PaymentActionRow,
   outcome: Parameters<PaymentsStore['settleAction']>[1],
   from?: readonly PaymentActionStatus[],
   opts?: { onlyIfNeverSent?: boolean; onlyIfFirstAttempt?: boolean },
 ): Promise<boolean> {
-  return (await settleTri(store, actionId, outcome, from, opts)) === 'applied';
+  return (await settleTri(store, action, outcome, from, opts)) === 'applied';
 }
 
 /**
  * Like settle, but tells a conditional miss (the row is not in the expected state any more) from a
  * database error (nothing is known). Callers that would SEND on a miss must not send on an error.
+ *
+ * An APPLIED settle is also the moment the visitor is told (design §2, §5): the sentence for the new
+ * status is handed to the database right after. The database, not this snapshot, decides whether it is
+ * written: only while the row is still in that status (a sentence for a state the row has since left
+ * is dropped) and once per (row, status) (a retry that stays `unknown` says nothing new). A sentence the
+ * database could not take now is written later by the reaper (listUnannouncedActions).
  */
 async function settleTri(
   store: PaymentsStore,
-  actionId: string,
+  action: PaymentActionRow,
   outcome: Parameters<PaymentsStore['settleAction']>[1],
   from?: readonly PaymentActionStatus[],
   opts?: { onlyIfNeverSent?: boolean; onlyIfFirstAttempt?: boolean },
 ): Promise<'applied' | 'refused' | 'error'> {
+  let ok: boolean;
   try {
-    const ok = await store.settleAction(actionId, outcome, from, opts);
-    if (!ok) console.error('[paypal] settleAction: row was not in an expected status', { actionId, status: outcome.status });
-    return ok ? 'applied' : 'refused';
+    ok = await store.settleAction(action.id, outcome, from, opts);
   } catch (err) {
-    console.error('[paypal] settleAction threw', { actionId, status: outcome.status, message: (err as Error).message });
+    console.error('[paypal] settleAction threw', { actionId: action.id, status: outcome.status, message: (err as Error).message });
     return 'error';
+  }
+  if (!ok) {
+    console.error('[paypal] settleAction: row was not in an expected status', { actionId: action.id, status: outcome.status });
+    return 'refused';
+  }
+  await announceStatus(store, action, outcome.status);
+  return 'applied';
+}
+
+/**
+ * The server-fixed sentence for a row in `status` (sentences.ts), or null when there is nothing to say
+ * (in flight, expired, or a row without an amount). Amount, currency and origin never change after the
+ * row is created, so a snapshot is a safe source for them; the STATUS is checked by the database.
+ */
+export function sentenceFor(action: PaymentActionRow, status: AnnouncedStatus): string | null {
+  if (action.amount_cents === null || !action.currency) return null;
+  const amount = formatMoney(action.amount_cents, action.currency);
+  switch (status) {
+    case 'pending':
+      return refundPendingLine(amount);
+    case 'executed':
+      return refundExecutedLine(amount, action.origin);
+    case 'failed':
+      return refundFailedLine(amount);
+    case 'rejected':
+      return refundRejectedLine(amount);
+    case 'unknown':
+      return refundProcessingLine(amount);
+  }
+}
+
+/**
+ * Tells the visitor the row is in `status` (default: the snapshot's status) — through the database's
+ * once-per-(row, status) gate, so a stale snapshot, a retry or a concurrent caller can never write a
+ * duplicate or an out-of-date sentence. true = the line was written now. Never throws: the money state
+ * is already recorded, and the reaper retries missing sentences from the database's own list.
+ */
+export async function announceStatus(store: PaymentsStore, action: PaymentActionRow, status: PaymentActionStatus = action.status): Promise<boolean> {
+  if (!action.conversation_id || !isAnnouncedStatus(status)) return false;
+  const body = sentenceFor(action, status);
+  if (!body) return false;
+  try {
+    return await store.announceAction(action.id, status, body);
+  } catch (err) {
+    console.error('[paypal] payment line not saved; the reaper will retry', { actionId: action.id, status, message: (err as Error).message });
+    return false;
   }
 }

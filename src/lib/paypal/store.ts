@@ -174,8 +174,21 @@ export interface PaymentsStore {
   ): Promise<OrderRow | null>;
   insertWebhookEvent(row: NewWebhookEvent): Promise<WebhookInsertResult>;
   finishWebhookEvent(eventId: string, error: string | null): Promise<void>;
-  /** One `response_type='payment'` line in the conversation. Body is server-fixed text. */
+  /**
+   * One `response_type='payment'` line in the conversation that belongs to no payment_actions row (the
+   * checkout card, a captured-order notice). Body is server-fixed text. Refund sentences go through
+   * announceAction instead.
+   */
   insertPaymentResponse(input: { botId: string; conversationId: string; body: string }): Promise<void>;
+  /**
+   * The visitor's sentence for a refund row's `status` (payment_action_announce): written in the database
+   * under the row lock, only while the row IS in that status, and once per (row, status). false = nothing
+   * written — the row has moved on (a stale caller) or that status was already announced. Throws on a
+   * database error; the reaper retries what is missing (listUnannouncedActions).
+   */
+  announceAction(actionId: string, status: AnnouncedStatus, body: string): Promise<boolean>;
+  /** Refund rows (with a conversation) whose current status has no sentence yet, oldest change first. */
+  listUnannouncedActions(limit: number): Promise<PaymentActionRow[]>;
 
   // ── stage 3: verified payments and refunds ──
   /** Records (or refreshes) a successful find_my_payment match. */
@@ -259,6 +272,14 @@ const ACTION_COLUMNS =
 
 /** Rows a crash or a lost PayPal answer can leave behind. */
 export const STUCK_ACTION_STATUSES: readonly PaymentActionStatus[] = ['executing', 'unknown'];
+
+/** The statuses a visitor hears about (sentences.ts). `executing` is in flight and `expired` is silent. */
+export const ANNOUNCED_STATUSES = ['pending', 'unknown', 'executed', 'failed', 'rejected'] as const;
+export type AnnouncedStatus = (typeof ANNOUNCED_STATUSES)[number];
+
+export function isAnnouncedStatus(status: string): status is AnnouncedStatus {
+  return (ANNOUNCED_STATUSES as readonly string[]).includes(status);
+}
 
 function fail(what: string, error: { message: string; code?: string }): never {
   throw new Error(`[paypal-store] ${what}: ${error.code ?? ''} ${error.message}`.trim());
@@ -355,6 +376,22 @@ export function supabasePaymentsStore(db: SupabaseClient = getServiceRoleClient(
         delivered_at: new Date().toISOString(),
       });
       if (error) fail('insertPaymentResponse', error);
+    },
+
+    async announceAction(actionId, status, body) {
+      const { data, error } = await db.rpc('payment_action_announce', {
+        p_action_id: actionId,
+        p_status: status,
+        p_body: body,
+      });
+      if (error) fail('announceAction', error);
+      return data === true;
+    },
+
+    async listUnannouncedActions(limit) {
+      const { data, error } = await db.rpc('payment_actions_unannounced', { p_limit: limit });
+      if (error) fail('listUnannouncedActions', error);
+      return (data as PaymentActionRow[] | null) ?? [];
     },
 
     async upsertVerification(row) {

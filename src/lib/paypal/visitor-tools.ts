@@ -20,6 +20,7 @@ import { createCheckout, describeError, MAX_QUANTITY } from './checkout';
 import type { PayPalClient } from './client';
 import { formatMoney } from './money';
 import { isStuckAction, reconcileAction, requestRefund } from './refund';
+import { checkoutLine } from './sentences';
 import type { OrderStatus, PaymentActionRow, PaymentsStore, ProductRow, VerificationRow } from './store';
 
 /**
@@ -196,7 +197,7 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
 
   const create_checkout = tool({
     description:
-      'Create a PayPal checkout for one of the listed products at its listed price and return the link the visitor opens to pay. Use the product_id (or sku) from the product list; the price cannot be changed.',
+      'Create a PayPal checkout for one of the listed products at its listed price. Normally a "Pay with PayPal" card with the link is shown to the visitor automatically (card_shown: true) — just tell them it is there. If the result says card_shown: false, the card could not be shown: give the visitor the approve_url as a plain link instead. Use the product_id (or sku) from the product list; the price cannot be changed.',
     inputSchema: z.object({
       product_id: z.string().min(1).max(64).describe('product_id or sku from the product list'),
       quantity: z.number().int().min(1).max(MAX_QUANTITY).default(1),
@@ -223,21 +224,30 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         { botId, productId: product.id, quantity, conversationId, signal: abortSignal },
       );
       if (!r.ok) return { ok: false as const, error: r.error };
-      return {
-        ok: true as const,
-        order_id: r.orderId,
-        approve_url: r.approveUrl,
-        amount: formatMoney(r.amountCents, r.currency),
-        currency: r.currency,
-        product: r.product.name,
-        quantity: r.quantity,
-      };
+      const amount = formatMoney(r.amountCents, r.currency);
+      const base = { ok: true as const, order_id: r.orderId, amount, currency: r.currency, product: r.product.name, quantity: r.quantity };
+      // The "Pay with PayPal" card: server data (the approve URL createCheckout validated), written as a
+      // `payment` line the widget turns into a button. The model is told the card is there instead of
+      // being given the URL — unless the line could not be saved: then the order exists and the only way
+      // the visitor can still reach it is the link, so the model gets it (card_shown: false). No second
+      // order is created just to retry a chat write.
+      try {
+        await store.insertPaymentResponse({
+          botId,
+          conversationId,
+          body: checkoutLine({ amount, product: r.product.name, quantity: r.quantity, approveUrl: r.approveUrl }),
+        });
+      } catch (err) {
+        console.error('[paypal] checkout line not saved; link handed to the model', { orderId: r.orderId, message: (err as Error).message });
+        return { ...base, card_shown: false as const, approve_url: r.approveUrl };
+      }
+      return { ...base, card_shown: true as const };
     },
   });
 
   const request_refund = tool({
     description:
-      "Ask for a refund of this conversation's verified payment. Only works after find_my_payment succeeded and the payment is paid. The system decides: it refunds automatically within the store's limits, otherwise the owner reviews it. Relay the result exactly; do not promise anything the result does not say.",
+      "Ask for a refund of this conversation's verified payment. Only works after find_my_payment succeeded and the payment is paid. The system decides: it refunds automatically within the store's limits, otherwise the owner reviews it. The visitor is shown the result as a card automatically; add one short sentence and do not promise anything the result does not say.",
     inputSchema: z.object({
       amount: z
         .number()

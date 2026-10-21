@@ -164,13 +164,29 @@ describe('get_payment_status', () => {
 });
 
 describe('create_checkout', () => {
-  it('creates a PayPal order at the listed price, by sku or product_id, tied to this conversation', async () => {
+  it('creates a PayPal order at the listed price, by sku or product_id, tied to this conversation, and writes the card line', async () => {
     const { store, pp, tools } = setup();
     const r = await run(tools, 'create_checkout', { product_id: 'PRO', quantity: 2 });
-    expect(r).toMatchObject({ ok: true, amount: '$58', currency: 'USD', product: 'Pro', quantity: 2 });
-    expect((r as { approve_url: string }).approve_url).toMatch(/^https:\/\/www\.sandbox\.paypal\.com\//);
+    expect(r).toMatchObject({ ok: true, amount: '$58', currency: 'USD', product: 'Pro', quantity: 2, card_shown: true });
+    // the link is not handed to the model; it is in the conversation as a `payment` line the widget turns into a button
+    expect(r).not.toHaveProperty('approve_url');
     const order = store.orders.find((o) => o.order_id === (r as { order_id: string }).order_id);
     expect(order).toMatchObject({ conversation_id: CONVERSATION, amount_cents: 5800, status: 'created' });
+    expect(pp.calls.filter((c) => c.method === 'POST' && c.path === '/v2/checkout/orders')).toHaveLength(1);
+    expect(store.responses).toHaveLength(1);
+    expect(store.responses[0]).toMatchObject({ botId: BOT, conversationId: CONVERSATION });
+    expect(store.responses[0].body).toMatch(/^Pay with PayPal — \$58 · Pro × 2\nhttps:\/\/www\.sandbox\.paypal\.com\//);
+  });
+
+  it('when the card line cannot be saved, the tool says card_shown=false and hands over the link (no second order)', async () => {
+    const { store, pp, tools } = setup();
+    store.insertPaymentResponse = async () => {
+      throw new Error('db hiccup');
+    };
+    const r = await run(tools, 'create_checkout', { product_id: 'PRO', quantity: 1 });
+    expect(r).toMatchObject({ ok: true, amount: '$29', card_shown: false });
+    expect((r as { approve_url: string }).approve_url).toMatch(/^https:\/\/www\.sandbox\.paypal\.com\//);
+    expect(store.responses).toHaveLength(0);
     expect(pp.calls.filter((c) => c.method === 'POST' && c.path === '/v2/checkout/orders')).toHaveLength(1);
 
     const byId = await run(tools, 'create_checkout', { product_id: products()[0].id, quantity: 1 });

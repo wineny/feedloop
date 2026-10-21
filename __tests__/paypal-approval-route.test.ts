@@ -82,6 +82,11 @@ describe('POST /api/inbox/[conversationId]/payment-actions/[actionId]', () => {
     expect(pp.refundCalls()[0].requestId).toBe(actionId);
     expect(store.actions[0]).toMatchObject({ status: 'executed', decided_by: OWNER });
     expect(store.attention[CONVERSATION]).toMatchObject({ escalated: false });
+    // the visitor read "waiting" when the row opened, and now "approved and sent" — both server-fixed lines
+    expect(store.responses.map((r) => r.body)).toEqual([
+      "Your refund request for $5 is waiting for the store's approval. You'll see the result here.",
+      'Your refund of $5 was approved and sent to PayPal. It usually shows up within a few days.',
+    ]);
   });
 
   it('a pending refund raised the badge when it was opened (RPC), before any mail', async () => {
@@ -144,6 +149,10 @@ describe('POST /api/inbox/[conversationId]/payment-actions/[actionId]', () => {
     expect(pp.refundCalls()).toHaveLength(0);
     expect(store.actions[0].status).toBe('rejected');
     expect(store.attention[CONVERSATION].escalated).toBe(false);
+    expect(store.responses.map((r) => r.body)).toEqual([
+      "Your refund request for $5 is waiting for the store's approval. You'll see the result here.",
+      "The store reviewed your refund request for $5 and didn't approve it.",
+    ]);
   });
 
   it('a second decision (double click, two operators) answers 409 with the row as it is', async () => {

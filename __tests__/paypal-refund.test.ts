@@ -2,7 +2,7 @@
 // PayPal-Request-Id = action id. The RPC decision itself is scripted here (the SQL is covered by
 // supabase/tests/guardrail_refund.sql); what this file pins is the orchestration around it.
 import { describe, expect, it } from 'vitest';
-import { requestRefund } from '@/lib/paypal/refund';
+import { reconcileAction, requestRefund } from '@/lib/paypal/refund';
 import { valueToCents } from '@/lib/paypal/money';
 import { BOT, CONVERSATION, fakePayPal, memoryStore } from './fixtures/paypal/fakes';
 
@@ -178,6 +178,106 @@ describe('requestRefund — execution', () => {
     const again = await requestRefund(deps, base);
     expect(again.status).toBe('executed');
     expect(store.actions).toHaveLength(2);
+  });
+});
+
+describe('requestRefund — the sentence the visitor reads (payment line)', () => {
+  const lines = (store: ReturnType<typeof memoryStore>) => store.responses.map((r) => r.body);
+
+  it('pending → one waiting line; a repeat request adds nothing', async () => {
+    const { store, deps, base } = setup();
+    store.nextDecision = 'pending';
+    await requestRefund(deps, base);
+    expect(lines(store)).toEqual(["Your refund request for $29 is waiting for the store's approval. You'll see the result here."]);
+    await requestRefund(deps, base);
+    expect(lines(store)).toHaveLength(1);
+  });
+
+  it('auto executed → one "sent to PayPal" line', async () => {
+    const { store, deps, base } = setup();
+    await requestRefund(deps, { ...base, amountCents: 950 });
+    expect(lines(store)).toEqual(['Refund of $9.50 sent to PayPal. It usually shows up within a few days.']);
+  });
+
+  it('first-attempt refusal → one failed line', async () => {
+    const { store, pp, deps, base } = setup();
+    pp.rejectRefund();
+    await requestRefund(deps, base);
+    expect(lines(store)).toEqual(["We couldn't complete the $29 refund through PayPal. The store will follow up here."]);
+  });
+
+  it('lost answer → one processing line; a retry that stays unknown adds nothing; the final answer adds one', async () => {
+    const { store, pp, deps, base } = setup();
+    pp.failRefund();
+    await requestRefund(deps, base);
+    expect(lines(store)).toEqual(["Your $29 refund is being processed. We'll confirm here once PayPal answers."]);
+    pp.failRefund();
+    await reconcileAction(deps, { ...store.actions[0] });
+    expect(lines(store)).toHaveLength(1);
+    await reconcileAction(deps, { ...store.actions[0] });
+    expect(lines(store)).toHaveLength(2);
+    expect(lines(store)[1]).toBe('Refund of $29 sent to PayPal. It usually shows up within a few days.');
+  });
+
+  it('no line is written for a row without a conversation', async () => {
+    const { store, deps, base } = setup();
+    await requestRefund(deps, { ...base, conversationId: null as unknown as string });
+    expect(store.responses).toHaveLength(0);
+  });
+
+  // step-5 review: the sentence is the database's once-per-(row, status) write, not a best-effort insert
+  it('a sentence the database could not take is written on the next contact (reconcile, repeat request), once', async () => {
+    const { store, deps, base } = setup();
+    const real = store.announceAction;
+    store.announceAction = async () => {
+      throw new Error('temporary response insert failure');
+    };
+    expect((await requestRefund(deps, base)).status).toBe('executed');
+    expect(store.responses).toHaveLength(0);
+    store.announceAction = real;
+    expect((await reconcileAction(deps, { ...store.actions[0] })).status).toBe('noop');
+    expect((await requestRefund(deps, base)).status).toBe('already_open');
+    expect(lines(store)).toEqual(['Refund of $29 sent to PayPal. It usually shows up within a few days.']);
+  });
+
+  it('a stale executing snapshot cannot announce "processing" twice', async () => {
+    const { store, pp, deps, base } = setup();
+    pp.failRefund();
+    await requestRefund(deps, base);
+    const stale = { ...store.actions[0], status: 'executing' as const, paypal_ref: null };
+    pp.failRefund();
+    await reconcileAction(deps, stale);
+    expect(lines(store).filter((l) => l.includes('being processed'))).toHaveLength(1);
+  });
+
+  it('a delayed "processing" cannot land after the completion line', async () => {
+    const { store, pp, deps, base } = setup();
+    let started!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const real = store.announceAction;
+    store.announceAction = async (id, status, body) => {
+      if (status === 'unknown') {
+        started();
+        await hold;
+      }
+      return real(id, status, body);
+    };
+    pp.failRefund();
+    const first = requestRefund(deps, base);
+    await entered; // the first caller settled `unknown` and is about to speak
+    expect((await reconcileAction(deps, { ...store.actions[0] })).status).toBe('executed');
+    release();
+    await first;
+    expect(store.actions[0].status).toBe('executed');
+    // the database refuses a sentence for a status the row has left; the last word is the completion
+    expect(lines(store).at(-1)).toBe('Refund of $29 sent to PayPal. It usually shows up within a few days.');
+    expect(lines(store).filter((l) => l.includes('being processed'))).toHaveLength(0);
   });
 });
 

@@ -297,7 +297,9 @@ describe('widget.js — 상담원 연결', () => {
     // 20 → 21KB 는 2026-09-25 ny 결정(I-55 「화면에서 선택하기」 스크린샷 — 촬영 상태 칩·썸네일·shotId 첨부·
     // 촬영기 로더). 촬영기 본체(modern-screenshot)는 widget-shot.js 로 갈라 누르는 방문자만 받는다.
     // 실측 증가분 gzip 672B(20,435 → 21,107).
-    expect(gzipSync(src).length).toBeLessThanOrEqual(21 * 1024);
+    // 21 → 22KB 는 2026-10-21 PayPal 3단계 5/6 — `payment` 종류의 결제 카드(서버 고정 영어 문장 + paypal.com
+    // 호스트만 통과하는 「Pay with PayPal」 버튼). 설계 v2 §10 의 결정(여유 188B → 상한 22KB 로 올리고 이유를 적는다).
+    expect(gzipSync(src).length).toBeLessThanOrEqual(22 * 1024);
   });
 
   it('escalate 라우트에 남긴 말·연락처를 보내고, 서버의 escalated 로 상태 줄을 켜고 끈다', () => {

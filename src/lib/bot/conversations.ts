@@ -15,7 +15,8 @@ function db() {
 
 // 'system' 은 되돌림(loop_closed) 카드다 — 이름이 먼저 그쪽에 쓰였다.
 // 'notice' 는 그 뒤에 생긴 «가운데 안내 칩»(방문자가 담당자를 부른 기록 등, response_type='system').
-export type TimelineKind = 'user' | 'ai' | 'operator' | 'system' | 'notice';
+/** `payment` = a server-fixed sentence about money (PayPal stage 3); the widget draws it as a card. */
+export type TimelineKind = 'user' | 'ai' | 'operator' | 'system' | 'notice' | 'payment';
 
 /** 되돌림을 받은 방문자가 「그래서 고쳐졌나」에 답한 값. */
 export type ResolutionConfirmation = 'fixed' | 'not_fixed';
@@ -61,12 +62,13 @@ export interface Conversation {
   channel_person_id: string | null;
 }
 
-/** 우리가 보낸 것의 종류를 말풍선 5종으로 접는다. */
+/** 우리가 보낸 것의 종류를 말풍선 6종으로 접는다. */
 function responseKind(responseType: string): TimelineKind {
   if (responseType === 'operator') return 'operator';
   if (responseType === 'loop_closed') return 'system';
   if (responseType === 'system') return 'notice';
-  return 'ai'; // ai · mention · keyword · question · kakao
+  if (responseType === 'payment') return 'payment';
+  return 'ai'; // ai · mention · keyword · question · kakao · payment_agent
 }
 
 /**
