@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { LogoMark } from '@/components/landing/Logo';
 import { usePathname } from '@/i18n/navigation';
 import { useSession } from 'next-auth/react';
@@ -13,15 +14,16 @@ import { isPricingPath } from '@/lib/pricing/paths';
 // 순서가 곧 루프다: 대화(들어옴) → 피드백(분류) → 수정 PR(수정·되돌림).
 // 「알림」 탭은 뺐다 — 가짜 데이터만 있던 화면이고, 되돌림 기록은 수정 PR 상세에서 본다.
 const navItems = [
-  { label: '대시보드', href: '/dashboard' },
-  { label: '대화', href: '/inbox' },
-  { label: '피드백', href: '/classify' },
-  { label: '수정안', href: '/monitor' },
-  { label: '챗봇 설정', href: '/bots' },
+  { key: 'dashboard', href: '/dashboard' },
+  { key: 'inbox', href: '/inbox' },
+  { key: 'classify', href: '/classify' },
+  { key: 'monitor', href: '/monitor' },
+  { key: 'bots', href: '/bots' },
 ];
 
 /** 전역 헤더 — 널널투어 v2 셸(60px · 1120 컨테이너 · 워드마크 20/800 · GNB 활성 = 잉크 600) */
 export function Navigation() {
+  const t = useTranslations('nav.items');
   const pathname = usePathname();
   const { status } = useSession();
   const isAuthenticated = status === 'authenticated';
@@ -63,7 +65,7 @@ export function Navigation() {
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {item.label}
+                {t(item.key)}
               </Link>
             );
           })}

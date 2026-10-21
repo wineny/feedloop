@@ -22,29 +22,29 @@ export async function generateMetadata({ params }: PageProps<'/[locale]/pricing'
 
 export default async function PricingPage({ searchParams }: { searchParams: Promise<{ canceled?: string }> }) {
   const { canceled } = await searchParams;
+  const t = await getTranslations('pricing');
   const shop = await loadDemoShop();
 
   return (
-    <div lang="en" className="flex flex-col gap-10">
+    <div className="flex flex-col gap-10">
       <PricingHeader />
 
       <section className="flex flex-col gap-3">
-        <h1 className="text-3xl font-extrabold tracking-[-0.03em] text-foreground sm:text-4xl">Pick a plan, pay once</h1>
+        <h1 className="text-3xl font-extrabold tracking-[-0.03em] text-foreground sm:text-4xl">{t('title')}</h1>
         <p className="max-w-[640px] text-base leading-7 text-muted-foreground">
-          Feedloop is a support agent that settles payments with PayPal. Buy a plan below with a PayPal sandbox buyer
-          account, then ask the chat in the corner about your payment — for example, a refund.
+          {t('intro')}
         </p>
       </section>
 
       {canceled === '1' ? (
         <p role="status" className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-          Checkout canceled. Nothing was charged.
+          {t('canceled')}
         </p>
       ) : null}
 
       {!shop || shop.products.length === 0 ? (
         <p className="rounded-xl border border-border bg-background px-4 py-6 text-sm text-muted-foreground">
-          The demo shop is not set up yet. Run <code>npm run db:seed-demo</code> to add the demo bot and its products.
+          {t.rich('notSetUp', { code: (chunks) => <code>{chunks}</code> })}
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-3 md:gap-6">
@@ -62,7 +62,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
                   <span className="text-4xl font-extrabold tracking-[-0.03em] text-foreground">
                     {formatMoney(p.amount_cents, p.currency)}
                   </span>
-                  <span className="text-sm text-muted-foreground">one-time</span>
+                  <span className="text-sm text-muted-foreground">{t('oneTime')}</span>
                 </p>
               </div>
               {p.description ? (

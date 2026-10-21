@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePathname } from '@/i18n/navigation';
 import { useDemoContext } from '@/lib/demo/DemoProvider';
 import { isPricingPath } from '@/lib/pricing/paths';
@@ -14,6 +15,7 @@ import { isPricingPath } from '@/lib/pricing/paths';
  * 두 판 모두 같은 두 가지(예시 데이터 · 로그인 불필요)를 말한다.
  */
 export function DemoBanner() {
+  const t = useTranslations('nav.demoBanner');
   const { isDemo } = useDemoContext();
   const pathname = usePathname();
   // 랜딩(/)은 풀블리드 히어로 위에 배너가 얹히면 안 되므로 숨긴다
@@ -41,11 +43,11 @@ export function DemoBanner() {
 
         {/* 좁은 화면 — 같은 두 사실을 짧게. 한 줄에 들어간다 */}
         <span className="text-[12.5px] leading-snug text-[var(--neutral-600)] sm:hidden">
-          예시 데이터 · 로그인 없이 둘러보기
+          {t('short')}
         </span>
         {/* 넓은 화면 — 온전한 문장. 사이를 이었던 「 — 」는 마침표로 바꿨다(한국어로 더 자연스럽다) */}
         <span className="hidden text-sm text-[var(--neutral-600)] sm:inline">
-          예시 데이터로 둘러보는 중이에요. 모든 메뉴를 로그인 없이 볼 수 있어요.
+          {t('long')}
         </span>
       </div>
     </div>

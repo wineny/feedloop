@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import { SectionHead } from './SectionHead';
 import { GuidedDemo } from '@/components/demo/guided/GuidedDemo';
 
@@ -44,6 +45,7 @@ import { GuidedDemo } from '@/components/demo/guided/GuidedDemo';
  *    `GuidedDemo` 가 이미 자기 그림자(`0 10px 28px`)를 갖고 있다.
  */
 export function DemoSection() {
+  const t = useTranslations('landing');
   return (
     <section
       id="try"
@@ -57,13 +59,13 @@ export function DemoSection() {
     >
       <div className="mx-auto max-w-[1200px] px-6">
         <SectionHead
-          kicker="데모"
-          title="피드루프를 경험하세요"
+          kicker={t('demo.kicker')}
+          title={t('demo.title')}
           lead={
             <>
-              피드루프 챗봇에게 말을 걸어보세요.
+              {t('demo.lead1')}
               <br />
-              AI 분류부터 수정안, 반영 알림까지 한 바퀴를 그대로 겪어볼 수 있습니다.
+              {t('demo.lead2')}
             </>
           }
         />

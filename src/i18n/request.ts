@@ -2,6 +2,7 @@ import * as rootParams from 'next/root-params';
 import { notFound } from 'next/navigation';
 import { hasLocale } from 'next-intl';
 import { getRequestConfig } from 'next-intl/server';
+import { MESSAGE_NAMESPACES } from './namespaces';
 import { routing } from './routing';
 
 // 언어는 `[locale]` 세그먼트(proxy 가 쿠키 → Accept-Language → en 으로 골라 rewrite)에서 읽는다.
@@ -12,8 +13,10 @@ import { routing } from './routing';
 export default getRequestConfig(async ({ locale }) => {
   const candidate = locale ?? (await rootParams.locale());
   if (!hasLocale(routing.locales, candidate)) notFound();
-  return {
-    locale: candidate,
-    messages: (await import(`../../messages/${candidate}.json`)).default,
-  };
+  const entries = await Promise.all(
+    MESSAGE_NAMESPACES.map(
+      async (ns) => [ns, (await import(`../../messages/${candidate}/${ns}.json`)).default] as const,
+    ),
+  );
+  return { locale: candidate, messages: Object.fromEntries(entries) };
 });

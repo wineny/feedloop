@@ -1,0 +1,21 @@
+{
+  "language": "Language",
+  "english": "English",
+  "korean": "Korean",
+  "loading": "Loading",
+  "retry": "Try again",
+  "temporaryProblem": "Temporary problem",
+  "home": "Home",
+  "reload": "Reload",
+  "recovering": "Loading the new version…",
+  "errorTitle": "This page could not be loaded",
+  "errorBody": "This may be a brief glitch. Try again, and reload the page if it happens again.",
+  "errorDigest": "Error ID {digest}",
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "close": "Close",
+  "copy": "Copy",
+  "copied": "Copied",
+  "saving": "Saving…"
+}

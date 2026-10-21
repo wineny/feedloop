@@ -2,7 +2,7 @@
 // paypal_orders row only (never PayPal from here): the return route and the webhook keep it current.
 
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
@@ -22,20 +22,12 @@ export async function generateMetadata({ params }: PageProps<'/[locale]/pricing/
   return { title: t('receiptTitle'), robots: { index: false, follow: false } };
 }
 
-const HEADLINE: Record<Receipt['status'], { title: string; body: string; tone: 'ok' | 'wait' | 'bad' }> = {
-  captured: { title: 'Payment received', body: 'Thank you! Your plan is paid.', tone: 'ok' },
-  approved: {
-    title: 'Payment processing',
-    body: 'PayPal is still processing this payment. This page updates when it completes.',
-    tone: 'wait',
-  },
-  created: {
-    title: 'Waiting for PayPal',
-    body: 'This order has not been approved on PayPal yet. This page updates on its own.',
-    tone: 'wait',
-  },
-  expired: { title: 'Checkout canceled', body: 'Nothing was charged.', tone: 'bad' },
-  failed: { title: 'Payment declined', body: 'PayPal declined the payment. Nothing was charged.', tone: 'bad' },
+const TONE: Record<Receipt['status'], 'ok' | 'wait' | 'bad'> = {
+  captured: 'ok',
+  approved: 'wait',
+  created: 'wait',
+  expired: 'bad',
+  failed: 'bad',
 };
 
 interface RowProps {
@@ -59,9 +51,11 @@ export default async function ReceiptPage({ params }: { params: Promise<{ orderI
   const order = await loadReceipt(orderId);
   if (!order) notFound();
 
-  const head = HEADLINE[order.status];
-  const Icon = head.tone === 'ok' ? CheckCircle2 : head.tone === 'wait' ? Clock : XCircle;
-  const iconColor = head.tone === 'ok' ? 'text-emerald-600' : head.tone === 'wait' ? 'text-amber-600' : 'text-muted-foreground';
+  const t = await getTranslations('pricing.receipt');
+  const format = await getFormatter();
+  const tone = TONE[order.status];
+  const Icon = tone === 'ok' ? CheckCircle2 : tone === 'wait' ? Clock : XCircle;
+  const iconColor = tone === 'ok' ? 'text-emerald-600' : tone === 'wait' ? 'text-amber-600' : 'text-muted-foreground';
   const item = order.product_name ? (order.quantity > 1 ? `${order.product_name} × ${order.quantity}` : order.product_name) : null;
   // `expired` keeps the button too: the cancel URL needs no login, so someone holding the order id
   // could mark it expired — the buyer must still be able to finish paying.
@@ -71,42 +65,41 @@ export default async function ReceiptPage({ params }: { params: Promise<{ orderI
   const date = order.captured_at ?? order.created_at;
 
   return (
-    <div lang="en" className="flex flex-col gap-10">
+    <div className="flex flex-col gap-10">
       <PricingHeader />
 
       <section className="mx-auto flex w-full max-w-[560px] flex-col gap-6 rounded-2xl border border-border bg-background p-6 sm:p-8">
         <div className="flex items-start gap-3">
           <Icon className={cn('mt-0.5 size-7 shrink-0', iconColor)} aria-hidden />
           <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-foreground">{head.title}</h1>
-            <p className="text-sm leading-6 text-muted-foreground">{head.body}</p>
+            <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-foreground">{t(`${order.status}.title`)}</h1>
+            <p className="text-sm leading-6 text-muted-foreground">{t(`${order.status}.body`)}</p>
           </div>
         </div>
 
         <dl className="flex flex-col">
-          <Row label="Item" value={item} />
-          <Row label="Total" value={`${formatMoney(order.amount_cents, order.currency)} ${order.currency}`} />
-          <Row label="PayPal order ID" value={order.order_id} />
-          <Row label="Transaction ID" value={order.capture_id} />
-          <Row label="Paid with" value={maskEmail(order.payer_email)} />
-          <Row label="Date" value={new Date(date).toUTCString()} />
+          <Row label={t('item')} value={item} />
+          <Row label={t('total')} value={`${formatMoney(order.amount_cents, order.currency)} ${order.currency}`} />
+          <Row label={t('orderId')} value={order.order_id} />
+          <Row label={t('transactionId')} value={order.capture_id} />
+          <Row label={t('paidWith')} value={maskEmail(order.payer_email)} />
+          <Row label={t('date')} value={`${format.dateTime(new Date(date), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC`} />
         </dl>
 
         {order.status === 'captured' ? (
           <p className="rounded-xl bg-muted px-4 py-3 text-sm leading-6 text-muted-foreground">
-            Questions about this payment? Open the chat in the corner and include your PayPal order ID and the email you
-            paid with.
+            {t('questions')}
           </p>
         ) : null}
 
         <div className="flex flex-wrap gap-3">
           {resumeUrl ? (
             <a href={resumeUrl} className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">
-              Continue on PayPal
+              {t('continue')}
             </a>
           ) : null}
           <Link href="/pricing" className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm font-semibold text-foreground">
-            Back to pricing
+            {t('back')}
           </Link>
         </div>
       </section>

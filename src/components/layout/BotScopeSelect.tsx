@@ -10,6 +10,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePathname } from '@/i18n/navigation';
 import { Settings2 } from 'lucide-react';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
@@ -17,6 +18,7 @@ import { ScopeDropdown } from '@/components/layout/ScopeDropdown';
 import { carryQuery, routeBotSegment, swapRouteBot, SCOPE_MIN_BOTS } from '@/lib/scope/scope';
 
 export function BotScopeSelect() {
+  const t = useTranslations('nav.scope');
   const { bots, botId, setBotId, loaded } = useBotScope();
   const pathname = usePathname();
   const router = useRouter();
@@ -41,12 +43,12 @@ export function BotScopeSelect() {
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <ScopeDropdown
-        label={route ? '설정 중인 서비스' : '보는 서비스'}
+        label={route ? t('configuring') : t('viewing')}
         value={selected ?? ''}
         onPick={onPick}
         options={[
           // 설정 화면에서는 「전체 서비스」가 뜻을 갖지 않는다(맨 위 주석 2).
-          ...(route ? [] : [{ value: '', label: '전체 서비스' }]),
+          ...(route ? [] : [{ value: '', label: t('all') }]),
           ...bots.map((b) => ({ value: b.id, label: b.service_name })),
         ]}
         className="min-w-0"
@@ -56,8 +58,8 @@ export function BotScopeSelect() {
         // 이미 그 서비스의 설정 화면에 있을 때는(route) 자기 자신을 가리키므로 그리지 않는다.
         <Link
           href={`/bots#bot-${selected}`}
-          aria-label="이 서비스 설정"
-          title="이 서비스 설정"
+          aria-label={t('settings')}
+          title={t('settings')}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Settings2 className="h-4 w-4" aria-hidden />
@@ -72,11 +74,15 @@ export function BotScopeSelect() {
  * 셀렉터가 헤더에 있어 화면 본문만 보면 어느 서비스 기준인지 놓치기 쉽다.
  */
 export function ScopeNote() {
+  const t = useTranslations('nav.scope');
   const { current } = useBotScope();
   if (!current) return null;
   return (
     <>
-      <b className="font-semibold text-foreground">{current.service_name}</b>만 보는 중 ·{' '}
+      {t.rich('only', {
+        name: current.service_name,
+        b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b>,
+      })}
     </>
   );
 }

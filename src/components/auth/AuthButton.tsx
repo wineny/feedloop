@@ -3,9 +3,11 @@
 import { signIn, signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { GoogleMark } from "./GoogleMark";
 
 export function AuthButton() {
+  const t = useTranslations("auth");
   const { data: session, status } = useSession();
 
   if (status === "loading") {
@@ -16,7 +18,7 @@ export function AuthButton() {
     return (
       <div className="flex items-center gap-2">
         <span className="hidden text-sm text-muted-foreground sm:inline-block">
-          {session.user.name}님
+          {t('userName', { name: session.user.name ?? '' })}
         </span>
         <Button
           variant="ghost"
@@ -26,7 +28,7 @@ export function AuthButton() {
           className="text-muted-foreground hover:text-foreground"
         >
           <LogOut className="mr-1.5 h-4 w-4" />
-          로그아웃
+          {t('logout')}
         </Button>
       </div>
     );
@@ -40,7 +42,7 @@ export function AuthButton() {
       className="gap-2 font-semibold"
     >
       <GoogleMark />
-      Google로 시작
+      {t('startWithGoogle')}
     </Button>
   );
 }

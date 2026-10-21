@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { LoginLink, PrimaryCta } from './PrimaryCta';
 import { DemoAnchor, scrollToHash } from './LiveDemo';
-import { DEMO_LABEL, PRIMARY_CTA_LABEL } from './constants';
 import { LogoMark } from './Logo';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
-const links = [{ label: '작동 방식', href: '#how' }];
+const links = [{ labelKey: 'how', href: '#how' }] as const;
 
 /** 페이지 안 앵커는 휙 점프하지 않고 부드럽게. 진짜 href 는 남겨 JS 없이도 닿는다 */
 function handleAnchorClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
@@ -40,6 +40,7 @@ function handleAnchorClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
  * 그래서 이 조각은 `page.tsx` 가 히어로 **바깥**에서 렌더한다.
  */
 export function LandingNav() {
+  const t = useTranslations('landing');
   const [open, setOpen] = useState(false);
   const handleClose = () => setOpen(false);
   // 히어로 코랄 지면을 다 지났는가 — 나브의 두 얼굴을 가르는 유일한 상태
@@ -102,7 +103,7 @@ export function LandingNav() {
         {/* 데스크톱 */}
         <nav
           className="mx-auto hidden h-[var(--nav-h)] max-w-[1200px] items-center justify-between px-6 lg:flex"
-          aria-label="주 메뉴"
+          aria-label={t('nav.main')}
         >
           <Link href="/" className={cn('flex items-center gap-2.5 text-xl font-extrabold tracking-[-0.02em]', fg)}>
             <LogoMark size={26} className={onCoral ? 'text-white' : 'text-[var(--coral)]'} />
@@ -111,7 +112,7 @@ export function LandingNav() {
           <div className={cn('flex gap-9 text-[15px] font-medium', fgMuted)}>
             {links.map((l) => (
               <a key={l.href} href={l.href} onClick={(e) => handleAnchorClick(e, l.href)}>
-                {l.label}
+                {t(`nav.${l.labelKey}`)}
               </a>
             ))}
             <DemoAnchor className="text-[15px] font-medium" />
@@ -125,13 +126,13 @@ export function LandingNav() {
                 onCoral ? 'bg-white text-[#b92e25]' : 'bg-[var(--ink)] text-white',
               )}
             >
-              {PRIMARY_CTA_LABEL}
+              {t('cta.primary')}
             </PrimaryCta>
           </div>
         </nav>
 
         {/* 모바일 */}
-        <nav className="flex h-[var(--nav-h)] items-center justify-between px-6 lg:hidden" aria-label="주 메뉴">
+        <nav className="flex h-[var(--nav-h)] items-center justify-between px-6 lg:hidden" aria-label={t('nav.main')}>
           <Link href="/" className={cn('flex items-center gap-2 text-lg font-extrabold tracking-[-0.02em]', fg)}>
             <LogoMark size={22} className={onCoral ? 'text-white' : 'text-[var(--coral)]'} />
             Feedloop
@@ -140,7 +141,7 @@ export function LandingNav() {
           <LocaleSwitcher className={fg} />
           <button
             type="button"
-            aria-label={open ? '메뉴 닫기' : '메뉴 열기'}
+            aria-label={open ? t('nav.menuClose') : t('nav.menuOpen')}
             aria-expanded={open}
             aria-controls="landing-mobile-menu"
             onClick={() => setOpen((v) => !v)}
@@ -168,7 +169,7 @@ export function LandingNav() {
               }}
               className="block rounded-[10px] px-4 py-3 text-[15px] font-medium text-[var(--ink)]"
             >
-              {l.label}
+              {t(`nav.${l.labelKey}`)}
             </a>
           ))}
           <a
@@ -179,7 +180,7 @@ export function LandingNav() {
             }}
             className="block rounded-[10px] px-4 py-3 text-[15px] font-medium text-[var(--ink)]"
           >
-            {DEMO_LABEL}
+            {t('nav.demo')}
           </a>
           <LoginLink
             className="block rounded-[10px] px-4 py-3 text-[15px] font-medium text-[var(--ink)]"
@@ -187,7 +188,7 @@ export function LandingNav() {
           />
           <div className="p-2 pt-1">
             <PrimaryCta className="flex h-11 items-center justify-center gap-2 rounded-full bg-[var(--ink)] text-[15px] font-bold text-white">
-              {PRIMARY_CTA_LABEL}
+              {t('cta.primary')}
             </PrimaryCta>
           </div>
         </div>

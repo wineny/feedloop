@@ -1,0 +1,46 @@
+{
+  "sandboxBadge": "PayPal sandbox · no real money moves",
+  "title": "Pick a plan, pay once",
+  "intro": "Feedloop is a support agent that settles payments with PayPal. Buy a plan below with a PayPal sandbox buyer account, then ask the chat in the corner about your payment — for example, a refund.",
+  "canceled": "Checkout canceled. Nothing was charged.",
+  "notSetUp": "The demo shop is not set up yet. Run <code>npm run db:seed-demo</code> to add the demo bot and its products.",
+  "oneTime": "one-time",
+  "footnote": "Payments run in the PayPal sandbox during the PayPal AI Hackathon. Prices are placeholders and no real money moves.",
+  "buy": {
+    "button": "Buy with PayPal",
+    "aria": "Buy {name} with PayPal",
+    "opening": "Opening PayPal…",
+    "failed": "Checkout failed. Please try again."
+  },
+  "receipt": {
+    "captured": {
+      "title": "Payment received",
+      "body": "Thank you! Your plan is paid."
+    },
+    "approved": {
+      "title": "Payment processing",
+      "body": "PayPal is still processing this payment. This page updates when it completes."
+    },
+    "created": {
+      "title": "Waiting for PayPal",
+      "body": "This order has not been approved on PayPal yet. This page updates on its own."
+    },
+    "expired": {
+      "title": "Checkout canceled",
+      "body": "Nothing was charged."
+    },
+    "failed": {
+      "title": "Payment declined",
+      "body": "PayPal declined the payment. Nothing was charged."
+    },
+    "item": "Item",
+    "total": "Total",
+    "orderId": "PayPal order ID",
+    "transactionId": "Transaction ID",
+    "paidWith": "Paid with",
+    "date": "Date",
+    "questions": "Questions about this payment? Open the chat in the corner and include your PayPal order ID and the email you paid with.",
+    "continue": "Continue on PayPal",
+    "back": "Back to pricing"
+  }
+}

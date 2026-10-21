@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useTranslations } from 'next-intl';
 
 interface HeroPhoneProps {
   /** 기기 바깥 폭(px). 나머지 치수는 전부 여기서 비례로 뽑는다. */
@@ -124,6 +125,7 @@ export function HeroPhone({ width, screen = 'dashboard', rotate = -5, className,
  * ⚠️ widget.js 의 .hd/.bub/.card/.tool/.send 를 고치면 여기도 같이 고쳐야 한다.
  */
 function ChatScreen({ sw }: { sw: number }) {
+  const t = useTranslations('landing.phone');
   // 위젯 패널 실제 폭이 360px 이다
   const k = sw / 360;
   const s = (px: number) => px * k;
@@ -145,8 +147,8 @@ function ChatScreen({ sw }: { sw: number }) {
           style={{ width: s(28), height: s(28), objectPosition: '50% 46%' }}
         />
         <span className="flex min-w-0 flex-1 flex-col" style={{ gap: s(1) }}>
-          <span className="truncate font-bold" style={{ fontSize: s(14), letterSpacing: '-0.01em' }}>데일리마켓</span>
-          <span className="truncate text-[#6e6968]" style={{ fontSize: s(11) }}>보통 몇 분 안에 답해요</span>
+          <span className="truncate font-bold" style={{ fontSize: s(14), letterSpacing: '-0.01em' }}>{t('botName')}</span>
+          <span className="truncate text-[#6e6968]" style={{ fontSize: s(11) }}>{t('botStatus')}</span>
         </span>
         <span className="flex flex-shrink-0 items-center justify-center text-[#a39d9b]" style={{ width: s(32), height: s(32) }}>
           <svg width={s(16)} height={s(16)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -181,7 +183,7 @@ function ChatScreen({ sw }: { sw: number }) {
               letterSpacing: '-0.01em',
             }}
           >
-            안녕하세요! 불편한 점이나 바라는 점을 편하게 남겨 주세요.
+            {t('greeting')}
           </div>
         </div>
 
@@ -198,21 +200,21 @@ function ChatScreen({ sw }: { sw: number }) {
               letterSpacing: '-0.01em',
             }}
           >
-            결제 화면에서 뒤로가기 누르면 장바구니가 비어버려요
+            {t('visitorMessage')}
           </div>
         </div>
 
         {/* .row — 아바타 + 이름 + AI 배지 + 시각, 그 아래 .bub.op */}
         <div className="flex flex-col" style={{ gap: s(5) }}>
           <div className="flex items-center text-[#6e6968]" style={{ gap: s(5), marginLeft: s(36), fontSize: s(11) }}>
-            데일리마켓
+            {t('botName')}
             <span
               className="rounded-full bg-[var(--demo-tint)] font-bold text-[var(--demo-strong)]"
               style={{ fontSize: s(9.5), padding: `${s(1)}px ${s(6)}px`, lineHeight: 1.4 }}
             >
               AI
             </span>
-            <span className="tabular-nums text-[#a39d9b]" style={{ fontSize: s(10.5) }}>오후 2:14</span>
+            <span className="tabular-nums text-[#a39d9b]" style={{ fontSize: s(10.5) }}>{t('time')}</span>
           </div>
           <div className="flex items-start" style={{ gap: s(8) }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -233,7 +235,7 @@ function ChatScreen({ sw }: { sw: number }) {
                 letterSpacing: '-0.01em',
               }}
             >
-              불편하셨겠어요. 결제 후 뒤로가기 때 장바구니가 비는 문제로 팀에 전달할게요.
+              {t('aiReply')}
             </div>
           </div>
         </div>
@@ -252,16 +254,16 @@ function ChatScreen({ sw }: { sw: number }) {
                 <path d="M5 12l5 5L20 7" />
               </svg>
             </span>
-            <b style={{ fontSize: s(13.5) }}>반영됐어요</b>
+            <b style={{ fontSize: s(13.5) }}>{t('fixedTitle')}</b>
           </div>
           <p style={{ margin: 0, fontSize: s(13), lineHeight: 1.55 }}>
-            뒤로가기 때 장바구니가 유지되도록 고쳤어요. 오늘 업데이트에서 확인해보세요.
+            {t('fixedBody')}
           </p>
           <div className="flex items-center justify-between" style={{ marginTop: s(3) }}>
-            <span className="font-bold text-[var(--demo-strong)]" style={{ fontSize: s(13) }}>PR 보기 →</span>
+            <span className="font-bold text-[var(--demo-strong)]" style={{ fontSize: s(13) }}>{t('viewPr')}</span>
           </div>
           <div className="flex flex-wrap" style={{ gap: s(6) }}>
-            {['네, 잘 돼요', '아직 그대로예요'].map((label) => (
+            {[t('chipYes'), t('chipNo')].map((label) => (
               <span
                 key={label}
                 className="whitespace-nowrap rounded-full border border-[#eeeae9] bg-[#f6f3f2] text-[#6e6968]"
@@ -278,8 +280,8 @@ function ChatScreen({ sw }: { sw: number }) {
       <div className="flex-shrink-0 border-t border-[#eeeae9] bg-white">
         <div className="flex items-center" style={{ gap: s(6), padding: `${s(10)}px ${s(10)}px 0` }}>
           {[
-            { label: '화면에서 선택하기', icon: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2v3.4M12 18.6V22M22 12h-3.4M5.4 12H2" /></> },
-            { label: '상담원 연결', icon: <><circle cx="12" cy="8" r="3.6" /><path d="M5 20c0-3.6 3.1-5.6 7-5.6s7 2 7 5.6" /></> },
+            { label: t('toolPick'), icon: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2v3.4M12 18.6V22M22 12h-3.4M5.4 12H2" /></> },
+            { label: t('toolHuman'), icon: <><circle cx="12" cy="8" r="3.6" /><path d="M5 20c0-3.6 3.1-5.6 7-5.6s7 2 7 5.6" /></> },
           ].map((tool) => (
             <span
               key={tool.label}
@@ -299,13 +301,13 @@ function ChatScreen({ sw }: { sw: number }) {
             className="flex min-w-0 flex-1 items-center overflow-hidden whitespace-nowrap rounded-xl border border-[#d9d3d1] text-[var(--faint)]"
             style={{ height: s(42), padding: `0 ${s(12)}px`, fontSize: s(13.5), borderRadius: s(12) }}
           >
-            무엇이든 편하게 남겨주세요
+            {t('placeholder')}
           </div>
           <div
             className="flex flex-shrink-0 items-center font-bold text-white"
             style={{ background: 'var(--demo)', borderRadius: s(12), height: s(42), padding: `0 ${s(15)}px`, fontSize: s(13) }}
           >
-            보내기
+            {t('send')}
           </div>
         </div>
 

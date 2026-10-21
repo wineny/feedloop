@@ -2,7 +2,7 @@
 
 import { useCallback, useState, type CSSProperties, type ReactNode } from 'react';
 import { GuidedDemo } from '@/components/demo/guided/GuidedDemo';
-import { DEMO_LABEL } from './constants';
+import { useTranslations } from 'next-intl';
 
 /**
  * 랜딩의 데모 «진입점»들.
@@ -31,13 +31,14 @@ interface LiveDemoButtonProps {
  *    지우지 않고 두는 이유는 팝업 모드가 여전히 동작하고, 되돌릴 때 진입점만 다시 꽂으면 되기 때문.
  */
 export function LiveDemoButton({ className, style, children }: LiveDemoButtonProps) {
+  const t = useTranslations('landing');
   const [open, setOpen] = useState(false);
   const handleClose = useCallback(() => setOpen(false), []);
 
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className={className} style={style}>
-        {children ?? DEMO_LABEL}
+        {children ?? t('nav.demo')}
       </button>
       {open && <GuidedDemo onClose={handleClose} />}
     </>
@@ -50,6 +51,7 @@ export function LiveDemoButton({ className, style, children }: LiveDemoButtonPro
  * 보게 하려는 것이다.
  */
 export function DemoAnchor({ className, style, children }: LiveDemoButtonProps) {
+  const t = useTranslations('landing');
   return (
     <a
       href="#try"
@@ -60,7 +62,7 @@ export function DemoAnchor({ className, style, children }: LiveDemoButtonProps) 
         scrollToHash('#try');
       }}
     >
-      {children ?? DEMO_LABEL}
+      {children ?? t('nav.demo')}
     </a>
   );
 }

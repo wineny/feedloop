@@ -1,0 +1,46 @@
+{
+  "sandboxBadge": "PayPal 샌드박스 · 실제 돈은 오가지 않습니다",
+  "title": "요금제를 고르고 한 번만 결제하세요",
+  "intro": "Feedloop 은 PayPal 로 결제를 처리하는 고객지원 에이전트입니다. 아래에서 PayPal 샌드박스 구매자 계정으로 요금제를 구매한 뒤, 구석의 채팅에 결제에 대해 물어보세요. 예를 들어 환불을 요청할 수 있습니다.",
+  "canceled": "결제를 취소했습니다. 청구된 금액은 없습니다.",
+  "notSetUp": "데모 가게가 아직 준비되지 않았습니다. <code>npm run db:seed-demo</code> 를 실행해 데모 봇과 상품을 추가하세요.",
+  "oneTime": "1회 결제",
+  "footnote": "결제는 PayPal AI 해커톤 기간 동안 PayPal 샌드박스에서 처리됩니다. 가격은 예시이며 실제 돈은 오가지 않습니다.",
+  "buy": {
+    "button": "PayPal 로 구매",
+    "aria": "{name} PayPal 로 구매",
+    "opening": "PayPal 여는 중…",
+    "failed": "결제를 시작하지 못했습니다. 다시 시도해 주세요."
+  },
+  "receipt": {
+    "captured": {
+      "title": "결제가 완료되었습니다",
+      "body": "감사합니다! 요금제 결제가 끝났습니다."
+    },
+    "approved": {
+      "title": "결제 처리 중",
+      "body": "PayPal 이 아직 결제를 처리하고 있습니다. 완료되면 이 화면이 갱신됩니다."
+    },
+    "created": {
+      "title": "PayPal 승인 대기 중",
+      "body": "이 주문은 아직 PayPal 에서 승인되지 않았습니다. 이 화면은 자동으로 갱신됩니다."
+    },
+    "expired": {
+      "title": "결제 취소됨",
+      "body": "청구된 금액은 없습니다."
+    },
+    "failed": {
+      "title": "결제 거절됨",
+      "body": "PayPal 이 결제를 거절했습니다. 청구된 금액은 없습니다."
+    },
+    "item": "상품",
+    "total": "합계",
+    "orderId": "PayPal 주문 번호",
+    "transactionId": "거래 번호",
+    "paidWith": "결제 이메일",
+    "date": "날짜",
+    "questions": "이 결제에 대해 궁금한 점이 있나요? 구석의 채팅을 열고 PayPal 주문 번호와 결제에 사용한 이메일을 알려주세요.",
+    "continue": "PayPal 에서 계속하기",
+    "back": "요금제로 돌아가기"
+  }
+}

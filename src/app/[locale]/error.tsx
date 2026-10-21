@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { reloadOnceForStaleBuild } from '@/lib/stale-build';
 
@@ -16,6 +17,7 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useTranslations('common');
   // 배포가 바뀌어 난 오류면 스스로 새로고침한다. 그동안은 오류 문구 대신 「다시 불러오는 중」을 보여준다 —
   // 어차피 1초 뒤 사라질 화면에 사용자가 놀랄 이유가 없다.
   // 상태를 이펙트에서 세우지 않는다(react-hooks/set-state-in-effect). 첫 렌더에 한 번
@@ -29,27 +31,27 @@ export default function AppError({
   if (recovering) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-sm text-muted-foreground">새 버전으로 다시 불러오는 중입니다…</p>
+        <p className="text-sm text-muted-foreground">{t('recovering')}</p>
       </div>
     );
   }
 
   return (
     <div className="mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center gap-4 text-center">
-      <h1 className="text-xl font-bold text-foreground">화면을 불러오지 못했습니다</h1>
+      <h1 className="text-xl font-bold text-foreground">{t('errorTitle')}</h1>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        잠깐 어긋난 것일 수 있습니다. 다시 시도해 보시고, 그래도 같으면 새로고침해 주세요.
+        {t('errorBody')}
       </p>
       <div className="flex items-center gap-2">
-        <Button onClick={reset}>다시 시도</Button>
+        <Button onClick={reset}>{t('retry')}</Button>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          새로고침
+          {t('reload')}
         </Button>
         <Button variant="ghost" asChild>
-          <Link href="/">홈으로</Link>
+          <Link href="/">{t('home')}</Link>
         </Button>
       </div>
-      {error.digest && <p className="text-xs text-muted-foreground">오류 번호 {error.digest}</p>}
+      {error.digest && <p className="text-xs text-muted-foreground">{t('errorDigest', { digest: error.digest })}</p>}
     </div>
   );
 }

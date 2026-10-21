@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import { PrimaryCta } from './PrimaryCta';
 import { SectionHead } from './SectionHead';
 
@@ -44,6 +45,7 @@ const CLOSING_FIELD =
   'linear-gradient(135deg, var(--coral-tint) 0%, var(--coral-tint-2) 55%, var(--coral-tint) 100%)';
 
 export function FinalCTA() {
+  const t = useTranslations('landing');
   return (
     <section
       id="start"
@@ -58,9 +60,9 @@ export function FinalCTA() {
       <div className="mx-auto max-w-[1200px] px-6">
         <SectionHead
           align="center"
-          kicker="시작하기"
-          title="피드루프를 붙여보세요"
-          lead="설치는 5분이면 끝납니다. 반영되면 보낸 사람에게 알려드립니다."
+          kicker={t('final.kicker')}
+          title={t('final.title')}
+          lead={t('final.lead')}
         />
         <PrimaryCta
           className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--ink)] font-bold text-white sm:w-auto lg:mt-9 lg:px-5"
