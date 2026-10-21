@@ -26,6 +26,9 @@ const h = vi.hoisted(() => ({
   getRecentTurns: vi.fn<() => Promise<unknown[]>>(async () => []),
   getBotConfigFromDB: vi.fn(),
   applyInsightWrite: vi.fn(async () => null),
+  // the visitor tools are real; we only capture what the route wires into them
+  toolDeps: null as null | Record<string, unknown>,
+  emailOwnerRefundApproval: vi.fn<(input: Record<string, unknown>) => Promise<unknown>>(async () => ({ sent: true, to: 'owner@example.com' })),
 }));
 
 function noopChain(): Record<string, unknown> {
@@ -71,6 +74,20 @@ vi.mock('@/lib/paypal/agent', async (importOriginal) => {
 });
 
 vi.mock('@/lib/paypal/bot', () => ({ resolvePayPalBot: h.resolvePayPalBot }));
+vi.mock('@/lib/paypal/visitor-tools', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/paypal/visitor-tools')>();
+  return {
+    ...actual,
+    createVisitorTools: (deps: Parameters<typeof actual.createVisitorTools>[0]) => {
+      h.toolDeps = deps as unknown as Record<string, unknown>;
+      return actual.createVisitorTools(deps);
+    },
+  };
+});
+vi.mock('@/lib/email/notify', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/email/notify')>();
+  return { ...actual, emailOwnerRefundApproval: h.emailOwnerRefundApproval };
+});
 vi.mock('@/lib/paypal/actions', () => ({ hasOpenPaymentAction: h.hasOpenPaymentAction }));
 
 vi.mock('@/lib/bot/conversations', async (importOriginal) => {
@@ -180,6 +197,20 @@ describe('payment route', () => {
     expect(h.markConversationEscalated).not.toHaveBeenCalled();
     const json = await res.json();
     expect(json.notice).toBeNull();
+  });
+
+  it('wires onPendingApproval: a pending refund mails the owner once (the badge is raised by the RPC, not here)', async () => {
+    await post('I want a refund for my order');
+    const onPending = (h.toolDeps as { onPendingApproval?: (a: unknown) => void } | null)?.onPendingApproval;
+    expect(typeof onPending).toBe('function');
+    const action = { id: 'act-1', status: 'pending', conversation_id: 'conv-1', bot_id: BOT_ID };
+    onPending!(action);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(h.markConversationEscalated).not.toHaveBeenCalled();
+    expect(h.emailOwnerRefundApproval).toHaveBeenCalledTimes(1);
+    expect(h.emailOwnerRefundApproval.mock.calls[0][0]).toMatchObject({ botId: BOT_ID, conversationId: 'conv-1', action });
+    // never through `escalate` on the result: the agent's own answer was saved untouched
+    expect(saved()).toMatchObject({ responseType: PAYMENT_AGENT_RESPONSE_TYPE });
   });
 
   it('keeps an ordinary message on the existing path', async () => {

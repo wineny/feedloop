@@ -216,6 +216,14 @@ export interface PaymentsStore {
   /** The most recent refund action for a capture, any status, or null. */
   latestRefundAction(botId: string, captureId: string): Promise<PaymentActionRow | null>;
   getAction(actionId: string, botId: string): Promise<PaymentActionRow | null>;
+  /** Every action of a conversation, newest first — the inbox's approval cards. */
+  listActionsForConversation(conversationId: string): Promise<PaymentActionRow[]>;
+  /**
+   * Lowers the conversation's "needs a person" badge after a decision — in the database, under the
+   * same per-bot lock that opens refunds, only when no refund of the conversation is still pending and
+   * the visitor has not asked for a human (conversation_clear_refund_attention). true = it came down.
+   */
+  clearRefundAttention(conversationId: string, botId: string): Promise<boolean>;
   /**
    * Rows in executing/unknown whose last change is older than `olderThan` (ISO) and that were not
    * attempted since `notAttemptedSince` (ISO). Never-attempted rows come first, then the least
@@ -453,6 +461,26 @@ export function supabasePaymentsStore(db: SupabaseClient = getServiceRoleClient(
         .maybeSingle();
       if (error) fail('getAction', error);
       return (data as PaymentActionRow | null) ?? null;
+    },
+
+    async listActionsForConversation(conversationId) {
+      const { data, error } = await db
+        .from('payment_actions')
+        .select(ACTION_COLUMNS)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) fail('listActionsForConversation', error);
+      return (data as PaymentActionRow[] | null) ?? [];
+    },
+
+    async clearRefundAttention(conversationId, botId) {
+      const { data, error } = await db.rpc('conversation_clear_refund_attention', {
+        p_conversation_id: conversationId,
+        p_bot_id: botId,
+      });
+      if (error) fail('clearRefundAttention', error);
+      return data === true;
     },
 
     async listStuckActions({ olderThan, notAttemptedSince, limit }) {

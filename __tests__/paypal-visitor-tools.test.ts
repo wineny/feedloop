@@ -279,6 +279,29 @@ describe('request_refund', () => {
     expect(pp.refundCalls()).toHaveLength(0);
   });
 
+  it('a new pending row fires onPendingApproval once with the row; auto and repeats do not', async () => {
+    const { store, pp } = setup();
+    store.nextDecision = 'pending';
+    const onPendingApproval = vi.fn();
+    const tools = createVisitorTools({ botId: BOT, conversationId: CONVERSATION, store, paypal: pp.client, origin: () => ORIGIN, onPendingApproval });
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    expect(await run(tools, 'request_refund', { reason: 'late' })).toEqual({ status: 'waiting_for_approval', amount: '$29' });
+    expect(onPendingApproval).toHaveBeenCalledTimes(1);
+    expect(onPendingApproval.mock.calls[0][0]).toMatchObject({ id: store.actions[0].id, status: 'pending', origin: 'approval' });
+    // asking again finds the live row: no second notification
+    expect(await run(tools, 'request_refund', { reason: 'again' })).toMatchObject({ status: 'already_requested' });
+    expect(onPendingApproval).toHaveBeenCalledTimes(1);
+    // a hook that throws does not change the visitor's answer
+    const store2 = memoryStore({ orders: [orderRow({ order_id: ORDER, status: 'captured', capture_id: `CAP${ORDER}`, payer_email: BUYER_EMAIL })] });
+    store2.nextDecision = 'pending';
+    const throwing = createVisitorTools({
+      botId: BOT, conversationId: CONVERSATION, store: store2,
+      paypal: pp.client, origin: () => ORIGIN, onPendingApproval: () => { throw new Error('mail down'); },
+    });
+    await run(throwing, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    expect(await run(throwing, 'request_refund', { reason: 'x' })).toMatchObject({ status: 'waiting_for_approval' });
+  });
+
   it('asking twice: already_requested, one PayPal call in total', async () => {
     const { pp, tools } = setup();
     await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });

@@ -230,7 +230,60 @@ BEGIN
     RAISE EXCEPTION 'case19 anon must not execute payment_action_touch_reconcile';
   END IF;
 
-  RAISE NOTICE 'guardrail scenario: 19 cases OK';
+  -- 20. (4/6) the inbox badge: a pending refund raises it inside the RPC; the clear RPC lowers it only when
+  --     no refund of the conversation is pending and the visitor has not asked for a human; auto rows do not raise it
+  INSERT INTO conversations (id, bot_id, source, external_user_id)
+  VALUES ('00000000-0000-4000-8000-0000000000c0', '00000000-0000-4000-8000-0000000000b0', 'web', 'visitor-20');
+  UPDATE bots SET propose_only = false, paypal_paused = false WHERE id = '00000000-0000-4000-8000-0000000000b0';
+  r := payment_action_open_refund('00000000-0000-4000-8000-0000000000b0', '00000000-0000-4000-8000-0000000000c0', 'CAP-30', 500, 'USD',
+         now() - interval '1 day', false, false, 'quinn@example.com', 'auto one', 100000);
+  IF NOT (r->>'auto')::boolean THEN RAISE EXCEPTION 'case20 setup expected auto: %', r; END IF;
+  IF (SELECT escalated_at FROM conversations WHERE id = '00000000-0000-4000-8000-0000000000c0') IS NOT NULL THEN
+    RAISE EXCEPTION 'case20 an automatic refund must not raise the badge';
+  END IF;
+  r := payment_action_open_refund('00000000-0000-4000-8000-0000000000b0', '00000000-0000-4000-8000-0000000000c0', 'CAP-31', 2500, 'USD',
+         now() - interval '1 day', false, false, 'rita@example.com', 'needs a person', 100000);
+  IF r->'action'->>'status' <> 'pending' THEN RAISE EXCEPTION 'case20 setup expected pending: %', r->'action'; END IF;
+  IF (SELECT escalated_at FROM conversations WHERE id = '00000000-0000-4000-8000-0000000000c0') IS NULL THEN
+    RAISE EXCEPTION 'case20 a pending refund must raise the badge in the same transaction';
+  END IF;
+  r := payment_action_open_refund('00000000-0000-4000-8000-0000000000b0', '00000000-0000-4000-8000-0000000000c0', 'CAP-32', 2500, 'USD',
+         now() - interval '1 day', false, false, 'sam@example.com', 'second pending', 100000);
+  -- one of two decided: still pending work → badge stays
+  PERFORM payment_action_decide((SELECT id FROM payment_actions WHERE target_id = 'CAP-31'), '00000000-0000-4000-8000-0000000000b0', 'reject', '00000000-0000-4000-8000-000000000001');
+  IF conversation_clear_refund_attention('00000000-0000-4000-8000-0000000000c0', '00000000-0000-4000-8000-0000000000b0') THEN
+    RAISE EXCEPTION 'case20 must not clear while another refund is pending';
+  END IF;
+  IF (SELECT escalated_at FROM conversations WHERE id = '00000000-0000-4000-8000-0000000000c0') IS NULL THEN
+    RAISE EXCEPTION 'case20 badge erased while CAP-32 is pending';
+  END IF;
+  -- the visitor asked for a human: not ours to lower
+  UPDATE conversations SET handoff_requested_at = now() WHERE id = '00000000-0000-4000-8000-0000000000c0';
+  PERFORM payment_action_decide((SELECT id FROM payment_actions WHERE target_id = 'CAP-32'), '00000000-0000-4000-8000-0000000000b0', 'reject', '00000000-0000-4000-8000-000000000001');
+  IF conversation_clear_refund_attention('00000000-0000-4000-8000-0000000000c0', '00000000-0000-4000-8000-0000000000b0') THEN
+    RAISE EXCEPTION 'case20 must not clear while a human handoff is open';
+  END IF;
+  UPDATE conversations SET handoff_requested_at = NULL WHERE id = '00000000-0000-4000-8000-0000000000c0';
+  -- nothing pending, no handoff → cleared, exactly once
+  IF NOT conversation_clear_refund_attention('00000000-0000-4000-8000-0000000000c0', '00000000-0000-4000-8000-0000000000b0') THEN
+    RAISE EXCEPTION 'case20 expected the badge to clear';
+  END IF;
+  IF (SELECT escalated_at FROM conversations WHERE id = '00000000-0000-4000-8000-0000000000c0') IS NOT NULL THEN
+    RAISE EXCEPTION 'case20 badge still up after clear';
+  END IF;
+  IF conversation_clear_refund_attention('00000000-0000-4000-8000-0000000000c0', '00000000-0000-4000-8000-0000000000b0') THEN
+    RAISE EXCEPTION 'case20 a second clear must report false';
+  END IF;
+  -- wrong bot → false, untouched
+  UPDATE conversations SET escalated_at = now() WHERE id = '00000000-0000-4000-8000-0000000000c0';
+  IF conversation_clear_refund_attention('00000000-0000-4000-8000-0000000000c0', '00000000-0000-4000-8000-0000000000b1') THEN
+    RAISE EXCEPTION 'case20 another bot must not clear';
+  END IF;
+  IF has_function_privilege('anon', 'conversation_clear_refund_attention(uuid,uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'case20 anon must not execute conversation_clear_refund_attention';
+  END IF;
+
+  RAISE NOTICE 'guardrail scenario: 20 cases OK';
 END $$;
 
 -- (v2) the demo bot can only live in the sandbox

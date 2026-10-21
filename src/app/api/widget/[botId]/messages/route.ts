@@ -86,7 +86,7 @@ import { markWidgetConnected } from '@/lib/widget/connected';
 import { formatContextForPrompt, sanitizeWidgetContext } from '@/lib/widget/context';
 import { settleMessageShot } from '@/lib/widget/shots';
 import { withReplyBudget } from '@/lib/llm/usage';
-import { emailOwnerNewConversation } from '@/lib/email/notify';
+import { emailOwnerNewConversation, emailOwnerRefundApproval } from '@/lib/email/notify';
 
 /** Origin 헤더 저장 상한. 차단이 아니라 사후 판별용이라 넉넉히 자르기만 한다(§B-7). */
 const MAX_ORIGIN_CHARS = 200;
@@ -389,6 +389,20 @@ export async function POST(
           store,
           paypal: paypalClient,
           origin: appOrigin,
+          // A refund the guardrail would not run: one mail to the owner (design §4), after the response.
+          // The inbox badge is NOT set here — the guardrail RPC raises escalated_at in the same
+          // transaction that writes the pending row (20261021_02), so "pending exists" and "badge up"
+          // can never disagree. Never `escalate` on the result either: holding.ts would overwrite the
+          // agent's answer. A failed mail cannot fail the visitor's answer.
+          onPendingApproval: (action) => {
+            after(
+              emailOwnerRefundApproval({ botId, conversationId: conversation.id, action }).then((outcome) => {
+                if (!outcome.sent && outcome.reason !== 'not_configured') {
+                  console.warn(`[widget/${botId}] refund approval mail not sent: ${outcome.reason}`);
+                }
+              }),
+            );
+          },
         }),
         system: paymentAgentSystemPrompt({ serviceName: bot.service_name, productList: formatProductList(products) }),
         prompt: paymentAgentPrompt({

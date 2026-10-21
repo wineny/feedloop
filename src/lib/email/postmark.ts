@@ -45,7 +45,7 @@ export interface SendEmailInput {
   /** 방문자가 회신하면 갈 곳 — 봇 소유자(운영자) 이메일 */
   replyTo?: string | null;
   /** Postmark 태그 — 활동 화면에서 종류별로 거른다 */
-  tag: 'operator-reply' | 'loop-closed' | 'handoff-request' | 'new-conversation';
+  tag: 'operator-reply' | 'loop-closed' | 'handoff-request' | 'new-conversation' | 'refund-approval';
   metadata?: Record<string, string>;
 }
 

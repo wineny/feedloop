@@ -22,8 +22,11 @@ import {
   renderLoopClosedEmail,
   renderNewConversationEmail,
   renderOperatorReplyEmail,
+  renderRefundApprovalEmail,
   type RenderedEmail,
 } from './templates';
+import { failedChecks, toPaymentActionView } from '@/lib/paypal/action-view';
+import type { PaymentActionRow } from '@/lib/paypal/store';
 import { isChipOnlyText } from '@/lib/widget/chips';
 
 type Db = ReturnType<typeof getServiceRoleClient>;
@@ -558,6 +561,87 @@ export async function emailOwnerNewConversation(input: {
     return { sent: true, to };
   } catch (err) {
     console.error('[email] new-conversation unexpected:', err instanceof Error ? err.message : err);
+    return { sent: false, reason: 'lookup_failed' };
+  }
+}
+
+// ── Refund approval request (bot owner) ─────────────────────────────────────
+//
+// Stage 3 (design v2 §4): the guardrail left a refund `pending`. One mail to the bot owner per pending
+// action — the row itself is the deduplication (the RPC opens at most one live action per capture),
+// so no claim table is needed. Approvers (bot_members) are not mailed: they see the card in the inbox.
+// Failure here never touches the visitor's answer; the card is in the inbox regardless.
+
+export type RefundApprovalMailOutcome =
+  | { sent: true; to: string }
+  | { sent: false; reason: 'not_configured' | 'not_pending' | 'no_owner_email' | 'lookup_failed' | 'send_failed' };
+
+export async function emailOwnerRefundApproval(input: {
+  botId: string;
+  conversationId: string;
+  action: PaymentActionRow;
+}): Promise<RefundApprovalMailOutcome> {
+  try {
+    if (input.action.status !== 'pending') return { sent: false, reason: 'not_pending' };
+    if (!isEmailConfigured()) return { sent: false, reason: 'not_configured' };
+
+    const { data: bot, error: botErr } = await db()
+      .from('bots')
+      .select('service_name, user_id')
+      .eq('id', input.botId)
+      .maybeSingle();
+    if (botErr || !bot) {
+      console.error('[email] refund approval bot lookup error:', botErr?.message ?? 'not found');
+      return { sent: false, reason: 'lookup_failed' };
+    }
+    const { data: owner } = await db().from('users').select('email').eq('id', bot.user_id as string).maybeSingle();
+    const to = (owner?.email as string | null | undefined)?.trim();
+    if (!to) return { sent: false, reason: 'no_owner_email' };
+
+    const { data: conv } = await db()
+      .from('conversations')
+      .select('contact_name, contact_email, external_user_id')
+      .eq('id', input.conversationId)
+      .eq('bot_id', input.botId)
+      .maybeSingle();
+    if (!conv) return { sent: false, reason: 'lookup_failed' };
+
+    const view = toPaymentActionView(input.action);
+    const serviceName = ((bot.service_name as string | null) ?? '').trim() || 'your store';
+    const contactName = ((conv.contact_name as string | null | undefined) ?? '').trim();
+    const externalId = ((conv.external_user_id as string | null | undefined) ?? '').slice(0, 4);
+    const base = (process.env.WEBHOOK_BASE_URL ?? '').trim().replace(/\/$/, '');
+
+    const rendered = renderRefundApprovalEmail({
+      serviceName,
+      visitorLabel: contactName || `Visitor #${externalId || '????'}`,
+      // the verified payer email is the strongest identity we have; the widget contact form is second
+      visitorEmail: input.action.customer_key ?? ((conv.contact_email as string | null | undefined) ?? '').trim() ?? null,
+      amount: view.amount ?? '?',
+      reason: view.reason,
+      failedChecks: failedChecks(view),
+      captureId: view.captureId,
+      inboxUrl: base ? `${base}/inbox?c=${encodeURIComponent(input.conversationId)}` : null,
+      requestedAt: new Date(input.action.created_at),
+    });
+
+    const result = await sendEmail({
+      to,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      fromName: 'Feedloop',
+      replyTo: null,
+      tag: 'refund-approval',
+      metadata: { conversationId: input.conversationId, botId: input.botId, actionId: input.action.id },
+    });
+    if (!result.ok) {
+      console.error('[email] refund approval send failed:', result.error);
+      return { sent: false, reason: 'send_failed' };
+    }
+    return { sent: true, to };
+  } catch (err) {
+    console.error('[email] refund approval unexpected:', err instanceof Error ? err.message : err);
     return { sent: false, reason: 'lookup_failed' };
   }
 }

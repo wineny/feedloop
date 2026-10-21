@@ -48,6 +48,12 @@ export interface VisitorToolDeps {
   paypal: PayPalClient;
   /** Server origin for return URLs, resolved lazily so a missing env only breaks create_checkout. */
   origin: () => string;
+  /**
+   * Called once when request_refund leaves a NEW row in `pending` (the guardrail asked for a person).
+   * The widget route uses it to raise the inbox badge and mail the owner (design §4). Not awaited;
+   * failures are the hook's to log — the visitor's answer does not depend on it.
+   */
+  onPendingApproval?: (action: PaymentActionRow) => void | Promise<void>;
 }
 
 /** One answer for "wrong id", "wrong email" and "someone else's order": no hint which part failed. */
@@ -257,6 +263,15 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         case 'executed':
           return { status: 'refunded' as const, amount: formatMoney(outcome.amountCents, outcome.currency), refund_id: outcome.refundId };
         case 'pending':
+          if (deps.onPendingApproval) {
+            try {
+              void Promise.resolve(deps.onPendingApproval(outcome.action)).catch((err) =>
+                console.error('[paypal] onPendingApproval failed', { actionId: outcome.action.id, message: (err as Error).message }),
+              );
+            } catch (err) {
+              console.error('[paypal] onPendingApproval threw', { actionId: outcome.action.id, message: (err as Error).message });
+            }
+          }
           return { status: 'waiting_for_approval' as const, amount: formatMoney(outcome.amountCents, outcome.currency) };
         case 'already_open': {
           const current = (await freshenAction(outcome.action, abortSignal)) ?? outcome.action;

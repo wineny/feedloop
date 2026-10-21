@@ -46,6 +46,8 @@ export interface MemoryStore extends PaymentsStore {
    */
   nextDecision: 'auto' | 'pending';
   openRefundCalls: OpenRefundInput[];
+  /** conversations.escalated_at / handoff_requested_at, as far as the refund code touches them. */
+  attention: Record<string, { escalated: boolean; handoff: boolean }>;
 }
 
 const LIVE_ACTION = new Set(['pending', 'executing', 'unknown', 'executed']);
@@ -60,6 +62,7 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     actions: [],
     nextDecision: 'auto',
     openRefundCalls: [],
+    attention: {},
     async listActiveProducts(botId) {
       return productRows.filter((p) => p.bot_id === botId && p.active).sort((a, b) => a.sort_order - b.sort_order);
     },
@@ -155,7 +158,20 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
         send_attempts: 0,
       };
       store.actions.push(action);
+      // like the SQL: a pending refund raises the conversation's badge in the same step
+      if (!auto && input.conversationId) {
+        const a = store.attention[input.conversationId] ?? { escalated: false, handoff: false };
+        store.attention[input.conversationId] = { ...a, escalated: true };
+      }
       return { created: true, auto, action: { ...action }, checks: { scripted: auto, customer_known: customerKey !== null } };
+    },
+    async clearRefundAttention(conversationId, botId) {
+      const a = store.attention[conversationId];
+      if (!a || !a.escalated || a.handoff) return false;
+      const pending = store.actions.some((x) => x.conversation_id === conversationId && x.bot_id === botId && x.status === 'pending');
+      if (pending) return false;
+      a.escalated = false;
+      return true;
     },
     async markSent(actionId) {
       const a = store.actions.find((r) => r.id === actionId);
@@ -195,6 +211,12 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
     async getAction(actionId, botId) {
       const a = store.actions.find((r) => r.id === actionId && r.bot_id === botId);
       return a ? { ...a } : null;
+    },
+    async listActionsForConversation(conversationId) {
+      return store.actions
+        .filter((a) => a.conversation_id === conversationId)
+        .sort((x, y) => y.created_at.localeCompare(x.created_at))
+        .map((a) => ({ ...a }));
     },
     async listStuckActions({ olderThan, notAttemptedSince, limit }) {
       return store.actions
