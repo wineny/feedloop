@@ -4,8 +4,6 @@
 
 Feedloop is a drop-in chat widget for small online businesses. Customers type what they want; the AI classifies it, answers from the owner's knowledge base, and — with PayPal — actually settles payment issues: verifies the payment, refunds within the owner's limits, sells from the price table mid-conversation, and when the same payment problem comes from several customers it opens a pull request that fixes the cause. Anything beyond the limits becomes a one-tap approval in the inbox.
 
-🏆 Grand Prize, Wanted AI Championship 2026 (1st of 1,389 projects) — the Korean production version runs at https://ai-feedloop.vercel.app
-
 > **Status (Oct 18, 2026):** this repository is the open-source, English-first edition being built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/). PayPal integration is in progress. See [What's being added](#whats-being-added-during-the-hackathon).
 
 ## What it does today
@@ -15,6 +13,7 @@ Feedloop is a drop-in chat widget for small online businesses. Customers type wh
 - **Answers from your knowledge.** The bot replies only from what you've written; anything it doesn't know is handed to a human.
 - **Closes the loop.** When a report is fixed, the person who sent it gets notified. If a GitHub repo is connected, Feedloop opens a pull request with a proposed fix — a human decides whether to merge.
 - **Owner dashboard.** Inbox, grouping, knowledge editing, bot settings.
+- **English and Korean.** The app defaults to English and switches with the EN / KO toggle in the header (no language prefix in URLs). The widget follows the visitor's browser language, or a fixed `data-locale="en|ko"` on the script tag; bot replies follow the visitor's language.
 
 ## What's being added during the hackathon
 
