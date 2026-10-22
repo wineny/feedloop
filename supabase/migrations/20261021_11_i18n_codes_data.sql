@@ -1,4 +1,4 @@
--- 2026-10-21 i18n 1.5/8 — part B (data). Apply order:  A (20261021_10_i18n_codes_schema.sql)  ->  deploy the new code  ->  B
+-- 2026-10-21 i18n 1.5/8 — part B (data). Apply order:  A (20261021_10_i18n_codes_schema.sql) + 20261021_12_conversation_locale.sql  ->  deploy the new code  ->  B
 --
 -- Run this ONLY after the new code is serving. Running it earlier breaks the code that is live:
 --   * 7ba9636 RecentFeedback.tsx:88 calls f.userName.slice on author_name, which is NULL after step 1 -> crash.

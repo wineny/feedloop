@@ -1,4 +1,4 @@
--- 2026-10-21 i18n 1.5/8 — part A (schema). Apply order:  A  ->  deploy the new code  ->  B (20261021_11_i18n_codes_data.sql)
+-- 2026-10-21 i18n 1.5/8 — part A (schema). Apply order:  A + 20261021_12_conversation_locale.sql  ->  deploy the new code  ->  B (20261021_11_i18n_codes_data.sql)
 --
 -- This file only loosens constraints; it does not touch any row, so the code that is
 -- running now (7ba9636) keeps working: it never sees a NULL it did not already handle.

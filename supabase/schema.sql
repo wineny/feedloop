@@ -3242,7 +3242,7 @@ NOTIFY pgrst, 'reload schema';
 
 -- ═══════════════════════════ 20261021_10_i18n_codes_schema.sql ═══════════════════════════
 
--- 2026-10-21 i18n 1.5/8 — part A (schema). Apply order:  A  ->  deploy the new code  ->  B (20261021_11_i18n_codes_data.sql)
+-- 2026-10-21 i18n 1.5/8 — part A (schema). Apply order:  A + 20261021_12_conversation_locale.sql  ->  deploy the new code  ->  B (20261021_11_i18n_codes_data.sql)
 --
 -- This file only loosens constraints; it does not touch any row, so the code that is
 -- running now (7ba9636) keeps working: it never sees a NULL it did not already handle.
@@ -3270,7 +3270,7 @@ ALTER TABLE bots ALTER COLUMN status_text SET DEFAULT NULL;
 
 -- ═══════════════════════════ 20261021_11_i18n_codes_data.sql ═══════════════════════════
 
--- 2026-10-21 i18n 1.5/8 — part B (data). Apply order:  A (20261021_10_i18n_codes_schema.sql)  ->  deploy the new code  ->  B
+-- 2026-10-21 i18n 1.5/8 — part B (data). Apply order:  A (20261021_10_i18n_codes_schema.sql) + 20261021_12_conversation_locale.sql  ->  deploy the new code  ->  B
 --
 -- Run this ONLY after the new code is serving. Running it earlier breaks the code that is live:
 --   * 7ba9636 RecentFeedback.tsx:88 calls f.userName.slice on author_name, which is NULL after step 1 -> crash.
@@ -3358,8 +3358,8 @@ UPDATE bots
 -- It must come before the deploy, not after: the new widget routes write `locale` in the same upsert
 -- as the conversation row, and PostgREST rejects an unknown column.
 --
--- The widget routes (messages / contact / escalate) overwrite the value on every request,
--- so it follows the visitor's latest language (a visitor who switches the page language gets the
+-- The widget routes (messages / contact / escalate) overwrite the value whenever the request carries an
+-- explicit ?locale (every current widget.js request does), so it follows the visitor's latest language (a visitor who switches the page language gets the
 -- notification in the new language). Kakao / Channel Talk upserts do not send the field and leave it alone.
 --
 -- ROLLBACK (old code never uses it, so this is only needed to clean up):

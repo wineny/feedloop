@@ -14,8 +14,8 @@
 -- It must come before the deploy, not after: the new widget routes write `locale` in the same upsert
 -- as the conversation row, and PostgREST rejects an unknown column.
 --
--- The widget routes (messages / contact / escalate) overwrite the value on every request,
--- so it follows the visitor's latest language (a visitor who switches the page language gets the
+-- The widget routes (messages / contact / escalate) overwrite the value whenever the request carries an
+-- explicit ?locale (every current widget.js request does), so it follows the visitor's latest language (a visitor who switches the page language gets the
 -- notification in the new language). Kakao / Channel Talk upserts do not send the field and leave it alone.
 --
 -- ROLLBACK (old code never uses it, so this is only needed to clean up):
