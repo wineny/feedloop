@@ -42,6 +42,12 @@ describe('toPayPalBot', () => {
     expect(() => toPayPalBot(row({ paypal_client_id: 'own', paypal_secret_encrypted: secret, paypal_env: 'live' }))).toThrow(/live/);
   });
 
+  it('a demo bot with its own keys does not borrow the deployment PAYPAL_WEBHOOK_ID', () => {
+    vi.stubEnv('PAYPAL_WEBHOOK_ID', 'WH-ENV');
+    const r = toPayPalBot(row({ is_demo: true, paypal_client_id: 'own', paypal_secret_encrypted: 'enc:ok' }));
+    expect(r.ok && r.bot).toMatchObject({ isDemo: true, webhookId: null });
+  });
+
   it('an unreadable saved secret is "not connected", never a client with an empty secret', () => {
     expect(toPayPalBot(row({ paypal_client_id: 'own', paypal_secret_encrypted: 'garbage' }))).toEqual({ ok: false, reason: 'not_connected' });
   });

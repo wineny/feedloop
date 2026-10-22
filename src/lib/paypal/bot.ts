@@ -68,7 +68,9 @@ export function toPayPalBot(row: BotPayPalRow, opts: { fetch?: FetchLike } = {})
         id: row.id,
         isDemo: row.is_demo,
         sandbox,
-        webhookId: row.paypal_webhook_id ?? (row.is_demo ? envWebhookId() : null),
+        // Own keys = own PayPal app: the deployment's PAYPAL_WEBHOOK_ID belongs to another app and
+        // would never verify its events, so a demo bot with its own keys does not borrow it.
+        webhookId: row.paypal_webhook_id,
         client: new PayPalClient({
           clientId: row.paypal_client_id,
           clientSecret: secret,
