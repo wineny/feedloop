@@ -1,0 +1,104 @@
+{
+  "form": {
+    "saved": {
+      "remove": "Remove key",
+      "confirmRemove": "Yes, remove",
+      "replaceKey": "Replace key",
+      "changeModel": "Change model",
+      "verifiedOn": "Verified on",
+      "stored": "Saved",
+      "key": "Key",
+      "model": "Model",
+      "unknown": "Unknown",
+      "provider": "Provider",
+      "defaultModel": "(default) {model}",
+      "removeNote": "Removing it returns to the default setup (free, {limit, number} a day)."
+    },
+    "cancel": "Cancel",
+    "saveModel": "Save model",
+    "verifyAndSave": "Verify and save",
+    "changeModelTitle": "Change model",
+    "failedNote": "Feedback that arrived in the meantime is saved and visible in the Inbox. Only the automatic replies were lost.",
+    "lastCallFailed": "The last call failed",
+    "status": {
+      "keyRemoved": "Key removed. Replies now use the default setup.",
+      "modelChanged": "Model changed. The key is unchanged.",
+      "keySaved": "Key verified and saved. Replies now use this key."
+    },
+    "errors": {
+      "network": "Couldn't save because of a network error",
+      "save": "Couldn't save"
+    },
+    "loading": "Loading…",
+    "loadError": "Couldn't load the key settings. Please reload.",
+    "freeNote": "Without a key, {name}'s bot answers up to {limit, number} messages a day for free (default model: {model}). If a factual question isn't covered by its knowledge, it doesn't make something up: it hands off with “{holding}” and marks the conversation “{badge}” in the Inbox. Add your own API key to choose the model and answer without a limit. You are billed through your key.",
+    "budget": {
+      "noLimit": "Replies run on your key with <b>no limit</b>. You are billed through that key.",
+      "freeLimit": "Right now up to <b>{limit, number}</b> replies a day are free.",
+      "autoLimit": "Right now up to <b>{limit, number}</b> replies a day are sent automatically.",
+      "defaultModel": "The default model is {model}.",
+      "upgrade": "Add a {provider} key to answer with <b>no limit</b>. You are billed through that key."
+    }
+  },
+  "fields": {
+    "customNote": "You can use a model that isn't on the list. We just can't check the name when you save, so a wrong name shows up as a failure on the first reply.",
+    "customLabel": "Model name you entered",
+    "customPlaceholder": "e.g. gemini-3.8-flash",
+    "custom": "Enter manually…",
+    "modelLabel": "Model",
+    "keyLabel": "API key",
+    "step3": "3. API key",
+    "step2": "2. Which model",
+    "providerLabel": "AI provider",
+    "step1": "1. Which provider",
+    "recommended": "Recommended",
+    "providerKeyPlaceholder": "Paste your {provider} API key",
+    "keyNote": "Before saving, we ask {provider} once to confirm the key actually works. After saving only the last 4 characters are shown, and the original never appears on any screen again.",
+    "auto": "Auto — uses the recommended model ({model})"
+  },
+  "models": {
+    "gemini-3_5-flash-lite": "Fast and cheap · input $0.30 / 1M",
+    "gemini-3_8-flash": "Latest Flash · input $0.75 / 1M",
+    "gemini-3_5-flash": "Input $1.50 / 1M",
+    "gemini-2_5-flash-lite": "Cheapest · input $0.10 / 1M",
+    "gemini-2_5-flash": "Follows rules well · input $0.30 / 1M",
+    "claude-haiku-4-5-20251001": "Fastest · input $1 / 1M",
+    "claude-sonnet-5": "Balance of speed and quality · input $2 / 1M",
+    "claude-opus-5": "Input $5 / 1M",
+    "claude-fable-5-1": "Smartest · input $10 / 1M",
+    "gpt-5_6-luna": "Fast and cheap · input $0.20 / 1M",
+    "gpt-5_6-terra": "Input $2 / 1M",
+    "gpt-5_6-sol": "Input $4 / 1M",
+    "gpt-6-astra": "Smartest · input $10 / 1M"
+  },
+  "purposes": {
+    "intro": "{name}'s bot does a different job at each step of the loop. The beta is on, so <b>Feedloop pays for organizing feedback and creating fix PRs.</b> All four steps run even if you add no key.",
+    "open": "You can run this on your own key",
+    "locked": "Feedloop pays during the beta",
+    "lockedLabel": "{title} — can't be configured during the beta",
+    "lockedModel": "Model — chosen after the beta",
+    "lockedKey": "API key — not needed for now",
+    "reply": {
+      "stage": "Incoming feedback",
+      "title": "Answer customers",
+      "what": "Visitors are waiting, so it must reply within 10 seconds.",
+      "guide": "A fast, cheap model fits here. As the knowledge grows, though, we have seen cheaper models miss the rule of handing off to the owner instead of making things up."
+    },
+    "organize": {
+      "stage": "AI triage",
+      "title": "Organize feedback",
+      "what": "Sorts incoming feedback into categories and groups the same problems. It reads dozens of items at once.",
+      "guide": "This step reads far more at once than answering does, so cheaper models are more likely to miss things."
+    },
+    "fix": {
+      "stage": "Fix PR",
+      "title": "Create fix PRs",
+      "what": "Turns a grouped problem into an actual code fix (a PR). It reads the repository and rewrites code, the heaviest job of all.",
+      "guide": "It reads code and rewrites it directly, so this step needs the best model."
+    },
+    "closing": {
+      "stage": "Notification",
+      "what": "Sends what was fixed back to the person who first reported it. It uses fixed wording, so it hardly uses AI."
+    }
+  }
+}

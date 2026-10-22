@@ -1,33 +1,37 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { LogoMark } from '@/components/landing/Logo';
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { BotScopeSelect } from '@/components/layout/BotScopeSelect';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { isPricingPath } from '@/lib/pricing/paths';
+import { dynamicT } from '@/i18n/dynamic';
 
 // 순서가 곧 루프다: 대화(들어옴) → 피드백(분류) → 수정 PR(수정·되돌림).
 // 「알림」 탭은 뺐다 — 가짜 데이터만 있던 화면이고, 되돌림 기록은 수정 PR 상세에서 본다.
 const navItems = [
-  { label: '대시보드', href: '/dashboard' },
-  { label: '대화', href: '/inbox' },
-  { label: '피드백', href: '/classify' },
-  { label: '수정안', href: '/monitor' },
-  { label: '챗봇 설정', href: '/bots' },
+  { key: 'dashboard', href: '/dashboard' },
+  { key: 'inbox', href: '/inbox' },
+  { key: 'classify', href: '/classify' },
+  { key: 'monitor', href: '/monitor' },
+  { key: 'bots', href: '/bots' },
 ];
 
 /** 전역 헤더 — 널널투어 v2 셸(60px · 1120 컨테이너 · 워드마크 20/800 · GNB 활성 = 잉크 600) */
 export function Navigation() {
+  const t = useTranslations('nav.items');
   const pathname = usePathname();
   const { status } = useSession();
   const isAuthenticated = status === 'authenticated';
 
   // 랜딩(/)은 자체 나브(LandingNav)를 렌더하므로 전역 나브를 숨긴다
-  // 랜딩은 자체 나브(LandingNav)가 있고, 로그인 화면은 워드마크만 보여준다
-  // PayPal 데모 가게(/pricing)는 영어 화면이라 자체 헤더(PricingHeader)를 쓴다
+  // 랜딩은 자체 나브(LandingNav)가 있고, 로그인 화면은 워드마크(+ 언어 전환)만 보여준다
+  // PayPal 데모 가게(/pricing)는 로그아웃 상태로 보는 가게 화면이라 자체 헤더(PricingHeader, 언어 전환 포함)를 쓴다
   if (pathname === '/' || pathname === '/login' || isPricingPath(pathname)) return null;
 
   return (
@@ -62,7 +66,7 @@ export function Navigation() {
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {item.label}
+                {dynamicT(t)(item.key)}
               </Link>
             );
           })}
@@ -71,6 +75,10 @@ export function Navigation() {
         <div className="ml-auto flex min-w-0 max-w-[calc(100%_-_140px)] items-center gap-3 lg:ml-0 [&>div]:min-w-0 [&>div>span]:max-w-32 [&>div>span]:truncate [&_button]:shrink-0">
           {/* 서비스 셀렉터(I-27) — 봇이 둘 이상인 계정에서만 나타난다 */}
           {isAuthenticated && <BotScopeSelect />}
+          {/* 이 줄의 `[&>div>span]:truncate`·`min-w-0` 은 봇 셀렉터용이다 — 한 겹 감싸 언어 전환은 줄지 않게 한다 */}
+          <div className="shrink-0">
+            <LocaleSwitcher className="text-muted-foreground" />
+          </div>
           <AuthButton />
         </div>
       </div>

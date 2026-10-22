@@ -259,7 +259,7 @@ describe('POST /merge', () => {
     const r = await routes();
     const response = await r.merge(post(), params);
     expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ blockedBy: 'draft_waiting', reason: 'lock_unavailable', error: expect.stringContaining('잠금') });
+    expect(await response.json()).toMatchObject({ blockedBy: 'draft_waiting', reason: 'lock_unavailable', error: expect.stringContaining('lock') });
     expect(mergePr).not.toHaveBeenCalled();
   });
   it('초안은 승격 판정 이후에만 머지하고, 승격 전이면 409', async () => {
@@ -334,7 +334,7 @@ describe('POST /merge', () => {
     const r = await routes();
     const json = await (await r.merge(post(), params)).json();
     expect(json.merged).toBe(true);
-    expect(json.loopError).toContain('반영됐는지 확인');
+    expect(json.loopError).toContain('Check for shipped fixes');
   });
 });
 
@@ -387,7 +387,7 @@ describe('POST /verify', () => {
     expect(json.explanation.unverified[1].verdict).toBeNull();
     expect(rpc).toHaveBeenCalledWith('save_run_verdict', expect.objectContaining({ p_run_id: RUN_ID, p_index: 0 }));
     expect(updated).toEqual([]);
-    expect(commentOnPr).toHaveBeenCalledWith('https://github.com/o/r', 8, expect.stringContaining('실제 실행 검증 결과가 아닙니다'), { botId: BOT });
+    expect(commentOnPr).toHaveBeenCalledWith('https://github.com/o/r', 8, expect.stringContaining('This is not the result of actually running the code'), { botId: BOT });
   });
 
   it('reporter 항목·없는 index·이미 확인한 항목은 409, 잘못된 index 는 400', async () => {

@@ -5,10 +5,11 @@
 // 목록으로 바꿨다. v4: 목록을 카드 하나에 담고 행 사이는 헤어라인만 둔다.
 
 import Link from 'next/link';
+import { useFormatter, useTranslations } from 'next-intl';
 import { SectionTitle } from '@/components/layout/SectionTitle';
 import { ChevronRight, CornerDownLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { sourceLabel } from '@/lib/channel/labels';
+import { useChannelLabels } from '@/lib/channel/useChannelLabels';
 
 export interface FeedbackItem {
   id: string;
@@ -27,16 +28,6 @@ interface RecentFeedbackProps {
   limit?: number;
 }
 
-const timeFormatter = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' });
-const dateFormatter = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' });
-
-function formatWhen(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  return sameDay ? timeFormatter.format(d) : dateFormatter.format(d);
-}
 
 /**
  * 채널 칩 — 카카오만 노란 바탕, 나머지는 중립.
@@ -47,6 +38,7 @@ function formatWhen(value: string): string {
  * 라벨 자체는 공용 맵이 정한다 — 입구가 늘 때 고칠 자리를 한 곳으로 모았다.
  */
 export function ChannelChip({ source, className }: { source: string; className?: string }) {
+  const { sourceLabel } = useChannelLabels();
   const isKakao = source === 'kakao';
   return (
     <span
@@ -62,14 +54,23 @@ export function ChannelChip({ source, className }: { source: string; className?:
 }
 
 export function RecentFeedback({ feedbacks, limit = 6 }: RecentFeedbackProps) {
+  const t = useTranslations('dashboard.recent');
+  const format = useFormatter();
+  const formatWhen = (value: string): string => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toDateString() === new Date().toDateString()
+      ? format.dateTime(d, { hour: 'numeric', minute: '2-digit' })
+      : format.dateTime(d, { month: 'long', day: 'numeric' });
+  };
   const shown = feedbacks.slice(0, limit);
 
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <SectionTitle>채널에서 들어온 피드백</SectionTitle>
+        <SectionTitle>{t('title')}</SectionTitle>
         <Link href="/inbox" className="inline-flex items-center gap-0.5 text-sm font-semibold text-brand-strong">
-          대화에서 답장
+          {t('reply')}
           <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>
@@ -77,7 +78,7 @@ export function RecentFeedback({ feedbacks, limit = 6 }: RecentFeedbackProps) {
       {shown.length === 0 ? (
         <div className="card-surface p-5 sm:p-6">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            아직 들어온 피드백이 없습니다. 채널을 연결하면 여기에 쌓입니다.
+            {t('empty')}
           </p>
         </div>
       ) : (
@@ -97,7 +98,7 @@ export function RecentFeedback({ feedbacks, limit = 6 }: RecentFeedbackProps) {
                 </div>
                 <p className="mt-1 text-sm leading-relaxed">{f.content}</p>
                 <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] leading-[1.45] text-faint">
-                  <span>{f.botResponse ? 'AI 답변 보냄' : '답변 대기'}</span>
+                  <span>{f.botResponse ? t('aiSent') : t('aiWait')}</span>
                   {f.pr && (
                     <>
                       <span>·</span>
@@ -111,7 +112,7 @@ export function RecentFeedback({ feedbacks, limit = 6 }: RecentFeedbackProps) {
                       <span>·</span>
                       <span className="inline-flex items-center gap-1 font-semibold text-brand-strong">
                         <CornerDownLeft className="h-3 w-3" aria-hidden />
-                        {f.returnedAt ? '반영 알림 보냄' : '반영 알림 대기'}
+                        {f.returnedAt ? t('notified') : t('notifyWait')}
                       </span>
                     </>
                   )}

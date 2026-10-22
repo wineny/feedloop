@@ -1,0 +1,19 @@
+{
+  "feed": {
+    "prCreated": "PR #{number} created automatically",
+    "autoFixRun": "Auto-fix run",
+    "classified": "Category: {category}",
+    "fixCreated": "Fix PR created",
+    "status": "Status: {status}",
+    "notified": "Notification sent",
+    "notifyPending": "Notification pending"
+  },
+  "replyDelivery": {
+    "kakao": "KakaoTalk doesn't let us message first, so this reply is delivered the next time the person writes.",
+    "mailSent": "Also sent by email to {to}.",
+    "mailSentKakao": "{kakao} The email to {to} was sent now.",
+    "unknown": "Checking whether the email was sent. Automatic resending is on hold to avoid duplicates.",
+    "failedWidgetOk": "Delivered to the widget, but sending the email failed.",
+    "failedKakao": "{kakao} Sending the email failed."
+  }
+}

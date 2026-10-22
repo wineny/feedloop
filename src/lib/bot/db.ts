@@ -3,6 +3,7 @@
 import type { Context } from 'grammy';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { normalizeCategory, normalizeSentiment } from '@/lib/classify/taxonomy';
+import { normalizeRef } from '@/lib/classify/ref';
 
 let _db: ReturnType<typeof getServiceRoleClient> | null = null;
 function db() {
@@ -39,7 +40,7 @@ export async function saveKakaoMessage(
     conversation_id: params.conversationId ?? null,
     source: 'kakao',
     external_user_id: params.userId,
-    author_name: params.userName || '카카오 사용자',
+    author_name: params.userName || null,
     body: params.utterance,
     detected_at: new Date().toISOString(),
   }).select('id').single();
@@ -144,8 +145,8 @@ export function planInsightWrite(p: {
 }): InsightWritePlan {
   if (p.chipOnly) return { action: 'skip' };
 
-  // 16진수라 대소문자는 뜻이 같다(배치 분류의 ref 대조와 같은 규칙).
-  const ref = typeof p.extends === 'string' ? p.extends.trim().toLowerCase() : '';
+  // 배치 분류·Known issues 와 같은 규칙(대소문자 무시, 대괄호·따옴표 벗김).
+  const ref = normalizeRef(p.extends);
   if (!ref) return { action: p.insight ? 'insert' : 'skip' };
 
   const target = p.refMap.get(ref);

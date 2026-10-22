@@ -5,18 +5,18 @@ export const JEV_MODEL = 'jev-latest';
 export const JEV_TIMEOUT_MS = 3_000;
 
 export const CATEGORY_CRITERIA: Record<Category, string> = {
-  bug: '작동해야 할 것이 의도대로 안 되는가?',
-  ux: '작동은 하는데 불편하거나 헷갈리는가?',
-  feature_request: '지금 이 앱에 없는 능력을 원하는가?',
-  cs: '답만 주면 끝나는 질문인가?',
-  praise: '칭찬·감사인가?',
-  other: '위 어디에도 아닌가?',
+  bug: 'Does something that should work not work as intended?',
+  ux: 'Does it work but feel inconvenient or confusing?',
+  feature_request: 'Does the user want a capability this app does not have now?',
+  cs: 'Is it a question that ends once it is answered?',
+  praise: 'Is it praise or thanks?',
+  other: 'None of the above?',
 };
 
 export const SENTIMENT_CRITERIA: Record<Sentiment, string> = {
-  positive: '만족·감사',
-  neutral: '담담한 제보나 질문',
-  negative: '불만·실망·곤란함이 드러남',
+  positive: 'satisfaction, thanks',
+  neutral: 'a calm report or question',
+  negative: 'dissatisfaction, disappointment or difficulty shows',
 };
 
 export function buildJevRequest(text: string) {
@@ -24,9 +24,9 @@ export function buildJevRequest(text: string) {
     model: JEV_MODEL,
     state: text.trim(),
     questions: {
-      category: { type: 'choice', instructions: `${TAXONOMY_BLOCK}\n\n이 유저 메시지의 category 는?`, criteria: CATEGORY_CRITERIA },
-      sentiment: { type: 'choice', instructions: '이 유저 메시지의 sentiment 는?', criteria: SENTIMENT_CRITERIA },
-      follow_up: { type: 'noul', instructions: '사람이 이어받아야 하는가? 답만 주면 끝나는 질문이라도 서비스 지식이 없어 답을 못 줄 내용이면 그렇다.' },
+      category: { type: 'choice', instructions: `${TAXONOMY_BLOCK}\n\nWhat is the category of this user message?`, criteria: CATEGORY_CRITERIA },
+      sentiment: { type: 'choice', instructions: 'What is the sentiment of this user message?', criteria: SENTIMENT_CRITERIA },
+      follow_up: { type: 'noul', instructions: 'Does a person need to take over? Even a question that ends once answered counts when the service knowledge cannot answer it.' },
     },
   };
 }

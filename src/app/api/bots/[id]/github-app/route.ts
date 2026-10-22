@@ -21,6 +21,9 @@ import { installStateSecret, signInstallState } from '@/lib/github/install-state
 import { recheckInstallation } from '@/lib/github/installation-binding';
 // 화면과 함께 보는 모양은 «서버가 아닌» 모듈에 있다 — 클라이언트가 라우트 파일을 import 하지 않게(코드 리뷰 MEDIUM)
 import type { GithubAppState } from '@/lib/github/app-state-types';
+import { apiText } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
+import type { Locale } from '@/i18n/routing';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +64,7 @@ function installationIdOf(row: BotAppRow): number | null {
   return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function present(row: BotAppRow, userId: string): GithubAppState {
+function present(row: BotAppRow, userId: string, locale: Locale): GithubAppState {
   const config = readGithubAppConfig();
   const installationId = installationIdOf(row);
   const lost = Boolean(row.github_installation_lost_at);
@@ -78,7 +81,7 @@ function present(row: BotAppRow, userId: string): GithubAppState {
     connectedBy: row.github_installation_by,
     lostAt: row.github_installation_lost_at,
     lostReason: row.github_installation_lost_reason,
-    lostMessage: lost ? installationLostMessage(row.github_installation_lost_reason) : null,
+    lostMessage: lost ? installationLostMessage(row.github_installation_lost_reason, locale) : null,
     installUrl: config ? githubAppInstallUrl(config.slug, state) : null,
     authorizeUrl: config ? githubAppAuthorizeUrl(config, state) : null,
     manageUrl: installationId ? githubInstallationManageUrl(installationId) : null,
@@ -96,40 +99,40 @@ async function loadBot(id: string): Promise<BotAppRow | null> {
   return error || !data ? null : (data as unknown as BotAppRow);
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const auth = await resolveOwnedBots(id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const bot = await loadBot(id);
-  if (!bot) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
-  return NextResponse.json(present(bot, auth.userId));
+  if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
+  return NextResponse.json(present(bot, auth.userId, localeFromRequest(req)));
 }
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const auth = await resolveOwnedBots(id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (recheckRateExceeded(auth.userId)) {
-    return NextResponse.json({ error: '확인 요청이 너무 잦아요. 잠시 후 다시 시도해 주세요' }, { status: 429 });
+    return NextResponse.json({ error: apiText(req, 'checkTooFrequent') }, { status: 429 });
   }
   const config = readGithubAppConfig();
-  if (!config) return NextResponse.json({ error: 'GitHub 앱이 아직 설정되지 않았어요' }, { status: 503 });
+  if (!config) return NextResponse.json({ error: apiText(req, 'githubAppNotConfigured') }, { status: 503 });
   const bot = await loadBot(id);
-  if (!bot) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+  if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
 
   let outcome: Awaited<ReturnType<typeof recheckInstallation>>;
   try {
     outcome = await recheckInstallation(config, { id: bot.id, repoUrl: bot.github_repo_url, installationId: installationIdOf(bot) });
   } catch (err) {
     console.error('[github-app] recheck failed', { id, message: err instanceof Error ? err.message : String(err) });
-    return NextResponse.json({ error: 'GitHub 에 물어보지 못했어요. 잠시 후 다시 시도해 주세요' }, { status: 502 });
+    return NextResponse.json({ error: apiText(req, 'githubAskFailed') }, { status: 502 });
   }
   const after = await loadBot(id);
-  if (!after) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
-  return NextResponse.json({ ...present(after, auth.userId), recheck: outcome.kind });
+  if (!after) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
+  return NextResponse.json({ ...present(after, auth.userId, localeFromRequest(req)), recheck: outcome.kind });
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const auth = await resolveOwnedBots(id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -145,8 +148,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       github_installation_by: null,
     })
     .eq('id', id);
-  if (error) return NextResponse.json({ error: '연결을 풀지 못했어요' }, { status: 500 });
+  if (error) return NextResponse.json({ error: apiText(req, 'disconnectFailed') }, { status: 500 });
   const bot = await loadBot(id);
-  if (!bot) return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
-  return NextResponse.json(present(bot, auth.userId));
+  if (!bot) return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
+  return NextResponse.json(present(bot, auth.userId, localeFromRequest(req)));
 }

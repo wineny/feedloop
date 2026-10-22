@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BotConfig } from '@/lib/bot/handler';
-import { DEMO_DATA } from '@/lib/demo/mock-data';
+import { getDemoData } from '@/lib/demo/mock-data';
 const state = vi.hoisted(() => ({ llm: vi.fn(), updates: vi.fn(), filters: [] as unknown[][], rows: [] as unknown[], error: null as { message: string } | null }));
 vi.mock('@/lib/bot/handler', () => ({ callLlm: state.llm }));
 vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from: () => {
@@ -39,7 +39,7 @@ describe('group priority', () => {
     expect(rows.sort(compareGroupPriority).map((r) => r.id)).toEqual(['pr', 'open', 'merged-new', 'merged-old', 'merged-low']);
   });
   it('데모 목록도 열린 묶음 다음에 반영된 높은 점수 묶음을 보여준다', () => {
-    const { groups } = DEMO_DATA.dashboard as { groups: { id: string; status: string }[] };
+    const { groups } = getDemoData('en').dashboard as { groups: { id: string; status: string }[] };
     expect(groups.map((g) => g.id)).toEqual(['demo-group-2', 'demo-group-1']);
     expect(groups[1].status).toBe('merged');
   });

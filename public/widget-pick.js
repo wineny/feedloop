@@ -190,6 +190,7 @@
   /**
    * opts.ignore — 위젯 호스트 요소. 그 안(섀도 트리 포함)은 짚을 수 없다.
    * opts.accent — 운영자 강조색(#rrggbb). 없으면 코랄.
+   * opts.locale — 'ko' 면 한국어 배너, 그 밖엔 영어(widget.js 가 고른 언어를 넘긴다).
    */
   window.__feedloopPick = function (opts) {
     if (active) return active;
@@ -208,10 +209,11 @@
     var bar = document.createElement('div');
     bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);pointer-events:auto;display:flex;align-items:center;gap:10px;background:' + INK + ';color:#fff;border-radius:999px;padding:9px 10px 9px 15px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(25,29,27,.25);max-width:calc(100vw - 24px)';
     var msg = document.createElement('span');
-    msg.textContent = '고칠 부분을 눌러 주세요';
+    var ko = opts.locale === 'ko';
+    msg.textContent = ko ? '고칠 부분을 눌러 주세요' : 'Click the part to fix';
     var cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.textContent = '취소';
+    cancel.textContent = ko ? '취소' : 'Cancel';
     cancel.style.cssText = 'border:0;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit';
     bar.appendChild(msg); bar.appendChild(cancel);
     ov.appendChild(box); ov.appendChild(bar);

@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import type { OnboardingStep } from '@/lib/dashboard/onboarding';
 
@@ -14,6 +15,7 @@ interface OnboardingChecklistProps {
 }
 
 export function OnboardingChecklist({ steps }: OnboardingChecklistProps) {
+  const t = useTranslations('dashboard.onboarding');
   const doneCount = steps.filter((step) => step.done).length;
 
   return (
@@ -23,11 +25,11 @@ export function OnboardingChecklist({ steps }: OnboardingChecklistProps) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <h2 id="onboarding-title" className="text-xl font-bold tracking-[-0.02em]">
-              첫 루프까지 4단계
+              {t('title')}
             </h2>
-            <span className="text-[12.5px] leading-[1.45] text-faint tabular-nums">{doneCount}/4 단계</span>
+            <span className="text-[12.5px] leading-[1.45] text-faint tabular-nums">{t('progress', { done: doneCount })}</span>
           </div>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">제보가 한 건이라도 들어오면 이 안내는 사라집니다.</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t('hide')}</p>
         </div>
       </div>
 
@@ -47,14 +49,14 @@ export function OnboardingChecklist({ steps }: OnboardingChecklistProps) {
             </span>
 
             <span className={cn('min-w-0 flex-1 text-sm', step.done ? 'text-muted-foreground' : 'font-medium')}>
-              {step.label}
+              {t(`steps.${step.key}.label`)}
             </span>
 
             {step.done ? (
-              <span className="text-[12.5px] leading-[1.45] text-faint">완료</span>
+              <span className="text-[12.5px] leading-[1.45] text-faint">{t('done')}</span>
             ) : (
               <Link href={step.href} className="text-sm font-semibold text-brand-strong hover:underline">
-                {step.action} →
+                {t(`steps.${step.key}.action`)} →
               </Link>
             )}
           </li>

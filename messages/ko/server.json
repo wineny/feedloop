@@ -1,0 +1,19 @@
+{
+  "feed": {
+    "prCreated": "PR #{number} 자동 생성",
+    "autoFixRun": "자동 수정 실행",
+    "classified": "분류: {category}",
+    "fixCreated": "수정안 생성 완료",
+    "status": "상태: {status}",
+    "notified": "반영 알림 보냄",
+    "notifyPending": "반영 알림 대기"
+  },
+  "replyDelivery": {
+    "kakao": "카카오는 먼저 말을 걸 수 없어, 이 답장은 상대가 다음에 메시지를 보낼 때 전달됩니다.",
+    "mailSent": "이메일({to})로도 보냈어요.",
+    "mailSentKakao": "{kakao} 이메일({to})로는 지금 보냈어요.",
+    "unknown": "이메일 발송 결과를 확인 중입니다. 중복 발송을 막기 위해 자동 재발송은 보류합니다.",
+    "failedWidgetOk": "위젯에는 전달됐지만 이메일 발송은 실패했어요.",
+    "failedKakao": "{kakao} 이메일 발송은 실패했어요."
+  }
+}

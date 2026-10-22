@@ -112,21 +112,21 @@ describe('sendBotMessage', () => {
     expect(await sendBotMessage('bot-1', 'chat-9', 'x')).toEqual({
       ok: false,
       status: 0,
-      message: '전송 시간 초과',
+      message: 'Send timed out',
     });
 
     global.fetch = rejectWith('TypeError') as unknown as typeof fetch;
     expect(await sendBotMessage('bot-1', 'chat-9', 'x')).toEqual({
       ok: false,
       status: 0,
-      message: '전송 실패',
+      message: 'Send failed',
     });
   });
 
   it('자격증명이 없으면 부르지 않는다 — 설정이 덜 된 것을 설정이 덜 됐다고 말한다', async () => {
     botRow = { channel_access_key_encrypted: null, channel_access_secret_encrypted: null };
     const result = await sendBotMessage('bot-1', 'chat-9', 'x');
-    expect(result).toEqual({ ok: false, status: 0, message: '채널 자격증명이 설정되지 않았습니다' });
+    expect(result).toEqual({ ok: false, status: 0, message: 'Channel Talk credentials are not set' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -137,7 +137,7 @@ describe('sendBotMessage', () => {
       channel_bot_name: null,
     };
     const result = await sendBotMessage('bot-1', 'chat-9', 'x');
-    expect(result).toEqual({ ok: false, status: 0, message: '보낼 봇 이름이 설정되지 않았습니다' });
+    expect(result).toEqual({ ok: false, status: 0, message: 'The bot name to send as is not set' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -182,7 +182,7 @@ describe('verifyCredentials', () => {
   it('키가 틀리면 401 을 돌려주고 시크릿을 싣지 않는다', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(401, {}));
     const result = await verifyCredentials(ACCESS_KEY, ACCESS_SECRET);
-    expect(result).toEqual({ ok: false, status: 401, message: '키가 올바르지 않습니다' });
+    expect(result).toEqual({ ok: false, status: 401, message: 'The key is not valid' });
     expect(JSON.stringify(result)).not.toContain(ACCESS_SECRET);
   });
 
@@ -190,7 +190,7 @@ describe('verifyCredentials', () => {
     expect(await verifyCredentials('', ACCESS_SECRET)).toEqual({
       ok: false,
       status: 0,
-      message: '키와 시크릿이 모두 필요합니다',
+      message: 'Both the key and the secret are required',
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

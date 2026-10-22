@@ -4,9 +4,10 @@
 import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
+import { apiText } from '@/lib/http/api-text';
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ groupId: string }> },
 ) {
   const { groupId } = await params;
@@ -18,7 +19,7 @@ export async function POST(
     .eq('id', groupId)
     .maybeSingle();
 
-  if (!group) return NextResponse.json({ error: '묶음을 찾을 수 없습니다' }, { status: 404 });
+  if (!group) return NextResponse.json({ error: apiText(req, 'groupNotFound') }, { status: 404 });
 
   const auth = await resolveOwnedBots(group.bot_id);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });

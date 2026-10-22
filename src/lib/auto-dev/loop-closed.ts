@@ -22,6 +22,8 @@ import { markResponsesDelivered } from '@/lib/bot/conversations';
 import { sendBotMessage } from '@/lib/channel/client';
 import { recordDeliveryFailure, MAX_DELIVERY_ATTEMPTS } from '@/lib/channel/redeliver';
 import { reviewAndPromoteDraft } from '@/lib/auto-dev/draft-promotion';
+import { hasDraftWaitMarker } from '@/lib/auto-dev/draft-markers';
+import { isChipOnlyText } from '@/lib/widget/chips';
 
 /** 호출 1회(크론 또는 버튼) 전체가 채널톡 전송에 쓸 수 있는 총량. run 수와 무관하다. */
 export const CHANNEL_SEND_BUDGET_MS = 30_000;
@@ -68,19 +70,68 @@ export function parseRepo(url: string): { owner: string; repo: string } | null {
   }
 }
 
+/** 따옴표 안에 넣을 한 줄. 줄바꿈·연속 공백을 접고 `max` 자에서 자른다(코드 포인트 기준). */
+function quoteText(raw: string, max = 60): string {
+  const flat = raw.replace(/\s+/g, ' ').replace(/"/g, "'").trim();
+  const chars = Array.from(flat);
+  return chars.length > max ? `${chars.slice(0, max).join('')}…` : flat;
+}
+
 /**
  * 되돌림 본문. PR URL 을 본문 끝에 그대로 싣는다 — 위젯(`widget.js` systemCard)이
  * 본문에서 URL 을 뽑아 「PR 보기 →」 링크로 바꾸고, 카카오는 텍스트 그대로 나간다.
  * 리허설(2026-09-06)에서 "(PR #5)" 텍스트만 있어 카드에 링크가 안 붙는 걸 발견해 추가했다.
+ *
+ * 무엇을 따옴표로 인용하나 — 묶음 제목은 사업자 언어(OWNER_CONTENT_LOCALE = en)로 만들어져 방문자 언어와 다를 수 있다.
+ * 한국어 문장 안에 영어 제목을 인용하면 방문자가 자기가 쓴 적 없는 말을 보게 된다. 그래서:
+ *   · 제목의 언어(한글이 있으면 ko, 아니면 en)가 본문 언어와 같으면 제목을 인용하고,
+ *   · 다르면 `ownMessage`(그 방문자가 처음 남긴 말)를 인용하고, 그것도 없으면 인용 없이 쓴다.
  */
 export function buildLoopClosedBody(
   title: string,
   prNumber: number | null,
   prUrl: string | null = null,
+  /**
+   * 본문 언어. 되돌림은 PR 이 머지될 때 «요청 없이» 만들어지므로 대화에 저장된 언어(conversations.locale)를
+   * 넘긴다. 안 주면(NULL — 옛 행·카카오·채널톡) 제목에 한글이 있을 때만 ko(한국어로 받은 제보의 제목은 한국어), 아니면 en 이다.
+   */
+  locale: 'en' | 'ko' = /[가-힣]/.test(title) ? 'ko' : 'en',
+  /** 그 방문자가 처음 남긴 말. 제목 언어가 본문 언어와 다를 때만 쓴다 */
+  ownMessage?: string | null,
 ): string {
-  const head = `"${title}" 말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요.`;
-  const withNumber = prNumber ? `${head} (수정 #${prNumber})` : head;
+  const titleLocale = /[가-힣]/.test(title) ? 'ko' : 'en';
+  const quoted = titleLocale === locale ? quoteText(title) : ownMessage ? quoteText(ownMessage) : '';
+  const lead = quoted ? `"${quoted}" ` : '';
+  const head =
+    locale === 'ko'
+      ? `${lead}말씀해주신 문제를 고쳤어요. 서비스에 반영되기까지 조금 걸릴 수 있어요.`
+      : `${lead}The problem you reported is fixed. It may take a little while to reach the service.`;
+  const withNumber = prNumber ? `${head} (${locale === 'ko' ? '수정' : 'fix'} #${prNumber})` : head;
   return prUrl ? `${withNumber} ${prUrl}` : withNumber;
+}
+
+/**
+ * 대화마다 방문자가 처음 남긴 말(칩 라벨만 있는 «시작 신호»는 건너뜀). 조회가 실패하면 빈 맵 — 인용 없이 쓰면 되므로
+ * 되돌림을 막지 않는다.
+ */
+async function firstOwnMessages(conversationIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (conversationIds.length === 0) return out;
+  const { data, error } = await db()
+    .from('messages')
+    .select('conversation_id, body, detected_at')
+    .in('conversation_id', conversationIds)
+    .order('detected_at', { ascending: true })
+    .limit(500);
+  if (error) {
+    console.error('[loop-closed] 첫 메시지 조회 실패 — 인용 없이 보낸다:', error.message);
+    return out;
+  }
+  for (const m of (data ?? []) as { conversation_id: string | null; body: string | null }[]) {
+    if (!m.conversation_id || out.has(m.conversation_id) || !m.body?.trim() || isChipOnlyText(m.body)) continue;
+    out.set(m.conversation_id, m.body);
+  }
+  return out;
 }
 
 export interface CloseResult {
@@ -113,7 +164,7 @@ export interface PrState {
  */
 async function getPrState(repoUrl: string, prNumber: number, botId: string): Promise<PrState> {
   const parsed = parseRepo(repoUrl);
-  if (!parsed) throw new Error(`잘못된 GitHub URL: ${repoUrl}`);
+  if (!parsed) throw new Error(`Invalid GitHub URL: ${repoUrl}`);
 
   // 설치 → 봇 토큰 → 공용 (B5 + 안 B). 옛 PR 이 다른 레포에 있으면 설치 계정과 소유자가 달라 토큰 경로로 간다.
   // 타임아웃은 이 호출에만 건다 — 없으면 「20회 ≈ 20초」가 강제되지 않아 GitHub 이 느린 날
@@ -126,7 +177,7 @@ async function getPrState(repoUrl: string, prNumber: number, botId: string): Pro
     await noteGithubError(botId, source, err);
     throw err;
   }
-  if (data.state === 'open' && !data.merged && data.draft && data.body?.includes('## 자동 검사 대기')) {
+  if (data.state === 'open' && !data.merged && data.draft && hasDraftWaitMarker(data.body)) {
     // 크론과 수동 머지 확인 모두 열린 초안을 검사한다. PR URL 은 레포 URL 로 정규화한다.
     try {
       await reviewAndPromoteDraft(`https://github.com/${parsed.owner}/${parsed.repo}`, prNumber, {
@@ -172,6 +223,8 @@ interface ConversationMeta {
   external_user_id: string;
   channel_person_id: string | null;
   last_message_at: string | null;
+  /** 방문자가 위젯에서 쓴 언어(conversations.locale). NULL = 모름(옛 행·카카오·채널톡) */
+  locale?: 'en' | 'ko' | null;
 }
 
 /**
@@ -294,7 +347,7 @@ export async function closeLoopForRun(
   //    조용히 사라지고, 화면에는 「확인 완료」로 뜬다.
   const { data: convRows, error: convMetaError } = await db()
     .from('conversations')
-    .select('id, source, external_user_id, channel_person_id, last_message_at')
+    .select('id, source, external_user_id, channel_person_id, last_message_at, locale')
     .in('id', conversationIds);
   if (convMetaError) throw new Error(convMetaError.message);
 
@@ -326,14 +379,23 @@ export async function closeLoopForRun(
   const skipped = byPerson.size - targets.length;
   if (targets.length === 0) return { ...base, merged: true, skipped };
 
-  const body = buildLoopClosedBody(run.title, run.pr_number, run.pr_url);
+  // 한 묶음의 대화가 여러 언어일 수 있다 — 대화마다 자기 언어로 쓴다. 언어를 모르면(NULL) 카카오·채널톡은 한국어
+  // 서비스라 ko(메일의 visitorMailLocale 과 같은 규칙), 웹은 제목의 한글 여부로 추정한다.
+  // 카카오·채널톡을 제목으로 추정하지 않는 이유: 묶음 제목은 사업자 언어(OWNER_CONTENT_LOCALE = en)로 생성된다.
+  const localeOf = (c: ConversationMeta) => c.locale ?? (c.source !== 'web' ? 'ko' : undefined);
+  // 제목 언어가 그 대화의 언어와 다르면 제목 대신 방문자 자신의 말을 인용한다 — 그런 대화만 첫 메시지를 읽는다
+  const titleLocale = /[가-힣]/.test(run.title) ? 'ko' : 'en';
+  const needsOwn = targets.filter((c) => (localeOf(c) ?? titleLocale) !== titleLocale);
+  const ownById = await firstOwnMessages(needsOwn.map((c) => c.id));
+  const bodyOf = (c: ConversationMeta) =>
+    buildLoopClosedBody(run.title, run.pr_number, run.pr_url, localeOf(c), ownById.get(c.id) ?? null);
   const now = new Date().toISOString();
 
   const rows = targets.map((c) => ({
     bot_id: run.bot_id,
     conversation_id: c.id,
     response_type: 'loop_closed',
-    response_body: body,
+    response_body: bodyOf(c),
     auto_dev_run_id: run.id,
     // 웹은 위젯이 폴링으로 바로 가져간다. 카카오는 대기열에 남겨 다음 발화 때 보낸다.
     // 채널톡은 일단 대기열로 만들고 바로 아래에서 보내 본다 — 보내기 전에 delivered 로
@@ -369,7 +431,7 @@ export async function closeLoopForRun(
   // ⚠️ 메일보다 **먼저** 부른다 — 채널톡 전송은 공유 마감(`deadline`)을 쓰는데 메일을 먼저
   // 돌리면 그 시간이 예산을 갉아먹어, 보낼 수 있었던 건이 deferred 로 밀린다.
   // 방금 만든 행만 보낸다 — 이미 있던 행은 지난 회차가 이미 보내거나 대기열에 넣었다.
-  const deferred = await deliverChannelRows(run.bot_id, created, targets, body, deadline);
+  const deferred = await deliverChannelRows(run.bot_id, created, targets, bodyOf, deadline);
 
   // 이메일을 남긴 방문자에게는 메일로도 알린다. 채널 전달과 별개로 지금 나간다 — 되돌림은
   // 며칠 뒤에 오는 소식이라 방문자가 사이트를 다시 열 이유가 없기 때문이다.
@@ -416,12 +478,12 @@ async function deliverChannelRows(
   botId: string,
   insertedRows: Array<{ id: string; conversation_id: string }>,
   targets: ConversationMeta[],
-  body: string,
+  bodyOf: (c: ConversationMeta) => string,
   deadline: number,
 ): Promise<number> {
-  const chatByConv = new Map(
-    targets.filter((c) => c.source === 'channel').map((c) => [c.id, c.external_user_id]),
-  );
+  const channelTargets = targets.filter((c) => c.source === 'channel');
+  const chatByConv = new Map(channelTargets.map((c) => [c.id, c.external_user_id]));
+  const metaByConv = new Map(channelTargets.map((c) => [c.id, c]));
 
   const channelRows = insertedRows.filter((r) => chatByConv.has(r.conversation_id));
   if (channelRows.length === 0) return 0;
@@ -436,7 +498,7 @@ async function deliverChannelRows(
       continue;
     }
 
-    const result = await sendBotMessage(botId, chatByConv.get(row.conversation_id)!, body, {
+    const result = await sendBotMessage(botId, chatByConv.get(row.conversation_id)!, bodyOf(metaByConv.get(row.conversation_id)!), {
       timeoutMs: CHANNEL_SEND_TIMEOUT_MS,
     });
 
@@ -491,7 +553,7 @@ export async function checkMergedRuns(
 
     const group = one<{ title?: string }>(r.insight_groups);
     const insight = one<{ summary?: string }>(r.insights);
-    const title = group?.title || insight?.summary || '요청하신 내용';
+    const title = group?.title || insight?.summary || 'Requested change';
 
     try {
       results.push(
@@ -526,7 +588,7 @@ export async function checkMergedRuns(
         error: recordError ? `${message}; failure_record_failed: ${recordError.message}` : message,
       });
       // PR 이 지워졌거나 토큰이 막혀도 나머지 run 은 계속 본다.
-      console.error(`[loop-closed] run ${r.id} 확인 실패:`, err instanceof Error ? err.message : err);
+      console.error(`[loop-closed] run ${r.id} check failed:`, err instanceof Error ? err.message : err);
     }
   }
 

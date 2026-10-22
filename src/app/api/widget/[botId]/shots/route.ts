@@ -49,10 +49,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   const { botId } = await params;
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const visitorId = req.nextUrl.searchParams.get('visitorId');
-  if (!isUuid(visitorId)) return widgetError('visitorId 형식이 올바르지 않습니다', 400);
+  if (!isUuid(visitorId)) return widgetError(req, 'invalid_visitor', 400);
 
   // IP 상한(인메모리)만 먼저 — 방문자·봇 상한은 이 표를 세는 전용 계수가 본다.
   // 메시지 계수(checkWriteRate)를 안 쓰는 이유: 그건 messages 행을 센다. 촬영은 발화가 아니다.
@@ -60,22 +60,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   if (ipBlocked) return ipBlocked;
 
   const limit = await checkShotRate(botId, visitorId);
-  if (limit) return widgetError('지금은 화면을 받을 수 없어요. 위치만 함께 보내요', 429);
+  if (limit) return widgetError(req, 'shot_busy', 429);
 
   const bytes = await readBoundedBytes(req);
-  if (bytes === 'too_large') return widgetError('화면 이미지가 너무 큽니다', 413);
-  if (!bytes || bytes.length === 0) return widgetError('이미지가 비어 있습니다', 400);
+  if (bytes === 'too_large') return widgetError(req, 'shot_too_large', 413);
+  if (!bytes || bytes.length === 0) return widgetError(req, 'shot_empty', 400);
 
   const info = detectShotImage(bytes);
-  if (!info) return widgetError('지원하지 않는 이미지 형식입니다', 415);
+  if (!info) return widgetError(req, 'shot_unsupported', 415);
 
   // 상한은 저장소에서 «잠그고 세고 예약»으로 한 번 더 본다 — 위의 계수는 본문을 읽기 전 값싼 조기 거절일 뿐이고,
   // 동시 요청은 그걸 다 같이 통과한다(보안 리뷰 M1)
   const stored = await storeShot({ botId, visitorId, bytes, info });
   if (!stored.ok) {
     return stored.limit
-      ? widgetError('지금은 화면을 받을 수 없어요. 위치만 함께 보내요', 429)
-      : widgetError('화면을 저장하지 못했어요', 500);
+      ? widgetError(req, 'shot_busy', 429)
+      : widgetError(req, 'shot_save_failed', 500);
   }
 
   return widgetJson({ shotId: stored.id }, 201);

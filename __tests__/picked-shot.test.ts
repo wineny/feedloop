@@ -3,7 +3,7 @@ import {
   MIN_MARK_PX,
   PICKED_SHOT_RETENTION_DAYS,
   frameOf,
-  missingShotReason,
+  missingShotKind,
   pagePathLabel,
   pickedFromContext,
   safePageUrl,
@@ -78,6 +78,8 @@ describe('picked-shot — 재료와 폴백 문구', () => {
   it('context 에서 라벨·rect·뷰포트·hadShot 을 뽑는다', () => {
     const d = pickedFromContext(ctx, SHOT, '2026-09-25T00:00:00Z')!;
     expect(d.label).toBe('「오늘의 널널 PICK」 구역 · 1257×320');
+    // 영어 화면은 영어 이름(GitHub PR 본문과 같은 규칙)
+    expect(pickedFromContext(ctx, SHOT, '2026-09-25T00:00:00Z', 'en')!.label).toBe('"오늘의 널널 PICK" section · 1257×320');
     expect(d.viewport).toEqual(VIEW);
     expect(d.hadShot).toBe(true);
     expect(d.shot).toEqual(SHOT);
@@ -86,10 +88,10 @@ describe('picked-shot — 재료와 폴백 문구', () => {
 
   it('이미지가 없을 때 — 원래 없음 / 보존 기간 경과 / 못 불러옴', () => {
     const now = Date.parse('2026-12-31T00:00:00Z');
-    expect(missingShotReason({ shot: SHOT, hadShot: true })).toBeNull();
-    expect(missingShotReason({ shot: null, hadShot: false })).toContain('화면이 없어요');
-    expect(missingShotReason({ shot: null, hadShot: true, at: '2026-09-01T00:00:00Z' }, now)).toContain('보존 기간');
-    expect(missingShotReason({ shot: null, hadShot: true, at: '2026-12-30T00:00:00Z' }, now)).toContain('불러오지 못했어요');
+    expect(missingShotKind({ shot: SHOT, hadShot: true })).toBeNull();
+    expect(missingShotKind({ shot: null, hadShot: false })).toBe('noShot');
+    expect(missingShotKind({ shot: null, hadShot: true, at: '2026-09-01T00:00:00Z' }, now)).toBe('expired');
+    expect(missingShotKind({ shot: null, hadShot: true, at: '2026-12-30T00:00:00Z' }, now)).toBe('failed');
   });
 });
 

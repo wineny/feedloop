@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { runState, RUN_STATE_LABEL } from '@/components/monitor/RunBadge';
+import { runState } from '@/components/monitor/RunBadge';
+import { translator } from './helpers/intl';
 import type { RunItem } from '@/app/api/auto-dev/runs/route';
 vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: vi.fn() }));
@@ -14,7 +15,8 @@ describe('pipeline presentation states', () => {
     expect(runState({ status: 'in_progress', pr: null })).toBe('running');
     expect(runState({ status: 'stopped', pr: null })).toBe('stopped');
     expect(runState({ status: 'unverifiable', pr: null })).toBe('unverifiable');
-    expect(RUN_STATE_LABEL.failed).not.toBe(RUN_STATE_LABEL.stopped);
+    const label = translator('monitor.state');
+    expect(label('failed')).not.toBe(label('stopped'));
   });
   it('retains a published PR after a later persistence failure', () => {
     const pr: NonNullable<RunItem['pr']> = { url: 'https://github.com/test/test/pull/1', number: 1, mergedAt: null, closedAt: null, closeReason: null, closeNote: null };

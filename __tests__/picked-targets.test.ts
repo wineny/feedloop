@@ -50,8 +50,8 @@ describe('extractPickedTargets — PR 본문에서 짚은 요소를 다시 읽�
     v.targetClaims = await confirmTargetClaims(v.targetClaims, { paths: ['app/components/RegionSelector.tsx'], readBlob: async () => 'styles.pill' });
     const got = extractPickedTargets(formatVerifiedForPrBody(v));
     expect(got).toEqual([
-      { label: '「서울 종로」 버튼', status: 'confirmed', files: ['app/components/RegionSelector.tsx'], evidence: "CSS 모듈 클래스 'pill'" },
-      { label: '「다른 것」 버튼', status: 'unverified', files: [] },
+      { label: '"서울 종로" button', status: 'confirmed', files: ['app/components/RegionSelector.tsx'], evidence: "CSS module class 'pill'" },
+      { label: '"다른 것" button', status: 'unverified', files: [] },
     ]);
   });
 });

@@ -6,13 +6,13 @@ import { checkReadRate, checkWriteRate, isUuid, readJsonBody, resolveWidgetBot, 
 export const OPTIONS = widgetOptions;
 
 async function handle(req: NextRequest, botId: string, payload: unknown, write: boolean) {
-  if (!isUuid(botId)) return widgetError('잘못된 봇 주소입니다', 400);
-  if (!payload || typeof payload !== 'object') return widgetError('잘못된 요청입니다', 400);
+  if (!isUuid(botId)) return widgetError(req, 'bad_bot_url', 400);
+  if (!payload || typeof payload !== 'object') return widgetError(req, 'bad_request', 400);
   const { visitorId, responseId, confirmation } = payload as Record<string, unknown>;
   if (!isUuid(visitorId) || !isUuid(responseId) || (write && confirmation !== 'fixed' && confirmation !== 'not_fixed')) {
-    return widgetError('확인 요청 형식이 올바르지 않습니다', 400);
+    return widgetError(req, 'confirm_bad', 400);
   }
-  if (!await resolveWidgetBot(botId)) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!await resolveWidgetBot(botId)) return widgetError(req, 'bot_not_found', 404);
   // GET 도 공짜가 아니다 — 아래 RPC 를 한 번 돌린다. 예전엔 이 검사가 `write` 분기 «안»에만
   // 있어 읽기 경로의 상한이 사실상 0 이었다. 읽기는 저장되는 발화가 없어 방문자·봇 계수가
   // 애초에 안 움직이므로(둘 다 `messages` 행을 센다) IP 상한만 건다.
@@ -22,8 +22,8 @@ async function handle(req: NextRequest, botId: string, payload: unknown, write: 
     p_bot_id: botId, p_visitor_id: visitorId, p_response_id: responseId,
     p_confirmation: write ? confirmation : null,
   });
-  if (error) return widgetError('확인 내용을 저장하거나 불러오지 못했습니다. 다시 시도해 주세요.', 503);
-  if (!data) return widgetError('확인할 응답을 찾을 수 없습니다', 404);
+  if (error) return widgetError(req, 'confirm_failed', 503);
+  if (!data) return widgetError(req, 'confirm_not_found', 404);
 
   // 「아직 그대로예요」는 **고쳤다고 보낸 것이 안 고쳐졌다**는 신호다. RPC 가 대화 escalated_at 과
   // 묶음 follow_up_pending 을 이미 찍지만, 그것만으로는 운영자가 화면을 열어야 안다.

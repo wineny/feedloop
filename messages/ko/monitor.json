@@ -1,0 +1,365 @@
+{
+  "title": "수정안",
+  "subtitleOpen": "검토를 기다리는 수정안 <strong>{count}개</strong>",
+  "subtitleNone": "검토를 기다리는 수정안이 없어요",
+  "checkMerged": "반영됐는지 확인",
+  "checking": "확인 중… {seconds}초",
+  "bridge": "AI 가 만든 코드 수정안입니다 · GitHub 에서는 Pull request(PR) 로 열려요",
+  "empty": "아직 실행 기록이 없습니다. 대시보드의 피드백 묶음에서 「수정안 만들기」를 누르면 여기에 쌓입니다.",
+  "noRunsInState": "이 상태의 실행이 없어요.",
+  "moreFilters": "더보기 {count}",
+  "lessFilters": "접기",
+  "justMade": "방금 만든 PR",
+  "filterAll": "전체",
+  "state": {
+    "running": "진행 중",
+    "open": "검토 대기",
+    "merged": "반영됨",
+    "closed": "닫힘",
+    "failed": "실패",
+    "stopped": "중단",
+    "unverifiable": "검증 불가"
+  },
+  "subline": {
+    "running": "수정안을 만들고 있어요…",
+    "runFailed": "실행 실패",
+    "onHold": "수정 보류",
+    "noReason": "사유 미분류",
+    "closed": "PR #{number} · 반영 안 함 · {reason}",
+    "pr": "PR #{number}",
+    "filesUnknown": "파일 수 미확인",
+    "files": "파일 {count}개"
+  },
+  "duration": {
+    "seconds": "{seconds}초",
+    "minutesSeconds": "{minutes}분 {seconds}초"
+  },
+  "merge": {
+    "demo": "반영됐는지 확인했어요. 새로 반영된 건 없어요 (연습용 화면이라 예시는 그대로예요).",
+    "slow": "PR 을 하나씩 GitHub 에 확인하고 있어요. 최대 2분 걸릴 수 있습니다.",
+    "failed": "{count}건 확인 실패 · 실행 상세에서 원인을 확인하고 재시도하세요",
+    "delivered": "{count}건을 유저에게 되돌렸습니다",
+    "already": "이미 반영한 수정에는 알림이 나갔습니다 · 배포·해결 여부는 상세에서 확인하세요",
+    "none": "아직 반영한 수정이 없습니다",
+    "deferred": "{count}건은 다음에 보냅니다",
+    "skipped": "{count}개 실행은 다음 확인에서 봅니다"
+  },
+  "errors": {
+    "api": "API 오류: {status}",
+    "load": "실행 기록을 불러오지 못했습니다",
+    "check": "확인에 실패했습니다",
+    "save": "저장하지 못했습니다",
+    "redeliver": "재전송하지 못했습니다",
+    "shape": "응답 형태가 예상과 달라요",
+    "prInfo": "PR 정보를 읽지 못했어요"
+  },
+  "detail": {
+    "viewOnGithub": "GitHub 에서 PR #{number} 보기",
+    "dt": {
+      "validation": "실행 검증",
+      "prCreated": "PR 생성",
+      "deployment": "배포 확인",
+      "userConfirm": "사용자 확인",
+      "stopReason": "중단 이유",
+      "followUpError": "후속 확인 오류",
+      "evidence": "근거 피드백",
+      "repo": "저장소",
+      "stopDetail": "중단 사유",
+      "elapsed": "소요",
+      "closedNotShipped": "반영 안 하고 닫음",
+      "reason": "이유",
+      "shipped": "반영"
+    },
+    "validation": {
+      "passed": "실행 검증 통과",
+      "failed": "검증 실패",
+      "stopped": "검증 중단",
+      "unverifiable": "격리 검증 안 됨",
+      "unknown": "실행 검증 미확인"
+    },
+    "pr": {
+      "created": "생성됨",
+      "publishing": "생성 결과 확인 중 · 중복 생성 보류",
+      "notYet": "생성 전"
+    },
+    "deploy": {
+      "success": "배포 성공 보고됨",
+      "failed": "배포 실패",
+      "pending": "배포 진행 중",
+      "unknown": "배포 미확인"
+    },
+    "deployReason": {
+      "environment_not_configured": "배포 환경이 연결돼 있지 않아요",
+      "merge_sha_unknown": "반영 기록을 찾지 못했어요"
+    },
+    "userConfirm": {
+      "unresolved": "미해결 응답 있음",
+      "allFixed": "제보자 모두 해결 확인",
+      "waiting": "해결 확인 대기"
+    },
+    "followUpHint": "{error} · 「반영됐는지 확인」으로 다시 확인할 수 있습니다",
+    "evidenceSummary": "실행한 검사와 결과 · 시도 {attempt}",
+    "evidenceCommit": "기준 커밋 {base} · 패치 {patch}",
+    "checkLine": "{stage} · {id} · 종료 코드 {exitCode} · {durationMs}ms",
+    "checkBefore": "수정 전",
+    "checkAfter": "수정 후",
+    "exitNone": "없음",
+    "timedOut": " · 시간 초과",
+    "noChecks": "실행된 검사 기록이 없습니다.",
+    "evidenceItems": "<b>{count}</b>건",
+    "evidencePeople": "<b>{count}</b>명",
+    "noRepo": "저장소 없음",
+    "running": "진행 중",
+    "startedAt": "{when} 시작",
+    "closedLine": "{when} · 반영하지 않고 닫았어요. 반영 알림은 나가지 않습니다",
+    "shippedLine": "{when}",
+    "shippedNotified": " · 반영 알림 {count}건이 {time} 에 나갔어요",
+    "notify": {
+      "title": "반영 알림",
+      "sub": "반영됐다고 알립니다. 배포와 문제 해결은 따로 확인합니다",
+      "empty": "아직 나간 반영 알림이 없어요. 「반영됐는지 확인」을 누르면 반영을 감지해 보냅니다.",
+      "delivered": "전달됨",
+      "waiting": "대기 · 다음에 말을 걸 때 전달",
+      "beforeDelivery": "전달 전",
+      "emailUnknown": " · 메일 전달 확인 필요 · 제공업체 확인 전 재발송 보류",
+      "emailFailed": " · 메일 전송 실패 · 재시도 가능",
+      "emailSkipped": " · 메일 안 보냄 · 재제보 합류",
+      "emailSent": " · 메일 발송",
+      "channelFailed": "채널톡 {count}건 못 보냄",
+      "resend": "반영 알림 다시 보내기",
+      "kakaoPending": "카카오톡 {count}건은 그 사람이 다음에 말을 걸 때 전달됩니다. 여기서 밀 수 있는 것이 아니에요.",
+      "kakaoNote": "카카오톡 대화는 상대가 다음에 말을 걸 때 답변 앞에 붙어 갑니다. 「아직 그대로예요」는 대화 탭에서 이어서 봅니다."
+    },
+    "confirm": {
+      "fixed": "네, 잘 돼요",
+      "notFixed": "아직 그대로예요",
+      "noReply": "응답 없음"
+    },
+    "closeReason": {
+      "aria": "반영하지 않은 이유",
+      "hintEmpty": "이유를 골라두면 어떤 실수가 반복되는지 보입니다",
+      "unset": "사유 미분류",
+      "notePlaceholder": "메모 (선택) — 무엇이 틀렸는지 한 줄",
+      "noteAria": "반영하지 않은 이유 메모"
+    },
+    "log": {
+      "title": "실행 로그",
+      "note": "실제 실행 결과는 위 검사 기록에서 확인하세요. 기록이 없으면 검증 미확인입니다. 반영, 배포, 사용자 해결 확인은 각각 다른 단계입니다.",
+      "idle": "실행을 선택하면 로그가 여기 흐릅니다",
+      "prDone": "PR #{number} 생성 완료!",
+      "disconnected": "실시간 연결이 끊어졌어요. 저장된 실행 상태를 다시 확인합니다."
+    }
+  },
+  "retry": {
+    "nothing": "보낼 반영 알림이 없어요",
+    "sent": "{count}건 보냈어요",
+    "refused": "{count}건은 채널톡이 거부했어요",
+    "remaining": "{count}건 남았어요. 다시 누르거나 고객이 말을 걸면 나갑니다",
+    "cantNow": "지금 보낼 수 있는 반영 알림이 없어요",
+    "exhausted": "{count}건은 여러 번 실패해 더 보내지 않아요. 채널톡 연결과 그 대화가 아직 열려 있는지 확인해 주세요",
+    "skippedNonChannel": "{count}건은 다른 채널이라 고객이 말 걸 때 나갑니다"
+  },
+  "diff": {
+    "none": "바뀐 파일이 없어요.",
+    "status": {
+      "added": "새 파일",
+      "removed": "삭제",
+      "renamed": "이름 변경",
+      "modified": "수정"
+    },
+    "patchTruncated": "변경이 길어 앞부분만 보여요. 전체는 GitHub 에서 볼 수 있어요.",
+    "noPreview": "이 파일은 미리 볼 수 없어요 (바이너리이거나 너무 커요).",
+    "filesTruncated": "파일이 100개를 넘어 일부만 보여요. 전체는 GitHub 에서 볼 수 있어요."
+  },
+  "review": {
+    "facts": {
+      "evidence": "근거 피드백",
+      "items": "{count}<small>건</small>",
+      "people": "{count}<small>명</small>",
+      "noRepo": "저장소 없음",
+      "sep": "·",
+      "picked": "<m>짚은 요소 </m><l>{label}</l><a> → </a><f>{files}</f><m> 이(가) 그려요</m>",
+      "pickedUnconfirmed": "<m>짚은 요소 </m><l>{label}</l><m> · 저장소 원본에서 확인 못 함</m>",
+      "pickedEvidence": "원본에서 확인: {evidence}",
+      "preview": "프리뷰",
+      "previewShipped": "반영됨 · 배포는 따로 확인",
+      "previewOpen": "프리뷰 열기",
+      "reading": "읽는 중…",
+      "previewBuilding": "만들고 있어요",
+      "previewNone": "프리뷰 없음",
+      "previewAfterShip": "반영 뒤 프리뷰가 제공되는지는 배포 서비스에 따라 달라요",
+      "previewLogin": "Vercel 에 로그인돼 있어야 열려요",
+      "previewSoon": "배포가 끝나면 링크가 생겨요",
+      "previewNoRepo": "이 저장소엔 프리뷰 배포가 없어요",
+      "build": "빌드",
+      "buildReadFailed": "못 읽었어요",
+      "buildPassed": "통과",
+      "buildFailed": "실패",
+      "buildPending": "진행 중",
+      "buildUnknown": "알 수 없음",
+      "buildUnavailable": "빌드 상태를 물어볼 수 없었어요 — 토큰에 Checks·Commit statuses 권한이 없거나 GitHub 이 거절했어요. 확인 없이 반영하게 돼요",
+      "noVercelWaiting": "Vercel 이 연결되지 않은 저장소예요",
+      "noVercel": "Vercel 이 연결되지 않은 저장소예요. 반영은 막지 않아요",
+      "buildLog": "빌드 로그"
+    },
+    "gate": {
+      "waiting": {
+        "title": "자동 검사를 기다리는 중이에요",
+        "tail": "통과하면 검토 요청으로 바뀌어요",
+        "tailNoChecks": "확인할 검사가 없으면 PR 을 연 지 10분 뒤 검토 요청으로 바뀌어요"
+      },
+      "failed": {
+        "title": "자동 검사에 실패해 초안으로 두었어요",
+        "checks": "실패한 검사: "
+      },
+      "promoted": {
+        "title": "자동 검사를 통과해 검토 요청으로 바뀌었어요",
+        "titleNoChecks": "확인할 자동 검사가 없어 PR 을 연 지 10분 뒤 검토 요청으로 바꿨어요"
+      },
+      "unsupported": {
+        "title": "이 레포는 초안 PR 을 지원하지 않아 바로 열었어요"
+      },
+      "human": {
+        "title": "검사 결과를 읽을 권한이 없어 자동으로 바꾸지 않았어요",
+        "tail": "직접 확인하고 반영하세요"
+      },
+      "manual": {
+        "title": "담당자가 다시 초안으로 돌려 둔 PR 이에요",
+        "tail": "자동으로 바꾸지 않아요"
+      },
+      "transient": {
+        "title": "잠시 문제가 있어 자동으로 바꾸지 못했어요",
+        "tail": "잠시 후 다시 확인해요"
+      }
+    },
+    "unverified": {
+      "title": "확인하지 못한 것",
+      "wrongCause": "「인과가 틀린 수정」으로 반영하지 않기",
+      "filesRead": "읽은 파일:",
+      "verifying": "확인하는 중…",
+      "verify": "AI 에게 확인시키기",
+      "askReporter": "제보자에게 물어보기",
+      "how": {
+        "code": "코드로 확인할 수 있어요",
+        "reporter": "코드로는 확인할 수 없어요 · 제보자만 알아요",
+        "human": "사람이 프리뷰에서 직접 봐야 해요"
+      },
+      "reads": "<f>files</f>를 읽고 다시 판단 · 약 40초",
+      "inboxQuestion": "대화 탭에서 「{question}」",
+      "footer": "반영 전에 프리뷰에서 직접 확인해 보세요."
+    },
+    "explanation": {
+      "title": "이 수정이 하는 일",
+      "sourcePrBody": "저장된 설명이 없어 PR 본문에서 추출했습니다",
+      "sourceAi": "AI 가 코드를 고치면서 쓴 설명이에요",
+      "none": "이 수정안에는 설명이 없어요. 아래 「바뀐 코드」와 GitHub 의 PR 본문을 봐 주세요.",
+      "problem": "무엇이 문제였나",
+      "change": "무엇을 바꿨나",
+      "effect": "반영되면",
+      "noEffect": "설명에 없어요"
+    },
+    "changedCode": "바뀐 코드",
+    "fileStats": "{count}개 파일 · ",
+    "devNote": "개발자용 · 파일을 눌러 펼치기",
+    "noFileInfo": "바뀐 파일 정보가 없어요",
+    "githubReadFailed": "GitHub 에서 읽지 못했어요 — {error}",
+    "aiNote": "AI 코드 판단은 참고 의견입니다. 실제 실행 검증 결과는 위 검사 기록에서 확인하세요.",
+    "ship": "서비스에 반영하기",
+    "shipNoBuild": "빌드 확인 없이 반영하기",
+    "shipping": "반영하는 중…",
+    "dontShip": "반영하지 않기",
+    "buildFailedHelp": "<log>빌드 로그</log>를 확인하고, 고칠 수 없으면 「{action}」에서 「{reason}」을 골라 주세요. 빌드가 다시 통과하면 버튼이 열려요.",
+    "pollStopped": "30분 넘게 끝나지 않아 자동 확인을 멈췄어요. <retry>다시 확인</retry>",
+    "polling": "1분마다 다시 확인해요.",
+    "shipSummary": "PR #{number}을 서비스에 반영하고, 제보자 {people}명에게 반영 알림을 보냅니다. 배포 성공과 문제 해결은 따로 확인합니다. 이메일 전달 결과는 후속 확인 기록에서 확인하세요. GitHub 반영 기록은 연결된 계정으로 남습니다.",
+    "close": {
+      "title": "반영하지 않기",
+      "desc": "이유를 하나 골라 두면 AI 가 어떤 실수를 반복하는지 보여요. 피드백을 남긴 분들에게는 아무것도 가지 않고, GitHub 의 PR #{number} 은 닫혀요.",
+      "groupAria": "반영하지 않는 이유",
+      "noteAria": "반영하지 않는 이유 메모",
+      "back": "돌아가기",
+      "groupNote": "이 피드백 묶음은 다시 「열림」으로 돌아가요. 나중에 다시 수정을 시킬 수 있어요"
+    },
+    "notice": {
+      "shipped": "서비스에 반영했어요 · 반영 알림 {count}건 준비",
+      "emailed": "메일 {count}통",
+      "mergeMethod": "저장소 설정 때문에 기본 방식으로 반영했어요",
+      "loopError": "반영 알림 일부 실패: {error}"
+    },
+    "errors": {
+      "ship": "반영하지 못했어요",
+      "close": "닫지 못했어요",
+      "verify": "확인하지 못했어요"
+    },
+    "mergeReason": {
+      "transient": "잠시 문제가 있어 반영을 멈췄어요. 잠시 후 다시 눌러 주세요",
+      "checks_unavailable": "검사 결과를 읽을 권한이 없어 반영을 멈췄어요. GitHub 에서 검사 조회 권한을 확인한 뒤 다시 눌러 주세요"
+    }
+  },
+  "mergeBlock": {
+    "merged": "이미 반영된 수정안이에요",
+    "closed": "GitHub 에서 이미 닫힌 수정안이에요",
+    "build_failed": "빌드가 실패해 반영을 막아뒀어요. 이 상태로 반영하면 서비스가 열리지 않을 수 있어요",
+    "build_pending": "빌드가 아직 진행 중이에요. 끝나면 반영할 수 있어요",
+    "conflict": "원본 코드가 그사이 바뀌어 이 수정안과 충돌해요. GitHub 에서 충돌을 풀어야 반영할 수 있어요",
+    "draft_waiting": "자동 검사를 기다리는 초안이에요. 검토 요청으로 바뀌면 반영할 수 있어요",
+    "manual_draft": "담당자가 다시 초안으로 돌려 둔 PR 이에요. GitHub 에서 검토 요청으로 바꾸면 반영할 수 있어요"
+  },
+  "verdict": {
+    "fix_holds": "AI 의견 · 수정 근거가 타당해 보여요",
+    "fix_does_not_hold": "AI 의견 · 수정 근거에 문제가 있어요",
+    "inconclusive": "AI 의견 · 판단할 수 없어요"
+  },
+  "closeReason": {
+    "hallucinated_path": {
+      "label": "없는 경로·심볼을 지어냄",
+      "hint": "존재하지 않는 파일·함수·번역 키를 참조해 빌드가 깨지거나 쓸모없는 파일이 생김 (PR #1·#5 형)"
+    },
+    "wrong_causality": {
+      "label": "인과가 틀린 수정",
+      "hint": "실재 파일을 고쳤지만 증상과 무관하거나 도달 불가능한 코드 (PR #6 형)"
+    },
+    "duplicate": {
+      "label": "중복 PR",
+      "hint": "같은 문제로 이미 PR 이 있었음 (PR #4 형)"
+    },
+    "superseded": {
+      "label": "다른 PR 로 대체됨",
+      "hint": "사람이 직접 고쳤거나 다른 PR 이 같은 문제를 해결함"
+    },
+    "other": {
+      "label": "기타",
+      "hint": "위에 없는 이유 — 메모에 적어두세요"
+    }
+  },
+  "stopReason": {
+    "root_cause_unknown": "AI 가 원인 파일을 찾지 못함 — 지목한 파일을 한 번 더 열어 봤지만 고칠 지점을 못 정했어요",
+    "insufficient_evidence": "근거 부족 — 제보와 맞는 코드를 저장소에서 찾지 못했어요",
+    "no_change": "AI 가 고칠 것이 없다고 판단",
+    "reproduction_already_passes": "수정 전에도 재현 검사가 통과해 고칠 것이 없어요",
+    "budget_exhausted": "시간·비용 예산 소진 — 재시도하면 다른 후보를 고를 수 있어요",
+    "deadline_exceeded": "제한 시간 초과",
+    "budget_unverifiable": "비용을 계산할 수 없는 모델 설정 — 관리자 확인 필요",
+    "group_follow_up_hold": "같은 묶음의 이전 PR 후속 확인이 끝날 때까지 보류",
+    "target_group_changed": "대상 묶음이 실행 중에 바뀜",
+    "execution_lease_lost": "다른 실행이 같은 작업을 이어받아 이쪽은 멈춤",
+    "publication_race_retry_required": "PR 발행이 겹쳐 재시도 필요",
+    "validated_evidence_present": "검증 통과 기록이 있는 실행을 검증 없이 재개하지 않음",
+    "publication_reconciliation_binding_mismatch": "발행 기록과 수정안이 맞지 않아 중단",
+    "validation_binding_mismatch": "검증 기록과 수정안이 맞지 않아 중단",
+    "validation_profile_digest_mismatch": "검증 설정이 실행 중에 바뀜",
+    "invalid_validation_profiles": "검증 설정 형식 오류",
+    "validation_profiles_absolute_path_required": "검증 설정 경로는 절대 경로여야 함",
+    "repository_mismatch": "저장소가 실행 중에 바뀜",
+    "foreign_publication_branch": "같은 이름의 브랜치가 이미 있어 덮어쓰지 않음",
+    "foreign_publication_pr": "같은 브랜치의 PR 이 이미 있어 새로 열지 않음",
+    "snapshot_too_large": "저장소가 커서 격리 검증을 못 함",
+    "snapshot_file_too_large": "1MB 넘는 파일이 있어 격리 검증을 못 함",
+    "snapshot_tree_truncated": "저장소 트리가 잘려 격리 검증을 못 함",
+    "snapshot_unsupported": "격리 검증이 지원하지 않는 파일 형식",
+    "unsafe_snapshot_path": "안전하지 않은 경로가 있어 격리 검증을 못 함",
+    "unsafe_snapshot_symlink_or_submodule": "심볼릭 링크·서브모듈이 있어 격리 검증을 못 함",
+    "durable_publication_callbacks_required": "내부 오류 — 발행 기록 콜백 없음",
+    "durable_attempt_callbacks_required": "내부 오류 — 시도 기록 콜백 없음"
+  }
+}

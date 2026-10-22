@@ -180,7 +180,7 @@ describe('POST /api/auto-dev — 인사이트 단건 PR 은 더 이상 없다', 
     h.insightRow = { id: INSIGHT_ID, bot_id: BOT_ID, category: 'bug', group_id: null };
     const res = await post({ insightId: INSIGHT_ID });
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toContain('묶');
+    expect((await res.json()).error).toContain('not grouped yet');
   });
 
   it('남의 봇 인사이트는 상태(묶였는지)를 말하지 않고 403 — 소유권이 409 보다 앞이다', async () => {

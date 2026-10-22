@@ -55,9 +55,10 @@ export const FLUENT_3D = {
  *      · `width:100%`     — 화면이 좁으면 따라 줄어든다
  *      · `max-width:600px` — 화면이 넓어도 600 을 안 넘는다
  */
-export function emailShell(opts: { title: string; children: string }): string {
+/** `lang` 은 메일 언어(en|ko). 읽기 도구·글꼴 선택이 이걸 본다. */
+export function emailShell(opts: { title: string; children: string; lang?: string }): string {
   return `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<html lang="${htmlEscape(opts.lang ?? 'en')}"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>${htmlEscape(opts.title)}</title></head>
 <body style="margin:0;padding:0;background:${EMAIL_COLORS.pageBg};font-family:${FONT_STACK};-webkit-text-size-adjust:100%;word-break:keep-all;color:${EMAIL_COLORS.ink}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${EMAIL_COLORS.pageBg};padding:36px 16px"><tr><td align="center">

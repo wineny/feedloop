@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { readBoundedJson } from '@/lib/http/body';
+import { localeFromRequest } from '@/i18n/server-locale';
+import { serverT } from '@/i18n/server-messages';
 
 export const MAX_BODY_CHARS = 2000;
 
@@ -31,9 +33,8 @@ export async function readJsonBody<T>(
   const result = await readBoundedJson<T>(req, MAX_PAYLOAD_BYTES);
   if (result.ok) return { ok: true, value: result.value };
 
-  const message =
-    result.reason === 'too_large' ? '요청 본문이 너무 큽니다' : '잘못된 요청 형식입니다';
-  return { ok: false, response: widgetError(message, result.status) };
+  const code = result.reason === 'too_large' ? 'body_too_large' : 'bad_format';
+  return { ok: false, response: widgetError(req, code, result.status) };
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,8 +55,15 @@ export function widgetJson(body: unknown, status = 200, extraHeaders?: Record<st
   return NextResponse.json(body, { status, headers: { ...CORS_HEADERS, ...extraHeaders } });
 }
 
-export function widgetError(message: string, status: number) {
-  return widgetJson({ error: message }, status);
+/**
+ * 위젯 오류 응답: `{ error: <코드>, message: <방문자 언어 문구> }`.
+ * 위젯(public/widget.js)은 코드가 자기 표에 있으면 그 문구를, 없으면 `message` 를 보여 준다.
+ * 언어는 `?locale=` → Accept-Language → en (옛 widget.js 가 캐시에 남아 `?locale` 이 없을 때도 맞게).
+ * 코드는 `messages/<locale>/errors.json` 의 `widget.<code>`.
+ */
+export function widgetError(req: Request, code: string, status: number, values?: Record<string, string | number>) {
+  const message = serverT(localeFromRequest(req, 'widget'), 'errors.widget')(code, values);
+  return widgetJson({ error: code, message }, status);
 }
 
 /** 프리플라이트. 모든 위젯 라우트가 이걸 export 한다. */
@@ -277,7 +285,7 @@ export async function checkWidgetWriteRate(
     return {
       ok: false,
       limit: 'ip',
-      response: widgetError('요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.', 429),
+      response: widgetError(req, 'rate_limited', 429),
     };
   }
   // 두 계수는 서로 모르는 값이라 나란히 던진다 — 위젯 예산이 10초라 왕복을 겹쳐 아낀다.
@@ -289,14 +297,14 @@ export async function checkWidgetWriteRate(
     return {
       ok: false,
       limit: 'visitor',
-      response: widgetError('메시지를 너무 빨리 보내고 있어요. 잠시 후 다시 시도해주세요.', 429),
+      response: widgetError(req, 'too_fast', 429),
     };
   }
   if (botExceeded) {
     return {
       ok: false,
       limit: 'bot',
-      response: widgetError('지금 문의가 몰려 잠시 쉬고 있어요. 잠시 후 다시 시도해주세요.', 429),
+      response: widgetError(req, 'bot_busy', 429),
     };
   }
   return { ok: true };
@@ -321,7 +329,7 @@ export async function checkWriteRate(
  */
 export function checkReadRate(req: NextRequest): NextResponse | null {
   if (ipRateExceeded(req)) {
-    return widgetError('요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.', 429);
+    return widgetError(req, 'rate_limited', 429);
   }
   return null;
 }

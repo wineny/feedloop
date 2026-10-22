@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Scene } from './script';
 
 /**
@@ -48,6 +49,7 @@ function Bubble({
   /** 카드를 짚는 단계라면 누를 수 있게 넘어온다 */
   onCard?: () => void;
 }) {
+  const t = useTranslations('demo');
   if (who === 'me') {
     return (
       <div className="flex justify-end">
@@ -61,7 +63,7 @@ function Bubble({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
         <Image src={AVATAR} alt="" width={22} height={22} unoptimized className="h-[22px] w-[22px] flex-none rounded-full object-cover" />
-        <span className="text-[11px] font-bold text-[#6e6968]">널널투어</span>
+        <span className="text-[11px] font-bold text-[#6e6968]">{t('widget.siteName')}</span>
         <span className="rounded-full bg-[#EAF3EE] px-1.5 py-[1px] text-[9.5px] font-bold text-[#2f6b4c]">AI</span>
       </div>
       <div className="ml-[28px] flex flex-col gap-1.5">
@@ -81,7 +83,7 @@ function Bubble({
                   <path d="M4 12l6 6L20 6" />
                 </svg>
               </span>
-              <span className="text-[12px] font-bold text-[#2f6b4c]">반영됐어요</span>
+              <span className="text-[12px] font-bold text-[#2f6b4c]">{t('widget.fixed')}</span>
             </div>
             {/* ny 문장(2026-09-18 5차). 「내가 남긴 말 때문에 고쳐졌어요」는 원인을 내 탓처럼 읽히게 했다 —
                 이 카드가 말해야 하는 것은 **내 피드백이 제품을 움직였다**는 쪽이다.
@@ -90,7 +92,7 @@ function Bubble({
                    설명이라 여기서 바꿔도 제품과 갈라지지 않는다.
                    머리글 「반영됐어요」는 실물과 «같다» — 실물도 2026-09-18 에 「수정 PR이 머지됐어요」
                    에서 이 말로 바뀌었다(main `7330ccd`). 한쪽만 고치면 그때부터 갈라진다. */}
-            <span className="text-[11.5px] leading-[1.5] text-[#6e6968]">나의 피드백 덕분에 서비스가 개선되었어요</span>
+            <span className="text-[11.5px] leading-[1.5] text-[#6e6968]">{t('widget.fixedNote')}</span>
           </div>
         )}
       </div>
@@ -110,6 +112,7 @@ function Dots() {
 }
 
 export function Widget({ scene, want, onHit }: Props) {
+  const t = useTranslations('demo');
   const { widgetOpen, draft, msgs, thinking, picking, attached, picked } = scene;
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -143,8 +146,8 @@ export function Widget({ scene, want, onHit }: Props) {
           <div className="flex flex-none items-center gap-2.5 border-b border-[#eeeae9] px-3.5 py-3">
             <Image src={AVATAR} alt="" width={30} height={30} unoptimized className="h-[30px] w-[30px] flex-none rounded-full object-cover" />
             <div className="min-w-0">
-              <div className="text-[13.5px] font-bold leading-tight text-[#191d1b]">널널투어</div>
-              <div className="text-[11px] leading-tight text-[#6e6968]">보통 몇 분 안에 답해요</div>
+              <div className="text-[13.5px] font-bold leading-tight text-[#191d1b]">{t('widget.siteName')}</div>
+              <div className="text-[11px] leading-tight text-[#6e6968]">{t('widget.replyTime')}</div>
             </div>
           </div>
 
@@ -164,7 +167,7 @@ export function Widget({ scene, want, onHit }: Props) {
                 <path d="M3 15l5-4 4 3 3-2 6 5" />
               </svg>
               <span className="truncate text-[11.5px] font-semibold text-[#2f6b4c]">
-                화면 조각 1장이 붙었어요{picked?.label ? ` · ${picked.label}` : ''}
+                {t('widget.attached')}{picked?.label ? ` · ${picked.label}` : ''}
               </span>
             </div>
           )}
@@ -185,14 +188,14 @@ export function Widget({ scene, want, onHit }: Props) {
                 <circle cx="12" cy="12" r="4" />
                 <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
               </svg>
-              {picking ? '선택하는 중…' : '화면에서 선택하기'}
+              {picking ? t('widget.picking') : t('widget.pick')}
             </button>
             <span className="inline-flex items-center gap-1 rounded-full border border-[#eeeae9] bg-white px-2.5 py-[5px] text-[11.5px] font-semibold text-[#3f4a44]">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="8" r="3.4" />
                 <path d="M5 20c0-3.6 3.1-5.6 7-5.6s7 2 7 5.6" />
               </svg>
-              상담원 연결
+              {t('widget.human')}
             </span>
           </div>
 
@@ -210,10 +213,10 @@ export function Widget({ scene, want, onHit }: Props) {
                   <span className="ml-[1px] inline-block h-[14px] w-[1.5px] translate-y-[2px] bg-[#191d1b]" style={{ animation: 'gdCaret 1s steps(1) infinite' }} />
                 </>
               ) : (
-                <span className="text-[#a39d9b]">무엇이든 편하게 남겨주세요</span>
+                <span className="text-[#a39d9b]">{t('widget.placeholder')}</span>
               )}
             </button>
-            <span className="flex-none rounded-[12px] bg-[#408D66] px-3.5 py-2 text-[12.5px] font-bold text-white">보내기</span>
+            <span className="flex-none rounded-[12px] bg-[#408D66] px-3.5 py-2 text-[12.5px] font-bold text-white">{t('widget.send')}</span>
           </div>
 
           {/* 실물 위젯에 있는 줄 — 남의 사이트에 붙은 우리 물건이라는 표시 */}
@@ -228,7 +231,7 @@ export function Widget({ scene, want, onHit }: Props) {
           type="button"
           data-part="fab"
           onClick={hit('fab')}
-          aria-label="Feedloop 열기"
+          aria-label={t('widget.open')}
           className={`pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#408D66] shadow-[0_8px_24px_rgba(25,29,27,.18)] ${ptr('fab')}`}
         >
           {/* 닫힌 버튼은 **프로필 사진**이다 — 실물이 그렇다(`widget.js` 의 `.fab img`:

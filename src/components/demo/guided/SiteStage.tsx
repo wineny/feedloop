@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PAGE_SRC, PAGE_URL, isCustomerPage, type Picked, type Scene, type SitePage, type Step, type Target } from './script';
+import { useLocale, useTranslations } from 'next-intl';
+import { getScript, isCustomerPage, type Picked, type Scene, type SitePage, type Step, type Target } from './script';
 import { Widget, type WidgetPart } from './Widget';
 
 /**
@@ -133,16 +134,18 @@ function stickyBottom(doc: Document, frame: HTMLIFrameElement | null): number {
  * 붙은 조각에 붙일 이름. 요소 안의 글자를 그냥 이어 붙이면 아랫줄 글까지 딸려 와
  * 「사용 가능한 쿠폰이 없어요한산…」처럼 말이 엉킨다 — 첫 줄만 쓰고 길면 자른다.
  */
-function labelOf(el: HTMLElement): string {
+function labelOf(el: HTMLElement, fallback: string): string {
   const first = (el.innerText ?? el.textContent ?? '')
     .split('\n')
     .map((l) => l.trim())
     .find((l) => l.length > 0);
-  if (!first) return '화면 조각';
+  if (!first) return fallback;
   return first.length > 14 ? first.slice(0, 14) + '…' : first;
 }
 
 export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, onTargetMissing, onSkip }: Props) {
+  const tr = useTranslations('demo');
+  const { PAGE_SRC, PAGE_URL } = getScript(useLocale());
   const wrapRef = useRef<HTMLDivElement>(null);
   /** 화면 넉 장. 겹쳐 두고 투명도로 바꾼다 */
   const framesRef = useRef<Partial<Record<SitePage, HTMLIFrameElement | null>>>({});
@@ -177,9 +180,10 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
 
   // 이벤트 리스너는 iframe 이 뜰 때 한 번만 붙인다. 최신 값은 ref 로 읽는다.
   // ⚠️ 렌더 중에 ref 를 건드리면 lint 가 에러로 잡는다(react-hooks/refs) — 효과에서 쓴다.
-  const live = useRef({ target, onHit, onPick, page: scene.page, spot });
+  const pieceFallback = tr('stage.pieceFallback');
+  const live = useRef({ target, onHit, onPick, page: scene.page, spot, pieceFallback });
   useEffect(() => {
-    live.current = { target, onHit, onPick, page: scene.page, spot };
+    live.current = { target, onHit, onPick, page: scene.page, spot, pieceFallback };
   });
 
   const wrapBox = () => wrapRef.current?.getBoundingClientRect() ?? new DOMRect();
@@ -502,7 +506,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
             pick.style.width = `${box.w}px`;
             pick.style.height = `${box.h}px`;
           }
-          live.current.onPick({ ...box, label: labelOf(hit) });
+          live.current.onPick({ ...box, label: labelOf(hit, live.current.pieceFallback) });
         }
       };
 
@@ -690,7 +694,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
     };
-  }, [target, hint, spot, handoff, ready, scene.page, scene.widgetOpen, scene.picking, curFrame, toWrap, place, placeBlocks, placeMail, scrollSmoothly, onTargetMissing]);
+  }, [target, hint, spot, handoff, ready, scene.page, scene.widgetOpen, scene.picking, curFrame, toWrap, place, placeBlocks, placeMail, scrollSmoothly, onTargetMissing, PAGE_SRC]);
 
   /**
    * 🔴 이미 떠 있던 화면을 줍는다.
@@ -709,7 +713,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
       }
     });
     return () => cancelAnimationFrame(id);
-  }, [handleLoad]);
+  }, [handleLoad, PAGE_SRC]);
 
   // 창 크기가 바뀌면 자리를 다시 잰다
   useEffect(() => {
@@ -744,7 +748,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
           className="flex-none rounded-full px-2 py-[3px] text-[10.5px] font-semibold text-white transition-colors"
           style={{ background: customer ? '#191d1b' : '#2f6b4c' }}
         >
-          {customer ? '고객 화면' : '팀 화면'}
+          {customer ? tr('stage.customerView') : tr('stage.teamView')}
         </span>
       </div>
 
@@ -759,7 +763,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
                 framesRef.current[p] = el;
               }}
               src={PAGE_SRC[p]}
-              title={p === 'map' ? '널널투어 (시연용 사본)' : 'Feedloop 운영자 화면 (시연용 사본)'}
+              title={p === 'map' ? tr('stage.siteFrame') : tr('stage.teamFrame')}
               onLoad={() => handleLoad(p)}
               aria-hidden={!on}
               className="absolute inset-0 h-full w-full border-0 bg-white"
@@ -810,7 +814,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
             <>
               {spot.say}
               {/* 링이 쳐진 걸 눌러 넘어간다는 걸 말로도 적는다 — 왼쪽 패널 버튼만으로는 못 찾으셨다 */}
-              <span className="ml-1 font-semibold opacity-75">· 눌러서 계속</span>
+              <span className="ml-1 font-semibold opacity-75">{tr('stage.tapToContinue')}</span>
             </>
           ) : (
             ''
@@ -829,13 +833,13 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
           style={{ animation: 'gdRise .26s cubic-bezier(.2,.7,.2,1)' }}
         >
           <span className="pointer-events-auto flex items-center gap-2.5 rounded-full bg-[#191d1b] py-[9px] pl-[15px] pr-[10px] text-[13px] font-semibold text-white shadow-[0_8px_24px_rgba(25,29,27,.25)]">
-            고칠 부분을 눌러 주세요
+            {tr('stage.pickBar')}
             <button
               type="button"
               onClick={onSkip}
               className="rounded-full bg-white/[.16] px-[11px] py-[5px] text-[12px] font-bold text-white"
             >
-              취소
+              {tr('stage.cancel')}
             </button>
           </span>
         </div>
@@ -871,7 +875,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
         {/* ⚠️ `whitespace-nowrap` 이 없으면 **두른 요소의 폭에 맞춰 접힌다** — 72px 짜리
             「쿠폰 받기」 버튼 위에서 두 줄로 쪼개져 보기 흉했다(ny 2026-09-18). */}
         <span className="absolute bottom-full left-[-2px] mb-[5px] whitespace-nowrap rounded-full bg-[#D13A2D] px-[7px] py-[1.5px] text-[10px] font-bold leading-[1.5] text-white shadow-[0_2px_8px_rgba(209,58,45,.3)]">
-          여기가 문제예요
+          {tr('stage.problemHere')}
         </span>
       </div>
 
@@ -902,7 +906,7 @@ export function SiteStage({ scene, target, hint, spot, handoff, onHit, onPick, o
               <span className="text-[15px] leading-none" aria-hidden="true">
                 📩
               </span>
-              제보 1건
+              {tr('stage.reportOne')}
             </span>
           </div>
         </div>

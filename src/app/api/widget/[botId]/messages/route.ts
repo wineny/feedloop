@@ -20,7 +20,9 @@ import type { PayPalClient } from '@/lib/paypal/client';
 import { hasOpenPaymentAction } from '@/lib/paypal/actions';
 import { NO_PAYMENT_ROUTE, routePayment } from '@/lib/paypal/router';
 import { paymentAgentPrompt, paymentAgentSystemPrompt, runPaymentAgent } from '@/lib/paypal/agent';
-import { PAYMENT_AGENT_FALLBACK, PAYMENT_NOTICES, type ReplyNotices } from '@/lib/paypal/notices';
+import { PAYMENT_AGENT_FALLBACK, PAYMENT_NOTICES } from '@/lib/paypal/notices';
+import { defaultReplyNotices, widgetLocale } from '@/lib/widget/strings';
+import { explicitWidgetLocale } from '@/i18n/server-locale';
 import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
 import { appOrigin } from '@/lib/paypal/checkout';
 import { supabasePaymentsStore } from '@/lib/paypal/store';
@@ -34,8 +36,6 @@ import { createVisitorTools, formatProductList } from '@/lib/paypal/visitor-tool
 // 남은 통로가 폴링뿐이다. 그때는 HOLDING_MESSAGE 를 'ai' 답변으로 저장한다(아래 late 분기 주석).
 import {
   GROUNDING_REMINDER,
-  HOLDING_MESSAGE,
-  HOLDING_NOTICE,
   applyHoldingPolicy,
   ensureEscalationInsight,
 } from '@/lib/bot/holding';
@@ -106,25 +106,11 @@ const LLM_TIMEOUT_MS = 30_000;
 // 기본값은 «묶기 시작» + 280초라, 늦은 답이 30초를 먹은 뒤면 최악 310초로 maxDuration 을 넘긴다
 // (넘기면 release 가 안 돌아 잠금이 고아가 된다. 150초 뒤 저절로 풀리긴 한다).
 const GROUPING_DEADLINE_FROM_START_MS = 290_000;
-const SLOW_NOTICE = '말씀 잘 받았어요! 확인하고 바로 답 드릴게요 🙌';
-// 오늘 자동 답변 예산을 다 쓴 경우. **「담당자 확인 필요」과 섞지 않는다** —
-// 지식이 모자란 게 아니라 예산이 끝난 것이고, 운영자가 할 일도 다르다(키 등록·상한 조정).
-// 이것도 저장하지 않는다.
-const LIMIT_NOTICE = '말씀 잘 받았어요! 오늘은 자동 답변이 어려워 팀이 직접 읽고 답 드릴게요 🙌';
-// 봇 시간당 상한에 걸린 경우. 제보는 저장됐고 자동 답변만 건너뛴다.
-// LIMIT_NOTICE 와 가르는 이유: 저쪽은 **오늘**이 끝난 것이고(운영자가 키를 넣거나 상한을
-// 올려야 풀린다) 이쪽은 한 시간이면 저절로 풀린다. 「오늘은 어려워」라고 하면 거짓말이 된다.
-// 이것도 저장하지 않는다.
-const RATE_NOTICE = '말씀 잘 받았어요! 지금 문의가 몰려 자동 답변은 잠시 쉬고 있어요. 팀이 직접 읽고 답 드릴게요 🙌';
-// 기존 경로의 안내 네 가지 + 늦은 답 실패 때 저장하는 답변. 결제 경로는 같은 자리마다 영어 문장
-// (lib/paypal/notices.ts)을 쓴다 — 아래 `notices` 가 경로별로 고른다. 한국어 문구 자체는 그대로다.
-const DEFAULT_NOTICES: ReplyNotices = {
-  slow: SLOW_NOTICE,
-  rate: RATE_NOTICE,
-  limit: LIMIT_NOTICE,
-  holding: HOLDING_NOTICE,
-  holdingMessage: HOLDING_MESSAGE,
-};
+// 안내 다섯 가지(느림·시간당 상한·일일 예산·답 못 냄 + 늦은 답 실패 때 저장하는 답변)는
+// lib/widget/strings.ts 의 defaultReplyNotices(locale) 에 en/ko 로 있다. 결제 경로는 같은 자리마다
+// 영어 고정 문장(lib/paypal/notices.ts)을 쓴다 — 아래 `notices` 가 경로별로 고른다.
+// 구분은 그대로다: rate = 시간당 상한(한 시간이면 풀림), limit = 오늘 예산 소진(키·상한 조정 필요),
+// holding = 설정을 못 읽음. 세 안내는 저장하지 않는다.
 
 export const OPTIONS = widgetOptions;
 
@@ -136,7 +122,7 @@ export async function POST(
   const reqStartedAt = Date.now();
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const body = await readJsonBody<{
     visitorId?: unknown;
@@ -150,12 +136,12 @@ export async function POST(
   const { visitorId, text } = payload;
   // 첫 화면 칩으로 시작한 메시지는 분류 힌트가 같이 온다. 모르는 값은 조용히 버린다.
   const hint = isWidgetHint(payload.hint) ? payload.hint : null;
-  if (!isUuid(visitorId)) return widgetError('visitorId 형식이 올바르지 않습니다', 400);
+  if (!isUuid(visitorId)) return widgetError(req, 'invalid_visitor', 400);
   if (typeof text !== 'string' || text.trim() === '') {
-    return widgetError('메시지가 비어 있습니다', 400);
+    return widgetError(req, 'message_empty', 400);
   }
   if (text.length > MAX_BODY_CHARS) {
-    return widgetError(`메시지는 ${MAX_BODY_CHARS}자까지 보낼 수 있어요`, 400);
+    return widgetError(req, 'message_too_long', 400, { max: MAX_BODY_CHARS });
   }
 
   // 봇 시간당 상한은 **여기서 끊지 않는다.** 그건 답을 막는 상한이지 제보를 버리는 상한이
@@ -176,12 +162,16 @@ export async function POST(
   const chipOnly = isChipOnlyText(text);
   const bodyText = chipOnly ? collapseWhitespace(text) : text.trim();
 
+  // 방문자 언어. 대화에 저장하고(conversations.locale) 같은 값으로 즉답 언어·대기 문구·안내를 고른다.
+  const visitorLocale = widgetLocale(req);
   const conversation = await upsertConversation({
     botId,
     source: 'web',
     externalUserId: visitorId,
+    // 저장은 방문자가 ?locale 로 직접 알린 언어만 — Accept-Language 짐작으로 저장된 언어를 덮어쓰지 않는다
+    locale: explicitWidgetLocale(req),
   });
-  if (!conversation) return widgetError('대화를 열지 못했습니다', 500);
+  if (!conversation) return widgetError(req, 'conversation_failed', 500);
 
   const messageId = await saveWebMessage({
     widgetHint: hint,
@@ -200,7 +190,7 @@ export async function POST(
   // 일일 답변 예산(withReplyBudget)은 아래에서 올린다. 인메모리 IP 상한(checkWidgetWriteRate)만
   // 이미 올랐는데 되돌리지 않는다 — 장애 중 같은 IP 의 재시도가 60/분을 먹는 건 오히려 맞다.
   if (!messageId) {
-    return widgetError('잠시 후 다시 보내주세요', 503);
+    return widgetError(req, 'try_again', 503);
   }
 
   // 「화면에서 선택하기」 스크린샷(I-55). **같은 봇·같은 방문자·아직 안 붙은** 것만 붙는다 — 남의 shotId 를
@@ -273,7 +263,7 @@ export async function POST(
   const replyResponseType = paymentRoute.route ? PAYMENT_AGENT_RESPONSE_TYPE : 'ai';
   // 결제 경로의 방문자 문구는 전부 영어다(설계 §10) — 느림·시간당 상한·일일 예산·설정 없음·늦은 답 실패까지.
   // 에이전트가 답을 못 내는 경우만이 아니라 에이전트를 «못 부른» 경우도 결제 얘기였으면 영어로 안내한다.
-  const notices = paymentRoute.route ? PAYMENT_NOTICES : DEFAULT_NOTICES;
+  const notices = paymentRoute.route ? PAYMENT_NOTICES : defaultReplyNotices(visitorLocale);
 
   // 새 대화 알림 — 이 대화의 «첫 진짜 메시지»면 봇 소유자에게 메일 한 통(2026-09-23 ny 결정).
   // 칩만 누른 턴은 말이 아니라 신호라 건너뛰고, 그 뒤 처음 적은 말이 첫 메시지다. 여기 판정은
@@ -454,7 +444,7 @@ export async function POST(
           // 유저 턴에 같은 규칙을 얹자 4/9 → 7/9 로 올랐다.
           const raw = await callLlm(
             config,
-            getSystemPrompt(config.serviceProfile),
+            getSystemPrompt(config.serviceProfile, { replyLocale: visitorLocale }),
             userTurn,
             { timeoutMs: LLM_TIMEOUT_MS },
           );
@@ -479,7 +469,8 @@ export async function POST(
           //    여기서 cs 를 채워 주면 그 턴도 대기 문구로 덮인다.
           ensureEscalationInsight(result, bodyText, { chipOnly, refMap });
           // ③ 정시·지연 두 경로가 모두 이 값을 쓴다. 여기서 한 번 거르면 둘 다 덮인다.
-          applyHoldingPolicy(result, botId);
+          //    모델이 hold 를 켰으면 여기서 방문자 언어의 대기 문구가 들어간다(모델은 문장을 쓰지 않는다).
+          applyHoldingPolicy(result, botId, visitorLocale);
           // ④ F1 — 이미 접수된 문제면 «서버가» 진행 상황을 답한다. 모델은 「어느 묶음인가」만
           //    골랐다. 문구를 모델에 맡기면 없는 PR 번호를 지어낸다(목록에 번호를 안 싣는 이유).
           //    merged·pr_created 는 답을 대체하고, open 은 모델 답변 뒤에 한 줄을 덧붙인다 —
@@ -489,7 +480,7 @@ export async function POST(
           //    «상태»이지, 이 사람이 사람 손을 필요로 하는지가 아니다.
           const known = chipOnly
             ? null
-            : resolveKnownIssue(result.matchesExistingGroup, groupRefMap, result.response);
+            : resolveKnownIssue(result.matchesExistingGroup, groupRefMap, result.response, visitorLocale);
           if (known) {
             result.response = known.reply;
           }
@@ -627,11 +618,11 @@ export async function GET(
   const { botId } = await params;
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const visitorId = req.nextUrl.searchParams.get('visitorId');
   const afterAt = req.nextUrl.searchParams.get('after');
-  if (!isUuid(visitorId)) return widgetError('visitorId 형식이 올바르지 않습니다', 400);
+  if (!isUuid(visitorId)) return widgetError(req, 'invalid_visitor', 400);
 
   // 첫 호출이 곧 "위젯이 사이트에 붙었다"는 신호다. 온보딩 화면이 이걸 폴링한다.
   if (!afterAt) {

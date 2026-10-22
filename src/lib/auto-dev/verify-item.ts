@@ -8,7 +8,6 @@
 // 「이 수정은 증상을 못 고친다」로 나오면 화면이 「인과가 틀린 수정」 사유가 미리 채워진
 // [반영하지 않기] 를 붙인다. PR #6·#8 계열이 여기서 걸러진다.
 
-import { VERDICT_LABEL } from './review-labels';
 import { callClaude } from '@/lib/auto-dev/ai-engine';
 import { fetchFileAtRef, type PrFile } from '@/lib/auto-dev/pr-review';
 import {
@@ -18,6 +17,7 @@ import {
   type UnverifiedItem,
   type UnverifiedVerdict,
 } from '@/lib/auto-dev/explanation';
+import { OWNER_CONTENT_LANGUAGE } from '@/i18n/owner-locale';
 
 /** 파일 하나가 이보다 크면 앞부분만 넣는다 — 계약(함수 서명·throw·반환)은 대개 앞에 있다 */
 export const VERIFY_FILE_BYTES = 40_000;
@@ -49,11 +49,11 @@ export function buildDiffBlock(files: Pick<PrFile, 'path' | 'patch'>[], itemFile
     blocks.push(block);
     used += block.length;
   }
-  if (blocks.length === 0 && omitted.length === 0) return '(diff 없음)';
+  if (blocks.length === 0 && omitted.length === 0) return '(no diff)';
   if (omitted.length > 0) {
     blocks.push(
-      `(분량 때문에 diff 를 싣지 않은 파일 ${omitted.length}개: ${omitted.slice(0, 10).map((p) => `\`${p}\``).join(', ')}${omitted.length > 10 ? ' …' : ''}. ` +
-        '이 파일들의 변경은 여기 보이지 않으므로 「diff 에 없다」를 근거로 판정하지 마세요.)',
+      `(${omitted.length} file(s) left out of the diff for size: ${omitted.slice(0, 10).map((p) => `\`${p}\``).join(', ')}${omitted.length > 10 ? ' …' : ''}. ` +
+        'Their changes are not shown here, so do not base a verdict on "it is not in the diff".)',
     );
   }
   return blocks.join('\n\n');
@@ -78,50 +78,50 @@ export function buildVerifyPrompt(
   const diff = buildDiffBlock(input.files, input.item.files);
   const src = sources.map((s) => `### ${s.path}\n\`\`\`\n${s.content}\n\`\`\``).join('\n\n');
 
-  return `당신은 코드 리뷰어입니다. 아래 수정안(PR)을 만들 때 AI 가 **확인하지 못했다고 스스로 적은 항목** 하나를,
-그때 못 읽었던 파일의 실제 원본을 보고 다시 판단하세요.
+  return `You are a code reviewer. When the AI made the fix (PR) below, it wrote down **one item it said it could not confirm**.
+Judge that item again by reading the actual source of the files it could not read then.
 
-## 수정안
-- 제목: ${input.title}
-- 무엇이 문제였나: ${input.explanation.problem}
-- 무엇을 바꿨나: ${input.explanation.change}
+## The fix
+- Title: ${input.title}
+- What was wrong: ${input.explanation.problem}
+- What changed: ${input.explanation.change}
 
-## 확인하지 못했던 것
+## What could not be confirmed
 "${input.item.text}"
 
-## 수정안의 diff
+## The fix's diff
 ${diff}
 
-## 그때 못 읽었던 파일의 실제 원본
+## Actual source of the files it could not read
 ${src}
 
-## 응답 형식
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.
+## Response format
+Respond only in the JSON format below. Output only the JSON, with no other text.
 
 \`\`\`json
 {
   "status": "fix_holds | fix_does_not_hold | inconclusive",
-  "text": "판정 이유 2~3문장. 코드를 모르는 서비스 담당자가 읽습니다 — 파일명·함수명 없이, 무엇이 어떻게 확인됐는지"
+  "text": "2–3 sentences on the reason for the verdict, for a service owner who does not read code — no file or function names; what was checked and how"
 }
 \`\`\`
 
-## 규칙
-- **fix_holds**: 원본을 보니 수정안이 겨냥한 실패 경로가 실제로 존재하고, 이 수정이 그 경로를 막는다.
-- **fix_does_not_hold**: 원본을 보니 그 실패 경로가 없거나(이미 다른 곳에서 막고 있음, 도달 불가능),
-  수정이 증상과 무관하다. 이 경우 text 에 「이 수정은 증상을 고치지 못한다」는 뜻과 그 이유를 쓰세요.
-- **inconclusive**: 이 파일만으로는 판단할 수 없다. 무엇이 더 필요한지 쓰세요.
-- 원본에 없는 것을 지어내지 마세요. 확실하지 않으면 inconclusive 입니다.
-- text 는 담당자 말로 쓰세요. "resolveCouponUserId 가 try/catch 로 감싸져" 가 아니라
-  "그 단계는 안에서 이미 오류를 잡아 빈 값을 돌려주므로, 옮긴 자리에서 오류가 날 경로가 없어요" 처럼.`;
+## Rules
+- **fix_holds**: the source shows that the failure path the fix targets really exists, and this fix blocks it.
+- **fix_does_not_hold**: the source shows that the failure path does not exist (it is already handled elsewhere, or unreachable),
+  or the fix has nothing to do with the symptom. In that case, say in text that "this fix does not fix the symptom" and why.
+- **inconclusive**: these files are not enough to decide. Say what else is needed.
+- Do not invent anything that is not in the source. If you are not sure, it is inconclusive.
+- Write text in ${OWNER_CONTENT_LANGUAGE}, in the owner's words. Not "resolveCouponUserId is wrapped in try/catch" but
+  "that step already catches the error inside and returns an empty value, so there is no way for an error to happen where the code was moved".`;
 }
 
 function parseVerdict(text: string): { status: UnverifiedVerdict['status']; text: string } {
   const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('확인 결과를 읽지 못했어요 (JSON 없음)');
+  if (!m) throw new Error('Could not read the verdict (no JSON)');
   const parsed = JSON.parse(m[0]) as { status?: unknown; text?: unknown };
-  if (!isVerdictStatus(parsed.status)) throw new Error('확인 결과의 판정값이 형식에 맞지 않아요');
+  if (!isVerdictStatus(parsed.status)) throw new Error('The verdict status has the wrong format');
   const body = typeof parsed.text === 'string' ? parsed.text.replace(/\s+/g, ' ').trim() : '';
-  if (!body) throw new Error('확인 결과에 설명이 없어요');
+  if (!body) throw new Error('The verdict has no explanation');
   return { status: parsed.status, text: body.length > VERDICT_TEXT_MAX ? `${body.slice(0, VERDICT_TEXT_MAX - 1)}…` : body };
 }
 
@@ -136,7 +136,7 @@ export async function verifyUnverifiedItem(input: VerifyInput): Promise<Unverifi
     if (content === null || content.trim() === '') continue;
     sources.push({
       path,
-      content: content.length > VERIFY_FILE_BYTES ? `${content.slice(0, VERIFY_FILE_BYTES)}\n… (이하 생략)` : content,
+      content: content.length > VERIFY_FILE_BYTES ? `${content.slice(0, VERIFY_FILE_BYTES)}\n… (rest omitted)` : content,
     });
   }
 
@@ -144,32 +144,37 @@ export async function verifyUnverifiedItem(input: VerifyInput): Promise<Unverifi
   if (sources.length === 0) {
     return {
       status: 'inconclusive',
-      text: '확인하려던 파일을 저장소에서 읽지 못했어요. 파일이 옮겨졌거나 지워졌을 수 있어요 — 프리뷰에서 직접 확인해 주세요.',
+      text: 'Could not read the files to check from the repository. They may have been moved or deleted — please check in the preview.',
       checkedAt,
       files: [],
     };
   }
 
-  const raw = await callClaude(buildVerifyPrompt(input, sources), 1024, '확인 중');
+  const raw = await callClaude(buildVerifyPrompt(input, sources), 1024, 'Checking');
   const verdict = parseVerdict(raw);
   return { ...verdict, checkedAt, files: sources.map((s) => s.path) };
 }
 
-export { VERDICT_LABEL } from './review-labels';
+/** GitHub 댓글의 판정 머리말 — GitHub 에 남는 글은 영어 고정(4단계). 화면 라벨은 사전 `monitor.verdict.<status>`. */
+const VERDICT_LABEL_EN: Record<UnverifiedVerdict['status'], string> = {
+  fix_holds: 'the fix looks well-founded',
+  fix_does_not_hold: 'the fix has a problem',
+  inconclusive: 'cannot decide',
+};
 
 /** PR 댓글 본문 — GitHub 쪽에서 보는 사람도 같은 결론을 본다 */
 export function buildVerdictComment(item: UnverifiedItem, verdict: UnverifiedVerdict): string {
   return [
-    `## 🔍 Feedloop AI 코드 검토 의견 — ${VERDICT_LABEL[verdict.status]}`,
-    "실제 실행 검증 결과가 아닙니다. 빌드·재현·회귀 검사 기록을 별도로 확인하세요.",
+    `## 🔍 Feedloop AI code review opinion — ${VERDICT_LABEL_EN[verdict.status]}`,
+    'This is not the result of actually running the code. Check the build, reproduction and regression records separately.',
     '',
-    `**확인하지 못했던 것**: ${item.text}`,
+    `**What could not be confirmed**: ${item.text}`,
     '',
-    `**읽은 파일**: ${verdict.files.map((f) => `\`${f}\``).join(', ') || '(없음)'}`,
+    `**Files read**: ${verdict.files.map((f) => `\`${f}\``).join(', ') || '(none)'}`,
     '',
     verdict.text,
     '',
     '---',
-    '🤖 담당자가 Feedloop 「수정안」 화면에서 [AI 에게 확인시키기] 를 눌러 생성했습니다.',
+    '🤖 Generated when the owner pressed [Ask AI to check] on the Feedloop Fix PRs screen.',
   ].join('\n');
 }

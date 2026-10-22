@@ -14,20 +14,22 @@
  */
 const TOKEN_RE = /^(github_pat_[A-Za-z0-9_]{20,}|gh[pou]_[A-Za-z0-9]{20,})$/;
 
-export type TokenFormatResult = { ok: true } | { ok: false; error: string };
+/** `code` 는 화면용(사전 키 `common.validation.<code>`) — `error` 는 서버 응답용 한국어 */
+export type TokenFormatResult = { ok: true } | { ok: false; error: string; code: string };
 
 /** 붙여넣기 사고(앞뒤 공백·줄바꿈)와 명백한 오탈자만 거른다. */
 export function checkGithubTokenFormat(token: unknown): TokenFormatResult {
   if (typeof token !== 'string' || token.trim() === '') {
-    return { ok: false, error: 'GitHub 토큰을 입력해 주세요' };
+    return { ok: false, error: 'GitHub 토큰을 입력해 주세요', code: 'github.empty' };
   }
   if (token !== token.trim()) {
-    return { ok: false, error: '토큰 앞뒤에 공백이나 줄바꿈이 섞여 있어요' };
+    return { ok: false, error: '토큰 앞뒤에 공백이나 줄바꿈이 섞여 있어요', code: 'github.whitespace' };
   }
   if (!TOKEN_RE.test(token)) {
     return {
       ok: false,
       error: '토큰 형식이 맞지 않아요. fine-grained 토큰은 github_pat_ 로, classic 토큰은 ghp_ 로 시작해요 (gh auth token 이 주는 gho_ 도 돼요)',
+      code: 'github.format',
     };
   }
   return { ok: true };

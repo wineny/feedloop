@@ -10,6 +10,7 @@ import { loadTrustedValidationConfig } from './validation-config';
 import type { GenerationBudget } from './validation-budget';
 import { digest, type PublicationIntent, type ValidationEvidence, type ValidationTarget } from './validation';
 import { callAutoDev } from '@/lib/auto-dev/ai-engine';
+import { AutoDevError } from './errors';
 import {
   formatContextForPrompt,
   mergeContextsForPrompt,
@@ -132,7 +133,7 @@ async function collectGroupEvidence(
 
   if (bodies.length === 0) return { body: fallback, context, contextItems };
   return {
-    body: `${fallback}\n\n실제 제보 ${bodies.length}건:\n${bodies.map((b) => `- ${b}`).join('\n')}`,
+    body: `${fallback}\n\n${bodies.length} actual reports:\n${bodies.map((b) => `- ${b}`).join('\n')}`,
     context,
     contextItems,
   };
@@ -215,7 +216,7 @@ export async function executeClaimedRun(
 
   if ((!group && !insight) || !bot?.github_repo_url) {
     await persist({ status: 'failed', error_message: 'Missing target or repo URL' });
-    throw new Error('수정 대상 또는 저장소 URL 정보가 없습니다');
+    throw new AutoDevError('missing_target', 'Missing target or repository URL');
   }
 
   try {
@@ -228,7 +229,7 @@ export async function executeClaimedRun(
     const target = validationInput.insight;
 
     if (group) {
-      onProgress(`묶음 "${group.title}" 으로 수정안을 만듭니다`);
+      onProgress(`Creating a fix for group "${group.title}"`);
     }
 
     const repository = new URL(bot.github_repo_url).pathname.replace(/^\/|\/$/g,'').replace(/\.git$/,'');
@@ -241,7 +242,7 @@ export async function executeClaimedRun(
     if (resolution.kind === 'blocked') {
       // 이 제보를 겨냥한 프로필이 «있는데» 적용할 수 없다(중복·증거 드리프트·불완전).
       // 사람이 검증을 요구해 둔 대상이므로 종전 그대로 중단한다.
-      console.warn('[auto-dev] 검증 프로필을 적용할 수 없음', {runId:run.id,reason:resolution.reason});
+      console.warn('[auto-dev] validation profile cannot be applied', {runId:run.id,reason:resolution.reason});
       await persist({status:'stopped',stop_reason:'insufficient_evidence',...(publicationPending ? {} : {validation_status:'unverifiable'})});
       throw new Error('insufficient_evidence');
     }
@@ -250,12 +251,12 @@ export async function executeClaimedRun(
       // 프로필이 없으면 검증 없이 진행한다 — 프로필은 제보마다 손으로 쓰는 것이고
       // 생성하는 코드가 없어서, 여기서 막으면 자동 PR 이 영영 꺼진 채로 남는다.
       // 다만 숨기지 않는다: 결과가 무엇이든 이 run 은 「검증 안 됨」으로 남는다.
-      console.warn('[auto-dev] 이 제보를 겨냥한 검증 프로필이 없어 검증 없이 진행',
+      console.warn('[auto-dev] no validation profile targets this report; continuing without validation',
         {runId:run.id,repository,profilesForRepository:resolution.profilesForRepository});
       if (keepProof) {
         // 한때 검증을 통과한 run 인데 겨냥한 프로필이 그 뒤 사라졌다.
         // 엔진이 이 증거를 보고 중단한다(`validated_evidence_present`).
-        console.warn('[auto-dev] 검증을 통과했던 run 인데 겨냥한 프로필이 사라졌다 — 증거를 남기고 중단',
+        console.warn('[auto-dev] run had passed validation but its target profile is gone; keeping evidence and stopping',
           {runId:run.id,repository});
       } else if (!publicationPending) {
         // 검증에 «떨어진» 잔여 증거만 비운다. 남겨두면 DB 의 약한 가지가

@@ -3,6 +3,7 @@
  *
  * 붙이는 법:
  *   <script src="https://<도메인>/widget.js" data-feedloop="<botId>" async></script>
+ *   언어 고정(선택): data-locale="en" 또는 "ko"(ko-KR 처럼 앞 두 글자만 본다). 없으면 방문자 브라우저 언어(navigator.language)로 고른다.
  *
  * 호스트 사이트의 CSS 가 위젯을 망가뜨리지 않도록 Shadow DOM 안에서 그린다.
  * iframe 이 아닌 이유는 호스트 origin 의 localStorage 를 그대로 써서 방문자 세션을 잇기 위해서다.
@@ -34,7 +35,7 @@
 
   var botId = script.getAttribute('data-feedloop');
   if (!botId) {
-    console.error('[feedloop] data-feedloop 속성에 botId 가 필요합니다');
+    console.error('[feedloop] data-feedloop attribute needs a botId');
     return;
   }
 
@@ -45,6 +46,83 @@
   var SEEN_KEY = 'feedloop:seen:' + botId;   // 마지막으로 창을 열어 본 시각 — 재방문 때 옛 답변을 미읽음으로 세지 않게
   var POLL_OPEN_MS = 5000;
   var POLL_CLOSED_MS = 60000;
+
+  // ── 언어 ──
+  // 고르는 순서: <script data-locale="en|ko"> (사업자가 고정) → navigator.language 가 ko 로 시작하면 ko → en.
+  // 서버에도 ?locale= 로 알린다(기본 인사말·대기 문구 등 서버 기본 문구가 같은 언어로 온다).
+  var LOCALE = (function () {
+    var forced = (script.getAttribute('data-locale') || '').toLowerCase().slice(0, 2);   // ko-KR → ko
+    if (forced === 'en' || forced === 'ko') return forced;
+    return /^ko/i.test(navigator.language || '') ? 'ko' : 'en';
+  })();
+  var LQ = 'locale=' + LOCALE;
+  // 방문자에게 보이는 문구 표. 새 문구는 en·ko 양쪽에 같은 키로 넣는다(__tests__/widget-i18n.test.ts 가 키 대조).
+  var STR = {
+    en: {
+      feedback: 'Send feedback', closeFab: 'Close feedback window', close: 'Close',
+      fixed: 'Fixed', seeChange: 'See what changed →',
+      confDone: 'You said it is fixed. Thank you 🙌', confNot: 'You said it is not fixed yet. The owner will take another look',
+      sending: 'Sending…', confAsk: 'Does it work now?', confYes: 'Yes, it works', confNo: 'Not yet',
+      name: 'Name', email: 'Email',
+      replyBoth: function (n, w) { return 'We will reply to ' + n + ' · ' + w; },
+      replyWhere: function (w) { return 'We will reply to ' + w; },
+      replyName: function (n) { return 'We will reply to ' + n; },
+      cTitle: 'Where should we reply?', cSub: 'We will email you when the team replies or the problem you reported is fixed.',
+      cSkip: 'No thanks, just let me look', cSave: 'Save',
+      hTitle: 'Message for a person', hSub: 'A person reads and replies, not the AI.', hPh: 'How can we help?',
+      hName: 'Name (optional)', hMail: 'Email for the reply (optional)', cancel: 'Cancel', hGo: 'Send to a person',
+      hEmpty: 'Write a message for a person first',
+      human: 'Talk to a person', faq: 'Frequently asked questions',
+      holdKey: 'A person is checking', holdMsg: 'A person is checking. Please hold on a moment 🙏',
+      ph: 'Tell us anything', send: 'Send',
+      sendFail: 'Could not send', netSend: 'Could not send because of a network error',
+      netSlow: 'The network is slow and it was not sent. Tap again',
+      again: 'Tap to pick again', shotFail: 'Could not capture the screen · the location is sent anyway', shooting: ' · Capturing…',
+      rmTarget: 'Remove selected element', picking: 'Picking…', pick: 'Pick on screen',
+      passed: 'Passed to a person', passing: 'Passing on…',
+      section: 'section', area: 'area',
+      pickRead: 'Could not read that element. Try picking another spot', pickLoad: 'Could not load the picker',
+      saveFail: 'Could not save', netSave: 'Could not save because of a network error',
+      passFail: 'Could not pass it on', netPass: 'Could not pass it on because of a network error',
+      e_rate_limited: 'Too many requests. Try again in a moment.',
+      q1: '“', q2: '”'
+    },
+    ko: {
+      feedback: '의견 보내기', closeFab: '의견창 닫기', close: '닫기',
+      fixed: '반영됐어요', seeChange: '바뀐 내용 보기 →',
+      confDone: '해결됐다고 알려주셨어요. 고맙습니다 🙌', confNot: '아직이라고 알려주셨어요. 담당자가 다시 봅니다',
+      sending: '보내는 중…', confAsk: '이제 잘 되나요?', confYes: '네, 잘 돼요', confNo: '아직 그대로예요',
+      name: '이름', email: '이메일',
+      replyBoth: function (n, w) { return n + ' · ' + w + ' 로 답장을 보내드려요'; },
+      replyWhere: function (w) { return w + ' 로 답장을 보내드려요'; },
+      replyName: function (n) { return n + ' 님께 답장을 보내드려요'; },
+      cTitle: '답장 받을 곳을 남겨주세요', cSub: '팀이 답하거나 말씀하신 문제가 반영되면 이메일로 알려드려요.',
+      cSkip: '괜찮아요, 그냥 볼게요', cSave: '남기기',
+      hTitle: '상담원에게 남길 말', hSub: 'AI 대신 사람이 읽고 답해요.', hPh: '무엇을 도와드릴까요?',
+      hName: '이름 (선택)', hMail: '답을 받을 이메일 (선택)', cancel: '취소', hGo: '상담원에게 보내기',
+      hEmpty: '상담원에게 남길 말을 적어주세요',
+      human: '상담원 연결', faq: '자주 묻는 질문',
+      holdKey: '담당자가 확인하고 있어요', holdMsg: '담당자가 확인하고 있어요. 조금만 기다려 주세요 🙏',
+      ph: '무엇이든 편하게 남겨주세요', send: '보내기',
+      sendFail: '전송에 실패했어요', netSend: '네트워크 오류로 보내지 못했어요',
+      netSlow: '네트워크가 느려 보내지 못했어요. 다시 눌러주세요',
+      again: '다시 고르려면 누르세요', shotFail: '화면은 담지 못했어요 · 위치는 함께 보내요', shooting: ' · 촬영 중…',
+      rmTarget: '선택한 요소 빼기', picking: '선택하는 중…', pick: '화면에서 선택하기',
+      passed: '상담원에게 전달됐어요', passing: '전달 중…',
+      section: '구역', area: '영역',
+      pickRead: '요소 정보를 읽지 못했어요. 다른 곳을 짚어 주세요', pickLoad: '선택 도구를 불러오지 못했어요',
+      saveFail: '저장하지 못했어요', netSave: '네트워크 오류로 저장하지 못했어요',
+      passFail: '전달하지 못했어요', netPass: '네트워크 오류로 전달하지 못했어요',
+      e_rate_limited: '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.',
+      q1: '「', q2: '」'
+    },
+  };
+  function T(k) { return STR[LOCALE][k]; }
+  // 서버 오류는 { error: <코드>, message: <방문자 언어 문구> }. 코드가 STR 표(e_<코드>)에 있으면 그것을, 없으면 서버 message 를, 그것도 없으면 fb 키의 문구.
+  function errText(d, fb) { return (d && (STR[LOCALE]['e_' + d.error] || d.message)) || T(fb); }
+  // 저장된 대기 문구는 서버 언어와 무관하게 ko·en 어느 쪽이든 올 수 있다 — 둘 다 알아보고 화면 언어로 보여준다
+  function isHolding(b) { return b.indexOf(STR.ko.holdKey) >= 0 || b.indexOf(STR.en.holdKey) >= 0; }
+  var KIND_EN = { '버튼': 'button', '링크': 'link', '입력칸': 'input', '선택칸': 'select', '이미지': 'image', '영역': 'area' };   // 서버로 가는 kind 값은 한국어 그대로(lib/widget/pick.ts)
 
   // ── 저장소 (시크릿 모드·저장 차단이면 이번 방문에만 유지) ──
 
@@ -461,7 +539,7 @@
   var ICON_PERSON = 'M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 21c0-4 3.6-7 8-7s8 3 8 7';
   var ICON_CHAT = 'M21 11.5a8.4 8.4 0 01-9 8.4 8.5 8.5 0 01-3.9-.9L3 21l1.9-5a8.4 8.4 0 01-.9-3.9 8.5 8.5 0 018.4-9h.5a8.5 8.5 0 018 8v.4z';
 
-  function displayName() { return (state.cfg && state.cfg.displayName) || '의견 보내기'; }
+  function displayName() { return (state.cfg && state.cfg.displayName) || T('feedback'); }
 
   function avatar(large) {
     var a = el('div', 'av' + (large ? ' lg' : ''));
@@ -511,7 +589,7 @@
       col.appendChild(who);
     }
 
-    col.appendChild(el('div', 'bub ' + (kind === 'operator' ? 'op' : 'us'), body));
+    col.appendChild(el('div', 'bub ' + (kind === 'operator' ? 'op' : 'us'), kind === 'ai' && (body === STR.ko.holdMsg || body === STR.en.holdMsg) ? T('holdMsg') : body));
     row.appendChild(col);
     return row;
   }
@@ -535,13 +613,13 @@
     var dot = el('div', 'ck');
     dot.appendChild(icon(ICON_CHECK));
     head.appendChild(dot);
-    head.appendChild(el('b', null, '반영됐어요'));
+    head.appendChild(el('b', null, T('fixed')));
     card.appendChild(head);
     var m = body.match(/https?:\/\/\S+/);
     var text = m ? body.replace(m[0], '').replace(/\(\s*\)/, '').trim() : body;
     if (text) card.appendChild(el('p', null, text));
     if (m) {
-      var a = el('a', null, '바뀐 내용 보기 →');
+      var a = el('a', null, T('seeChange'));
       a.href = m[0];
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
@@ -589,17 +667,17 @@
     if (conf) {
       // 「아직」이면 서버가 대화를 escalated 로 올려 하단이 「상담원에게 전달됐어요」가 된다(의도).
       row.appendChild(el('span', null, conf === 'fixed'
-        ? '해결됐다고 알려주셨어요. 고맙습니다 🙌'
-        : '아직이라고 알려주셨어요. 담당자가 다시 봅니다'));
+        ? T('confDone')
+        : T('confNot')));
       return row;
     }
     if (state.confirming === id) {
-      row.appendChild(el('span', null, '보내는 중…'));
+      row.appendChild(el('span', null, T('sending')));
       return row;
     }
-    row.appendChild(el('span', null, '이제 잘 되나요?'));
-    row.appendChild(confirmBtn(id, 'fixed', '네, 잘 돼요'));
-    row.appendChild(confirmBtn(id, 'not_fixed', '아직 그대로예요'));
+    row.appendChild(el('span', null, T('confAsk')));
+    row.appendChild(confirmBtn(id, 'fixed', T('confYes')));
+    row.appendChild(confirmBtn(id, 'not_fixed', T('confNo')));
     return row;
   }
 
@@ -638,8 +716,8 @@
     var f = el('div', 'cform');
     f.appendChild(el('p', null, title));
     f.appendChild(el('small', null, sub));
-    var nameIn = el('input'); nameIn.placeholder = '이름';
-    var mailIn = el('input'); mailIn.placeholder = '이메일'; mailIn.type = 'email';
+    var nameIn = el('input'); nameIn.placeholder = T('name');
+    var mailIn = el('input'); mailIn.placeholder = T('email'); mailIn.type = 'email';
     f.appendChild(nameIn); f.appendChild(mailIn);
 
     var acts = el('div', 'acts');
@@ -659,22 +737,22 @@
     if (hasContact()) {
       var c = state.contact;
       var where = c.email || c.phone;
-      return el('div', 'ok', c.name && where ? c.name + ' · ' + where + ' 로 답장을 보내드려요'
-        : where ? where + ' 로 답장을 보내드려요'
-        : c.name + ' 님께 답장을 보내드려요');
+      return el('div', 'ok', c.name && where ? T('replyBoth')(c.name, where)
+        : where ? T('replyWhere')(where)
+        : T('replyName')(c.name));
     }
     if (state.contactSkipped) return null;
 
     return contactForm(
-      '답장 받을 곳을 남겨주세요',
-      '팀이 답하거나 말씀하신 문제가 반영되면 이메일로 알려드려요.',
-      '괜찮아요, 그냥 볼게요',
+      T('cTitle'),
+      T('cSub'),
+      T('cSkip'),
       function () {
         state.contactSkipped = true;
         lsSet(SKIP_KEY, '1');
         render();
       },
-      '남기기',
+      T('cSave'),
       function (name, mail) { postContact(name, mail, ''); },
     );
   }
@@ -688,29 +766,29 @@
   /** 「상담원에게 남길 말」 폼. 그 말은 AI 가 답하지 않고 사람에게 간다. 이메일이 없으면 연락처 칸도. */
   function handoffForm() {
     var f = el('div', 'cform');
-    f.appendChild(el('p', null, '상담원에게 남길 말'));
+    f.appendChild(el('p', null, T('hTitle')));
     var when = (state.cfg && state.cfg.statusText) || '';
-    f.appendChild(el('small', null, 'AI 대신 사람이 읽고 답해요.' + (when ? ' ' + when + '.' : '')));
+    f.appendChild(el('small', null, T('hSub') + (when ? ' ' + when + '.' : '')));
     // 입력은 state.hf 에 산다 — 에러·폴링 재렌더가 패널을 통째로 다시 만들어도 쓰던 글이 안 사라진다
     var hf = state.hf;
-    var ta = el('textarea'); ta.placeholder = '무엇을 도와드릴까요?'; ta.value = hf.text;
+    var ta = el('textarea'); ta.placeholder = T('hPh'); ta.value = hf.text;
     ta.oninput = function () { hf.text = ta.value; };
     f.appendChild(ta);
     if (!state.contact.email) {
-      var nameIn = el('input'); nameIn.placeholder = '이름 (선택)'; nameIn.value = hf.name;
+      var nameIn = el('input'); nameIn.placeholder = T('hName'); nameIn.value = hf.name;
       nameIn.oninput = function () { hf.name = nameIn.value; };
-      var mailIn = el('input'); mailIn.placeholder = '답을 받을 이메일 (선택)'; mailIn.type = 'email'; mailIn.value = hf.mail;
+      var mailIn = el('input'); mailIn.placeholder = T('hMail'); mailIn.type = 'email'; mailIn.value = hf.mail;
       mailIn.oninput = function () { hf.mail = mailIn.value; };
       f.appendChild(nameIn); f.appendChild(mailIn);
     }
     var acts = el('div', 'acts');
-    var cancel = el('button', 'skip', '취소');
+    var cancel = el('button', 'skip', T('cancel'));
     cancel.onclick = function () { state.handoff = false; render(); };
-    var go = el('button', 'pri', '상담원에게 보내기');
+    var go = el('button', 'pri', T('hGo'));
     go.disabled = state.asking;
     go.onclick = function () {
       var text = hf.text.trim();
-      if (!text && !hasUserMsg()) { state.error = '상담원에게 남길 말을 적어주세요'; render(); return; }
+      if (!text && !hasUserMsg()) { state.error = T('hEmpty'); render(); return; }
       // 미리 채운 마지막 내 말을 그대로 보내면 같은 문장이 두 벌 저장된다 — 그땐 대화만 넘긴다
       if (text === lastMine().trim()) text = '';
       postEscalate(text, state.contact.email ? '' : hf.name, state.contact.email ? '' : hf.mail);
@@ -723,7 +801,7 @@
   /** AI 대기 문구 밑의 제안 칩 — 못 답한 바로 그 자리에서 사람을 부른다. */
   function handoffHint() {
     var box = el('div', 'hint');
-    var b = el('button', 'chip', '상담원 연결');
+    var b = el('button', 'chip', T('human'));
     b.onclick = askHuman;
     box.appendChild(b);
     return box;
@@ -749,7 +827,7 @@
     var step = 0;
 
     if (questions.length) {
-      box.appendChild(el('div', 'sl', '자주 묻는 질문'));
+      box.appendChild(el('div', 'sl', T('faq')));
       var list = el('div', 'qs');
       questions.forEach(function (text) {
         if (typeof text !== 'string' || !text) return;
@@ -824,7 +902,7 @@
       } else {
         body.appendChild(ourRow(it.kind, it.body, it.at, prev === it.kind));
         // AI 가 모른다고 물러난 답(대기 문구)이 마지막이면 그 밑에 「상담원 연결」 — 리터럴은 holding.ts HOLDING_MESSAGE
-        if (it.kind === 'ai' && it.body.indexOf('담당자가 확인하고 있어요') >= 0 && it === state.items[state.items.length - 1] && !state.handoff && !state.sending && !state.escalated) {
+        if (it.kind === 'ai' && isHolding(it.body) && it === state.items[state.items.length - 1] && !state.handoff && !state.sending && !state.escalated) {
           body.appendChild(handoffHint());
         }
       }
@@ -860,7 +938,7 @@
       t.appendChild(el('p', null, (state.cfg && state.cfg.statusText) || ''));
       hd.appendChild(t);
       var x = el('button', 'x');
-      x.setAttribute('aria-label', '닫기');
+      x.setAttribute('aria-label', T('close'));
       x.appendChild(icon(ICON_X));
       x.onclick = toggle;
       hd.appendChild(x);
@@ -874,7 +952,7 @@
       if (state.cfg && !state.handoff) ft.appendChild(toolsRow());
       var inp = el('div', 'inp');
       var ta = el('textarea');
-      ta.placeholder = '무엇이든 편하게 남겨주세요';
+      ta.placeholder = T('ph');
       ta.rows = 1;
       ta.value = state.draft;
       ta.oninput = function () {
@@ -889,7 +967,7 @@
         }
       };
       // 이름이 send 면 render() 전체에서 모듈 함수 send() 를 가린다(var 호이스팅).
-      var sendBtn = el('button', 'send', '보내기');
+      var sendBtn = el('button', 'send', T('send'));
       sendBtn.disabled = state.sending;
       sendBtn.onclick = submit;
       inp.appendChild(ta);
@@ -921,7 +999,7 @@
     if (!state.cfg) return;
 
     var fab = el('button', 'fab');
-    fab.setAttribute('aria-label', state.open ? '의견창 닫기' : '의견 보내기');
+    fab.setAttribute('aria-label', state.open ? T('closeFab') : T('feedback'));
     if (state.open) {
       fab.appendChild(icon(ICON_X));
     } else if (state.cfg && state.cfg.profileImageUrl) {
@@ -961,7 +1039,7 @@
   }
 
   function loadConfig() {
-    return fetch(apiBase + '/config')
+    return fetch(apiBase + '/config?' + LQ)
       .then(function (r) {
         if (r.status === 404) { host.remove(); return null; }  // 없는 봇 — 아예 안 그린다
         return r.ok ? r.json() : null;
@@ -973,7 +1051,7 @@
   }
 
   function poll() {
-    var url = apiBase + '/messages?visitorId=' + encodeURIComponent(visitorId);
+    var url = apiBase + '/messages?' + LQ + '&visitorId=' + encodeURIComponent(visitorId);
     if (state.cursor) url += '&after=' + encodeURIComponent(state.cursor);
 
     fetch(url)
@@ -1080,7 +1158,7 @@
     state.items.push({ id: tmpId, kind: 'user', body: text, at: new Date().toISOString() });
     render();
 
-    fetch(apiBase + '/messages', {
+    fetch(apiBase + '/messages?' + LQ, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -1091,7 +1169,7 @@
         state.items = state.items.filter(function (it) { return it.id !== tmpId; });
         if (!res.ok) {
           restore();
-          state.error = res.data && res.data.error ? res.data.error : '전송에 실패했어요';
+          state.error = errText(res.data, 'sendFail');
           render();
           return;
         }
@@ -1106,7 +1184,7 @@
         state.sending = false;
         state.items = state.items.filter(function (it) { return it.id !== tmpId; });
         restore();
-        state.error = '네트워크 오류로 보내지 못했어요';
+        state.error = T('netSend');
         render();
       });
   }
@@ -1121,7 +1199,7 @@
       var att = el('div', 'tool att');
       att.setAttribute('role', 'button');
       att.tabIndex = 0;
-      att.title = '다시 고르려면 누르세요';
+      att.title = T('again');
       var sh = state.shot;
       if (sh && sh.thumb) {
         var th = el('img', 'th');
@@ -1129,9 +1207,9 @@
         th.alt = '';
         att.appendChild(th);
       } else att.appendChild(icon(ICON_PICK));
-      att.appendChild(el('span', 'lbl', sh === -1 ? '화면은 담지 못했어요 · 위치는 함께 보내요' : targetLabel(state.target) + (sh === 1 ? ' · 촬영 중…' : '')));
+      att.appendChild(el('span', 'lbl', sh === -1 ? T('shotFail') : targetLabel(state.target) + (sh === 1 ? T('shooting') : '')));
       var rm = el('button', 'rm');
-      rm.setAttribute('aria-label', '선택한 요소 빼기');
+      rm.setAttribute('aria-label', T('rmTarget'));
       rm.appendChild(icon(ICON_X));
       rm.onclick = function (e) { e.stopPropagation(); if (state.sending) return; dropShot(); state.target = null; render(); };
       rm.disabled = state.sending;   // 촬영을 기다리며 보내는 중엔 빼기·다시 고르기를 막는다 — 뺀 화면이 그대로 붙어 나갔다
@@ -1142,7 +1220,7 @@
     } else {
       var pk = el('button', 'tool');
       pk.appendChild(icon(ICON_PICK));
-      pk.appendChild(el('span', null, state.picking ? '선택하는 중…' : '화면에서 선택하기'));
+      pk.appendChild(el('span', null, state.picking ? T('picking') : T('pick')));
       pk.disabled = state.picking;
       pk.onclick = startPick;
       row.appendChild(pk);
@@ -1154,13 +1232,13 @@
       var sb = el('span');
       // 기대치(「보통 몇 분 안에 답해요」)는 안 붙인다 — 헤더 부제와 타임라인 안내 칩에 이미 있고,
       // 같은 줄의 「화면에서 선택하기」에 밀려 「보통 몇 …」로 잘렸다(2026-09-16).
-      sb.appendChild(el('b', null, '상담원에게 전달됐어요'));
+      sb.appendChild(el('b', null, T('passed')));
       st.appendChild(sb);
       row.appendChild(st);
     } else {
       var hb = el('button', 'tool');
       hb.appendChild(icon(ICON_PERSON));
-      hb.appendChild(el('span', null, state.asking ? '전달 중…' : '상담원 연결'));
+      hb.appendChild(el('span', null, state.asking ? T('passing') : T('human')));
       hb.disabled = state.asking;
       hb.onclick = askHuman;
       row.appendChild(hb);
@@ -1170,11 +1248,11 @@
 
   /** 「「쿠폰 받기」 버튼」·「「오늘의 PICK」 구역 · 1120×973」 — lib/widget/pick.ts targetLabel 과 같다(테스트 대조) */
   function targetLabel(t) {
-    var cut = function (s) { var c = Array.from(s); return '「' + (c.length > 24 ? c.slice(0, 24).join('') + '…' : s) + '」 '; };
+    var cut = function (s) { var c = Array.from(s); return T('q1') + (c.length > 24 ? c.slice(0, 24).join('') + '…' : s) + T('q2') + ' '; };
     var h = (t.heading || '').trim(), r = t.rect;
-    if (h) return cut(h) + '구역' + (r && r.w > 0 && r.h > 0 ? ' · ' + r.w + '×' + r.h : '');
+    if (h) return cut(h) + T('section') + (r && r.w > 0 && r.h > 0 ? ' · ' + r.w + '×' + r.h : '');
     var name = (t.text || t.label || '').trim();
-    var kind = t.kind || '영역';
+    var kind = KIND_EN[t.kind] && LOCALE === 'en' ? KIND_EN[t.kind] : (t.kind || T('area'));
     return name ? cut(name) + kind : kind;
   }
 
@@ -1204,7 +1282,7 @@
     var seq = shotSeq;
     state.shot = 1;
     state.shotP = loadJs('widget-shot.js', '__feedloopShot')
-      .then(function () { return window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId }); })
+      .then(function () { return window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId, locale: LOCALE }); })
       .catch(function () { return null; })
       .then(function (r) {
         if (seq === shotSeq) { state.shot = r || -1; render(); }
@@ -1223,12 +1301,12 @@
     loadJs('widget-pick.js', '__feedloopPick')
       .then(function () {
         wrap.style.display = 'none';
-        return window.__feedloopPick({ ignore: host, accent: hex(state.cfg && state.cfg.accentColor) });
+        return window.__feedloopPick({ ignore: host, accent: hex(state.cfg && state.cfg.accentColor), locale: LOCALE });
       })
       .then(function (t) {
-        if (t && t.error) state.error = '요소 정보를 읽지 못했어요. 다른 곳을 짚어 주세요';
+        if (t && t.error) state.error = T('pickRead');
         else if (t) { state.target = t; takeShot(); }
-      }, function () { state.error = '선택 도구를 불러오지 못했어요'; })
+      }, function () { state.error = T('pickLoad'); })
       .then(function () {
         wrap.style.display = '';
         state.picking = false;
@@ -1241,7 +1319,7 @@
 
   function postContact(name, email, phone) {
     state.error = null;
-    fetch(apiBase + '/contact', {
+    fetch(apiBase + '/contact?' + LQ, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ visitorId: visitorId, name: name, email: email, phone: phone }),
@@ -1249,14 +1327,14 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         if (!res.ok) {
-          state.error = res.data && res.data.error ? res.data.error : '저장하지 못했어요';
+          state.error = errText(res.data, 'saveFail');
         } else {
           takeContact(res.data.contact);
         }
         render();
       })
       .catch(function () {
-        state.error = '네트워크 오류로 저장하지 못했어요';
+        state.error = T('netSave');
         render();
       });
   }
@@ -1281,7 +1359,7 @@
     if (text) { payload.text = text; payload.context = collectContext(); }
     if (name) payload.name = name;
     if (email) payload.email = email;
-    fetch(apiBase + '/escalate', {
+    fetch(apiBase + '/escalate?' + LQ, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -1291,7 +1369,7 @@
         state.asking = false;
         if (!res.ok) {
           // 폼은 남긴다 — 고쳐 쓰거나 취소할 수 있게
-          state.error = res.data && res.data.error ? res.data.error : '전달하지 못했어요';
+          state.error = errText(res.data, 'passFail');
         } else {
           state.handoff = false;
           state.hf = { text: '', name: '', mail: '' };
@@ -1304,7 +1382,7 @@
       })
       .catch(function () {
         state.asking = false;
-        state.error = '네트워크 오류로 전달하지 못했어요';
+        state.error = T('netPass');
         render();
       });
   }
@@ -1322,7 +1400,7 @@
     var ctl = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 10000);
     var unlock = function () { clearTimeout(timer); state.confirming = null; };
-    fetch(apiBase + '/confirm', {
+    fetch(apiBase + '/confirm?' + LQ, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ visitorId: visitorId, responseId: id, confirmation: value }),
@@ -1331,13 +1409,13 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         unlock();
-        if (!res.ok) state.error = (res.data && res.data.error) || '보내지 못했어요';
+        if (!res.ok) state.error = errText(res.data, 'sendFail');
         else markConfirmed(id, res.data.confirmation);
         render();
       })
       .catch(function () {
         unlock();
-        state.error = '네트워크가 느려 보내지 못했어요. 다시 눌러주세요';
+        state.error = T('netSlow');
         render();
       });
   }

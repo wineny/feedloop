@@ -245,9 +245,15 @@ export function parseStoredExplanation(raw: unknown): RunExplanation | null {
 
 /** 우리가 조립한 PR 본문(`composePrBody`)의 고정 절 — 옛 실행의 설명을 여기서 뽑는다 */
 const LEGACY_FIXED_CHECKS = [
+  // 한국어(i18n 4d 이전에 만든 PR 본문) · 영어(지금)
   '이 수정이 실제로 위 증상을 없애는지 직접 확인',
   '빌드·타입 검사 통과 확인',
+  'Check yourself that this change removes the symptom above',
+  'Check that the build and type check pass',
 ];
+/** composePrBody 의 고정 절 제목 — 옛 한국어와 지금 영어를 둘 다 읽는다 */
+const SECTION_CAUSE = ['Root cause', '원인 분석'];
+const SECTION_CHECKLIST = ['Before you merge', '머지 전 확인'];
 
 /**
  * 이 기능 전에 만들어진 실행은 설명 컬럼이 비어 있다. PR 본문은 우리가 조립했으므로
@@ -269,14 +275,15 @@ export function extractLegacyExplanation(prBody: string | null | undefined): Run
 
   // 우리가 조립한 본문(composePrBody)만 다룬다. 고정 절이 하나도 없으면 사람이 쓴 PR 이라
   // 머리말을 「무엇을 바꿨나」로 띄우면 엉뚱한 글이 설명 자리에 앉는다 — 설명 없음으로 둔다
-  if (!sections.has('원인 분석') && !sections.has('머지 전 확인')) return null;
-  const problem = str(sections.get('원인 분석') ?? '', EXPLANATION_FIELD_MAX);
+  const pick = (titles: string[]) => titles.map((t) => sections.get(t)).find((v) => v !== undefined);
+  if (pick(SECTION_CAUSE) === undefined && pick(SECTION_CHECKLIST) === undefined) return null;
+  const problem = str(pick(SECTION_CAUSE) ?? '', EXPLANATION_FIELD_MAX);
   // 본문 맨 앞이 모델의 pr_body(무엇을 어떻게 바꾸는지) 다. 구분선 뒤 자동 생성 안내는 뺀다
   const change = str(intro.split(/^---$/m)[0] ?? '', EXPLANATION_FIELD_MAX);
   if (!problem && !change) return null;
 
   const unverified: UnverifiedItem[] = [];
-  const checklist = sections.get('머지 전 확인') ?? '';
+  const checklist = pick(SECTION_CHECKLIST) ?? '';
   for (const line of checklist.split('\n')) {
     const m = line.match(/^- \[[ x]\]\s*(.+)$/);
     if (!m) continue;

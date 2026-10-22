@@ -3,7 +3,8 @@
 // 의존성 0 — `/inbox` 클라이언트 컴포넌트가 그대로 import 한다. 값은 서버(context.ts)가 이미
 // 정규화·마스킹한 것이지만, 화면에 그대로 뿌리기엔 UA 문자열이 너무 길다. 여기서 «사람이 읽을 말»로 줄인다.
 
-import { targetLabel, type WidgetTarget } from './pick';
+import { targetLabel, targetLabelEn, type WidgetTarget } from './pick';
+import type { Locale } from '@/i18n/routing';
 
 export interface ContextSummary {
   /** `/coupons?tab=used` — 오리진 없이 경로+쿼리. 없으면 undefined */
@@ -78,7 +79,8 @@ function pathOf(url: string): string | undefined {
 }
 
 /** context 컬럼 값(정규화된 JSON)을 요약. 아무것도 없으면 null — 그 말풍선엔 줄을 안 그린다 */
-export function summarizeContext(raw: unknown): ContextSummary | null {
+/** `locale` 는 짚은 요소 이름(`target.label`)을 읽는 사람의 언어로 만든다. 서버·프롬프트 쪽은 기본 ko 그대로. */
+export function summarizeContext(raw: unknown, locale: Locale = 'ko'): ContextSummary | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const c = raw as Record<string, unknown>;
   const out: ContextSummary = { errors: 0, requests: 0 };
@@ -95,7 +97,7 @@ export function summarizeContext(raw: unknown): ContextSummary | null {
   const t = c.target as Partial<WidgetTarget> | undefined;
   if (t && typeof t === 'object' && typeof t.selector === 'string' && t.selector) {
     out.target = {
-      label: targetLabel({ kind: t.kind ?? '', text: t.text, label: t.label, heading: t.heading, rect: validRect(t.rect) }, 40),
+      label: (locale === 'en' ? targetLabelEn : targetLabel)({ kind: t.kind ?? '', text: t.text, label: t.label, heading: t.heading, rect: validRect(t.rect) }, 40),
       selector: t.selector,
       page: typeof t.url === 'string' ? pathOf(t.url) : undefined,
       url: typeof t.url === 'string' ? t.url : typeof c.url === 'string' ? c.url : undefined,

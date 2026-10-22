@@ -260,14 +260,15 @@ describe('verifyWebhookSignature', () => {
 
 describe('installationLostMessage', () => {
   it('고정 사유 4종에 맞는 안내 문구를 돌려준다', () => {
-    expect(installationLostMessage('uninstalled')).toContain('제거');
-    expect(installationLostMessage('suspended')).toContain('정지');
-    expect(installationLostMessage('repo_removed')).toContain('접근 목록');
-    expect(installationLostMessage('missing')).toContain('찾지 못했');
+    expect(installationLostMessage('uninstalled', 'ko')).toContain('제거');
+    expect(installationLostMessage('uninstalled')).toContain('was removed');
+    expect(installationLostMessage('suspended', 'ko')).toContain('정지');
+    expect(installationLostMessage('repo_removed', 'ko')).toContain('접근 목록');
+    expect(installationLostMessage('missing', 'ko')).toContain('찾지 못했');
   });
   it('모르는 값·null·undefined 는 일반 안내로 폴백', () => {
-    expect(installationLostMessage('weird-reason')).toBe('GitHub 앱 연결을 확인해 주세요');
-    expect(installationLostMessage(null)).toBe('GitHub 앱 연결을 확인해 주세요');
-    expect(installationLostMessage(undefined)).toBe('GitHub 앱 연결을 확인해 주세요');
+    expect(installationLostMessage('weird-reason', 'ko')).toBe('GitHub 앱 연결을 확인해 주세요');
+    expect(installationLostMessage(null)).toBe('Check the GitHub App connection');
+    expect(installationLostMessage(undefined, 'ko')).toBe('GitHub 앱 연결을 확인해 주세요');
   });
 });

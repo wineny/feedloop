@@ -16,6 +16,7 @@
 //    ② 화면이 「이 키로 분류합니다」라고 거짓말을 한다. 지금 뒷단은 봇당 키 하나만 읽는다.
 
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { Lock } from 'lucide-react';
 import { LlmKeyForm } from '@/components/onboarding/LlmKeyForm';
 import { LLM_PURPOSES, LOOP_CLOSING_STAGE, type LlmPurposeSpec } from '@/lib/llm/purposes';
@@ -23,34 +24,36 @@ import { LLM_PROVIDERS, PROVIDER_LABELS } from '@/lib/llm/models';
 import { cn } from '@/lib/utils';
 
 export function LlmPurposePanel({ botId, serviceName }: { botId: string; serviceName: string }) {
+  const t = useTranslations('llm.purposes');
   return (
     <div className="flex max-w-[680px] flex-col gap-7">
       {/* 키 유무와 «무관하게» 참인 문장만 쓴다. 자기 키를 넣은 봇은 답변만큼은 자기 돈으로
           돌고 있으므로 「전부 피드루프가 냅니다」는 그 운영자에게 거짓말이 된다. */}
       <p className="text-sm leading-relaxed text-muted-foreground">
-        {serviceName} 봇은 루프의 칸마다 다른 일을 합니다. 지금은 베타 기간이라{' '}
-        <b className="font-semibold text-foreground">피드백 정리와 수정안 만들기는 피드루프가 부담해요.</b>{' '}
-        키를 넣지 않아도 네 칸이 모두 돕니다.
+        {t.rich('intro', {
+          name: serviceName,
+          b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b>,
+        })}
       </p>
 
       <ol className="flex flex-col">
         {LLM_PURPOSES.map((spec) => (
-          <Stage key={spec.key} emoji={spec.emoji} stage={spec.stage}>
+          <Stage key={spec.key} emoji={spec.emoji} stage={t(`${spec.key}.stage`)}>
             <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-              <h2 className="text-base font-semibold leading-none">{spec.title}</h2>
+              <h2 className="text-base font-semibold leading-none">{t(`${spec.key}.title`)}</h2>
               {spec.open ? (
                 <span className="rounded-full bg-brand-subtle px-2 py-0.5 text-[11px] font-semibold text-brand-strong">
-                  내 키로 돌릴 수 있어요
+                  {t('open')}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                   <Lock className="h-3 w-3" aria-hidden />
-                  베타 기간에는 피드루프가 부담
+                  {t('locked')}
                 </span>
               )}
             </header>
 
-            <p className="text-[13px] leading-relaxed text-muted-foreground">{spec.what}</p>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">{t(`${spec.key}.what`)}</p>
 
             {spec.open ? (
               <LlmKeyForm botId={botId} serviceName={serviceName} />
@@ -59,16 +62,16 @@ export function LlmPurposePanel({ botId, serviceName }: { botId: string; service
             )}
 
             <p className="border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
-              {spec.guide}
+              {t(`${spec.key}.guide`)}
             </p>
           </Stage>
         ))}
 
         {/* 마지막 칸은 설정이 없다. 그래도 그리는 이유 — 여기서 끊으면 루프가 아니라
             「3단계 퍼널」로 읽힌다. 되돌려주는 칸이 이 제품의 이름이고 주장이다. */}
-        <Stage emoji={LOOP_CLOSING_STAGE.emoji} stage={LOOP_CLOSING_STAGE.stage} isLast>
-          <h2 className="text-base font-semibold leading-none">{LOOP_CLOSING_STAGE.stage}</h2>
-          <p className="text-[13px] leading-relaxed text-muted-foreground">{LOOP_CLOSING_STAGE.what}</p>
+        <Stage emoji={LOOP_CLOSING_STAGE.emoji} stage={t('closing.stage')} isLast>
+          <h2 className="text-base font-semibold leading-none">{t('closing.stage')}</h2>
+          <p className="text-[13px] leading-relaxed text-muted-foreground">{t('closing.what')}</p>
         </Stage>
       </ol>
     </div>
@@ -114,10 +117,11 @@ function Stage({
  * 한다. 그렇다고 진짜 입력을 열면 위 주석의 두 가지가 그대로 벌어진다.
  */
 function LockedFields({ spec }: { spec: LlmPurposeSpec }) {
+  const t = useTranslations('llm.purposes');
   return (
     <div
       className="flex flex-col gap-2 rounded-xl border border-dashed border-border-strong/70 bg-muted/40 p-3"
-      aria-label={`${spec.title} — 베타 기간에는 설정할 수 없습니다`}
+      aria-label={t('lockedLabel', { title: t(`${spec.key}.title`) })}
     >
       <div className="inline-flex w-fit flex-wrap rounded-full border border-border-strong/60 p-0.5 opacity-55">
         {LLM_PROVIDERS.map((p) => (
@@ -131,10 +135,10 @@ function LockedFields({ spec }: { spec: LlmPurposeSpec }) {
           이 화면의 주인공은 «지금 설정할 수 있는» 첫 칸이다(2026-09-20 화면 확인). */}
       <div className="flex flex-wrap gap-2">
         <div className="flex h-9 flex-1 basis-40 items-center rounded-[10px] border border-border-strong/60 bg-background/60 px-2.5 text-[13px] text-faint">
-          모델 — 베타 이후 선택
+          {t('lockedModel')}
         </div>
         <div className="flex h-9 flex-1 basis-40 items-center rounded-[10px] border border-border-strong/60 bg-background/60 px-2.5 text-[13px] text-faint">
-          API 키 — 지금은 필요 없어요
+          {t('lockedKey')}
         </div>
       </div>
     </div>

@@ -30,8 +30,7 @@ export function isLlmProvider(value: unknown): value is LlmProvider {
 export interface LlmModelOption {
   id: string;
   label: string;
-  /** 운영자가 고를 때 보는 한 줄. 가격은 입력 100만 토큰 기준. */
-  note?: string;
+  // 운영자가 고를 때 보는 한 줄(가격은 입력 100만 토큰 기준)은 사전 `llm.models.<id>` 에 있다 — `.` 은 `_` 로(`gemini-3_5-flash`).
 }
 
 /**
@@ -41,23 +40,23 @@ export interface LlmModelOption {
  */
 export const MODELS: Record<LlmProvider, LlmModelOption[]> = {
   gemini: [
-    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', note: '빠르고 저렴해요 · 입력 $0.30 / 1M' },
-    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', note: '최신 Flash · 입력 $0.75 / 1M' },
-    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', note: '입력 $1.50 / 1M' },
-    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', note: '가장 저렴해요 · 입력 $0.10 / 1M' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', note: '규칙을 잘 지켜요 · 입력 $0.30 / 1M' },
+    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
   ],
   anthropic: [
-    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', note: '가장 빨라요 · 입력 $1 / 1M' },
-    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', note: '속도와 성능의 균형 · 입력 $2 / 1M' },
-    { id: 'claude-opus-5', label: 'Claude Opus 5', note: '입력 $5 / 1M' },
-    { id: 'claude-fable-5-1', label: 'Claude Fable 5.1', note: '가장 똑똑해요 · 입력 $10 / 1M' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+    { id: 'claude-opus-5', label: 'Claude Opus 5' },
+    { id: 'claude-fable-5-1', label: 'Claude Fable 5.1' },
   ],
   openai: [
-    { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', note: '빠르고 저렴해요 · 입력 $0.20 / 1M' },
-    { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', note: '입력 $2 / 1M' },
-    { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', note: '입력 $4 / 1M' },
-    { id: 'gpt-6-astra', label: 'GPT-6 Astra', note: '가장 똑똑해요 · 입력 $10 / 1M' },
+    { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
+    { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+    { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { id: 'gpt-6-astra', label: 'GPT-6 Astra' },
   ],
 };
 
@@ -103,24 +102,25 @@ export const MODEL_ID_RE = /^[A-Za-z0-9._-]+$/;
  */
 export function validateModelId(
   value: unknown,
-): { ok: true; value: string | null } | { ok: false; error: string } {
+): { ok: true; value: string | null } | { ok: false; error: string; code: string; vars?: Record<string, string | number> } {
   if (value === null || value === undefined) return { ok: true, value: null };
   if (typeof value !== 'string') {
-    return { ok: false, error: '모델 이름은 문자열이어야 합니다' };
+    return { ok: false, error: '모델 이름은 문자열이어야 합니다', code: 'model.notString' };
   }
   if (value.trim() === '') {
-    return { ok: false, error: '모델 이름이 비어 있습니다' };
+    return { ok: false, error: '모델 이름이 비어 있습니다', code: 'model.empty' };
   }
   if (value !== value.trim()) {
-    return { ok: false, error: '모델 이름 앞뒤에 공백이 있습니다' };
+    return { ok: false, error: '모델 이름 앞뒤에 공백이 있습니다', code: 'model.padded' };
   }
   if (value.length > MODEL_ID_MAX) {
-    return { ok: false, error: `모델 이름은 ${MODEL_ID_MAX}자까지 입력할 수 있습니다` };
+    return { ok: false, error: `모델 이름은 ${MODEL_ID_MAX}자까지 입력할 수 있습니다`, code: 'model.tooLong', vars: { max: MODEL_ID_MAX } };
   }
   if (!MODEL_ID_RE.test(value)) {
     return {
       ok: false,
       error: '모델 이름에는 영문·숫자와 . _ - 만 쓸 수 있습니다',
+      code: 'model.chars',
     };
   }
   return { ok: true, value };

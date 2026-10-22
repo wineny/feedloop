@@ -14,16 +14,17 @@ import {
 import { signShotsForMessages } from '@/lib/widget/shots';
 import { toPaymentActionView } from '@/lib/paypal/action-view';
 import { supabasePaymentsStore } from '@/lib/paypal/store';
+import { apiText } from '@/lib/http/api-text';
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ conversationId: string }> },
 ) {
   const { conversationId } = await params;
 
   const conversation = await getConversationOwner(conversationId);
   if (!conversation) {
-    return NextResponse.json({ error: '대화를 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'conversationNotFound') }, { status: 404 });
   }
 
   // 남의 대화를 열 수 없게 봇 접근권(소유자 또는 승인자)으로 막는다.

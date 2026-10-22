@@ -2,8 +2,10 @@
 //
 // 이 모듈이 지키는 것 하나: **키 원문은 반환값에도 로그에도 절대 안 들어간다.**
 // provider 에러 본문도 싣지 않는다 — 거기에 키 조각이나 내부 정보가 섞일 수 있다.
-// 밖으로 나가는 건 우리가 고른 4가지 사유와 그에 대응하는 한국어 문구뿐이다.
+// 밖으로 나가는 건 우리가 고른 4가지 사유와 그에 대응하는 문구(요청 언어)뿐이다.
 
+import { serverT } from '@/i18n/server-messages';
+import type { Locale } from '@/i18n/routing';
 import { RECOMMENDED, type LlmProvider } from './models';
 
 // 형식 1차 필터는 key-format.ts 에 있다(의존성 0 — 운영자 화면이 보내기 전에 쓴다).
@@ -38,18 +40,22 @@ export function classifyFailure(status: number | null, detail?: string): LlmFail
   return 'connection';
 }
 
-/** `bots.status_message` 와 운영자 화면에 그대로 쓰는 문구. 원문 에러는 안 들어간다. */
-export function failureMessage(kind: LlmFailureKind, modelId?: string | null): string {
-  switch (kind) {
-    case 'key_rejected':
-      return '키가 거부됐어요';
-    case 'model_invalid':
-      return modelId ? `모델 이름을 확인해 주세요: ${modelId}` : '모델 이름을 확인해 주세요';
-    case 'quota':
-      return 'provider 한도에 걸렸어요';
-    case 'connection':
-      return '연결에 실패했어요';
-  }
+/** 운영자 화면에 쓰는 문구(요청 언어). 원문 에러는 안 들어간다. */
+export function failureMessage(kind: LlmFailureKind, modelId?: string | null, locale: Locale = 'en'): string {
+  const t = serverT(locale, 'errors.llmFailure');
+  if (kind === 'model_invalid') return modelId ? t('model_invalid', { model: modelId }) : t('model_invalid_nomodel');
+  return t(kind);
+}
+
+const FAILURE_KINDS: readonly string[] = ['key_rejected', 'model_invalid', 'quota', 'connection'];
+
+/**
+ * `bots.llm_key_failed_reason` 에는 코드값(`LlmFailureKind`)을 저장한다. 화면에 낼 때 문장으로 바꾼다.
+ * 코드가 아닌 값(코드 전환 전에 저장된 문장)은 그대로 돌려준다.
+ */
+export function failureReasonText(stored: string | null, modelId?: string | null, locale: Locale = 'en'): string | null {
+  if (!stored) return null;
+  return FAILURE_KINDS.includes(stored) ? failureMessage(stored as LlmFailureKind, modelId, locale) : stored;
 }
 
 // ── 실호출 검증 ─────────────────────────────────────
@@ -94,7 +100,7 @@ export type KeyVerifyResult =
  * 모델 이름은 여기서 검증되지 않는다 — 목록 조회는 모델을 지정하지 않기 때문이다.
  * 잘못된 모델 이름은 첫 즉답 호출에서 드러나고 §B-6 경로로 운영자에게 보인다.
  */
-export async function verifyKey(provider: LlmProvider, key: string): Promise<KeyVerifyResult> {
+export async function verifyKey(provider: LlmProvider, key: string, locale: Locale = 'en'): Promise<KeyVerifyResult> {
   const { url, headers } = verifyEndpoint(provider, key);
 
   let res: Response;
@@ -111,7 +117,7 @@ export async function verifyKey(provider: LlmProvider, key: string): Promise<Key
   } catch {
     // 에러 객체를 로그에 싣지 않는다 — fetch 에러가 요청 헤더를 품는 런타임이 있다.
     console.error(`[llm] key verification could not reach provider: ${provider}`);
-    return { ok: false, kind: 'connection', error: failureMessage('connection') };
+    return { ok: false, kind: 'connection', error: failureMessage('connection', null, locale) };
   }
 
   if (res.ok) return { ok: true };
@@ -126,7 +132,7 @@ export async function verifyKey(provider: LlmProvider, key: string): Promise<Key
 
   const kind = classifyFailure(res.status, detail);
   console.error(`[llm] key verification failed: provider=${provider} status=${res.status} kind=${kind}`);
-  return { ok: false, kind, error: failureMessage(kind) };
+  return { ok: false, kind, error: failureMessage(kind, null, locale) };
 }
 
 /** 화면 표시용. 원문은 절대 저장·반환하지 않고 이 4자만 남긴다. */

@@ -135,7 +135,7 @@ describe('callLlm — 실패 표시의 수명', () => {
     const out = await callLlm(config({ llmApiKeyEncrypted: 'enc' }), 'system', 'user');
 
     expect(out).toBeNull();
-    expect(markLlmKeyFailed).toHaveBeenCalledWith(BOT_ID, '키가 거부됐어요');
+    expect(markLlmKeyFailed).toHaveBeenCalledWith(BOT_ID, 'key_rejected');
   });
 
   it('플랫폼 폴백 실패는 bots 에 쓰지 않는다 — 운영자 잘못이 아니다', async () => {

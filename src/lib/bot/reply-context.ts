@@ -41,8 +41,8 @@ export interface RecentTurn {
  * AI 와 사람을 갈라 보여주면 모델이 「저건 내가 한 말이 아니다」로 읽고 맥락에서 뺀다.
  */
 function turnLabel(kind: TimelineKind, serviceName: string): string {
-  if (kind === 'user') return '방문자';
-  if (kind === 'system' || kind === 'notice') return '안내';
+  if (kind === 'user') return 'Visitor';
+  if (kind === 'system' || kind === 'notice') return 'Notice';
   return serviceName;
 }
 
@@ -59,7 +59,7 @@ export function formatRecentContext(
   serviceName: string,
 ): string {
   // 이름은 라벨 자리에 리터럴로 들어간다. 개행이 남으면 가짜 화자 줄을 만들 수 있다.
-  const name = collapseWhitespace(serviceName) || '운영자';
+  const name = collapseWhitespace(serviceName) || 'Operator';
 
   const turns: RecentTurn[] = items
     .filter((i) => i.id !== currentMessageId)
@@ -172,7 +172,7 @@ export function formatExtendableSection(
     return `- [${ref}] ${category} · ${summary}`;
   });
 
-  return ['이 대화의 기존 제보 (보충이면 extends 에 ref):', ...lines].join('\n');
+  return ['Reports already in this conversation (if this message adds to one, put its ref in extends):', ...lines].join('\n');
 }
 
 /**
@@ -195,9 +195,9 @@ export function buildWidgetUserTurn(p: {
   reminder: string;
 }): string {
   const blocks: string[] = [];
-  if (p.recent) blocks.push(`최근 대화:\n${p.recent}`);
+  if (p.recent) blocks.push(`Recent conversation:\n${p.recent}`);
   if (p.extendable) blocks.push(p.extendable);
   if (p.knownIssues) blocks.push(p.knownIssues);
-  blocks.push(`지금 메시지:\n사용자: ${p.text}${p.hintLine}\n${p.reminder}`);
+  blocks.push(`Current message:\nVisitor: ${p.text}${p.hintLine}\n${p.reminder}`);
   return blocks.join('\n\n');
 }

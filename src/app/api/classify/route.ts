@@ -5,6 +5,9 @@ import { getServiceRoleClient } from '@/lib/supabase';
 import { runGroupingNow } from '@/lib/groups/auto-grouping';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { runClassificationRecovery } from '@/lib/classify/recovery';
+import { apiText } from '@/lib/http/api-text';
+import { localeFromRequest } from '@/i18n/server-locale';
+import type { Locale } from '@/i18n/routing';
 
 const IN_CHUNK = 100;
 export const maxDuration = 300;
@@ -70,7 +73,7 @@ export async function POST(req: NextRequest) {
       classified: 0,
       pending: 0,
       results: {},
-      message: '등록된 봇이 없습니다',
+      message: apiText(req, 'noBots'),
     });
   }
 
@@ -90,7 +93,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : '복구 실패' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : apiText(req, 'recoveryFailed') }, { status: 500 });
   }
 }
 
@@ -154,8 +157,8 @@ export async function GET(req: NextRequest) {
   const states = ['pending', 'processing', 'failed', 'exhausted'] as const;
   const counts = await Promise.all(states.map(state => db.from('messages').select('id', { count: 'exact', head: true }).in('bot_id', auth.botIds).eq('classification_state', state)));
   const failures = await db.from('messages').select('id, classification_state, classification_attempts, classification_error, detected_at').in('bot_id', auth.botIds).in('classification_state', ['failed', 'exhausted']).order('detected_at', { ascending: true }).limit(50);
-  if (counts.some(result => result.error) || failures.error) return NextResponse.json({ error: '분류 복구 상태를 읽지 못했습니다' }, { status: 500 });
-  const insights = await withPickedShots(data || [], auth.botIds);
+  if (counts.some(result => result.error) || failures.error) return NextResponse.json({ error: apiText(req, 'triageRecoveryReadFailed') }, { status: 500 });
+  const insights = await withPickedShots(data || [], auth.botIds, localeFromRequest(req, 'operator'));
   return NextResponse.json({ insights, recovery: { counts: Object.fromEntries(states.map((state, index) => [state, counts[index].count ?? 0])), failures: failures.data ?? [] } });
 }
 
@@ -163,7 +166,7 @@ export async function GET(req: NextRequest) {
  * 「화면에서 선택하기」(I-55) — 짚은 요소가 있는 행에 `picked`(라벨·rect·뷰포트) + 10분 서명 URL 을 싣고,
  * 원본 context(html 뼈대·UA 등)는 목록 응답에서 뺀다. 소유 확인(resolveOwnedBots)을 지난 뒤에만 부른다.
  */
-async function withPickedShots<T extends { message_id: string; messages: unknown }>(rows: T[], botIds: string[]) {
+async function withPickedShots<T extends { message_id: string; messages: unknown }>(rows: T[], botIds: string[], locale: Locale) {
   const ctxOf = (r: T) => {
     const m = (Array.isArray(r.messages) ? r.messages[0] : r.messages) as { context?: unknown } | null;
     return m?.context ?? null;
@@ -174,7 +177,7 @@ async function withPickedShots<T extends { message_id: string; messages: unknown
     const context = ctxOf(r);
     const m = (Array.isArray(r.messages) ? r.messages[0] : r.messages) as ({ context?: unknown; detected_at?: string } & Record<string, unknown>) | null;
     const messages = m ? (({ context: _c, ...rest }) => (void _c, rest))(m) : m;
-    const picked = pickedFromContext(context, shots[r.message_id], m?.detected_at);
+    const picked = pickedFromContext(context, shots[r.message_id], m?.detected_at, locale);
     return { ...r, messages, picked };
   });
 }
@@ -185,10 +188,10 @@ export async function PATCH(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const body = await req.json().catch(() => null);
   if (!body || typeof body.messageId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.messageId)) {
-    return NextResponse.json({ error: '메시지 ID가 필요합니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'messageIdRequired') }, { status: 400 });
   }
   const { data, error } = await getServiceRoleClient().rpc('retry_exhausted_classification', { p_message_id: body.messageId, p_operator_id: auth.userId });
-  if (error) return NextResponse.json({ error: '재시도 예약에 실패했습니다' }, { status: 500 });
-  if (!data) return NextResponse.json({ error: '재시도 한도에 도달한 본인 봇의 메시지만 다시 예약할 수 있습니다' }, { status: 409 });
+  if (error) return NextResponse.json({ error: apiText(req, 'retryScheduleFailed') }, { status: 500 });
+  if (!data) return NextResponse.json({ error: apiText(req, 'retryNotAllowed') }, { status: 409 });
   return NextResponse.json({ queued: true });
 }

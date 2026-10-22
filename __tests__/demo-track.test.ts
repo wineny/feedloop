@@ -264,7 +264,7 @@ describe('demo-track — 단계', () => {
     });
   });
 
-  it('분류됐으면 「분류됨」 + 한국어 라벨', async () => {
+  it('분류됐으면 「분류됨」 + 영어 라벨(기본 언어)', async () => {
     tables.insights = {
       data: [{ category: 'bug', created_at: '2026-09-18T01:00:05Z', updated_at: null, group_id: null }],
       error: null,
@@ -272,7 +272,7 @@ describe('demo-track — 단계', () => {
     const body = await (await call({ botId: BOT, messageId: MSG, visitorId: VISITOR })).json();
     expect(body.stage).toBe('classified');
     expect(body.category).toBe('bug');
-    expect(body.categoryLabel).toBe('버그');
+    expect(body.categoryLabel).toBe('Bug');
     expect(body.at.classified).toBe('2026-09-18T01:00:05Z');
   });
 

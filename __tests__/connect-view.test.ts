@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveVia } from '@/lib/connect/via';
-import { lastFeedbackLabel, kstTime, kstDayNumber } from '@/lib/connect/last-feedback';
+import { lastFeedbackParts, dayNumber } from '@/lib/connect/last-feedback';
 import { ENTRANCE_NAME, isLocked, resolveConnectScreen } from '@/lib/connect/exclusive';
 
 // 연결 화면이 쓰는 순수 판정 둘. 화면 코드는 브라우저로 보면 되지만 이 둘은 **조용히 틀린다** —
@@ -39,57 +39,42 @@ describe('resolveVia — 어느 갈래를 펼칠지', () => {
   });
 });
 
-describe('lastFeedbackLabel — 마지막 피드백 시각', () => {
+describe('lastFeedbackParts — 마지막 피드백 시각', () => {
   // KST 2026-09-14 15:00 = UTC 06:00
   const now = new Date('2026-09-14T06:00:00Z');
+  const KST = 'Asia/Seoul';
 
-  it('시각이 없으면 없다고 말한다', () => {
-    expect(lastFeedbackLabel(null, now)).toBe('아직 들어온 피드백이 없어요');
+  it('시각이 없으면 none', () => {
+    expect(lastFeedbackParts(null, now, KST)).toEqual({ kind: 'none' });
   });
 
-  it('읽을 수 없는 값을 「피드백이 없다」로 접지 않는다 — 대화는 있는데 시각만 못 읽은 것이다', () => {
-    expect(lastFeedbackLabel('오늘쯤', now)).toBe('마지막 피드백 시각을 읽지 못했어요');
+  it('읽을 수 없는 값을 none 으로 접지 않는다 — 대화는 있는데 시각만 못 읽은 것이다', () => {
+    expect(lastFeedbackParts('오늘쯤', now, KST)).toEqual({ kind: 'invalid' });
   });
 
   it('오늘·어제만 상대 표현을 쓰고 그 앞은 날짜로 적는다', () => {
-    // KST 09-14 13:18
-    expect(lastFeedbackLabel('2026-09-14T04:18:00Z', now)).toBe('오늘 오후 1:18에 마지막 피드백');
-    // KST 09-13 16:18
-    expect(lastFeedbackLabel('2026-09-13T07:18:00Z', now)).toBe('어제 오후 4:18에 마지막 피드백');
-    // KST 09-11
-    expect(lastFeedbackLabel('2026-09-11T07:18:00Z', now)).toBe('9월 11일에 마지막 피드백');
+    expect(lastFeedbackParts('2026-09-14T04:18:00Z', now, KST).kind).toBe('today'); // KST 09-14 13:18
+    expect(lastFeedbackParts('2026-09-13T07:18:00Z', now, KST).kind).toBe('yesterday'); // KST 09-13 16:18
+    expect(lastFeedbackParts('2026-09-11T07:18:00Z', now, KST).kind).toBe('date'); // KST 09-11
   });
 
-  it('KST 자정을 기준으로 가른다 — UTC 로 도는 서버에서 한국 새벽이 「어제」가 되면 안 된다', () => {
-    // KST 09-14 00:30 = UTC 09-13 15:30. UTC 날짜로는 어제지만 한국에서는 오늘이다.
-    expect(lastFeedbackLabel('2026-09-13T15:30:00Z', now)).toBe('오늘 오전 12:30에 마지막 피드백');
-    // KST 09-13 23:59 = UTC 09-13 14:59 — 같은 UTC 날짜인데 한국에서는 어제다.
-    expect(lastFeedbackLabel('2026-09-13T14:59:00Z', now)).toBe('어제 오후 11:59에 마지막 피드백');
-  });
-});
-
-describe('kstTime — 12시간제 조립', () => {
-  it('ko-KR 에 맡기지 않는다 — 런타임 ICU 에 따라 「PM 4:18」이 나오던 자리다', () => {
-    expect(kstTime(new Date('2026-09-13T07:18:00Z'))).toBe('오후 4:18');
-    expect(kstTime(new Date('2026-09-13T07:18:00Z'))).not.toContain('PM');
-  });
-
-  it('0시와 12시가 같은 자리에서 갈린다', () => {
-    // KST 00:15 → 「오전 12:15」 (0시는 12로 읽는다)
-    expect(kstTime(new Date('2026-09-13T15:15:00Z'))).toBe('오전 12:15');
-    // KST 12:15 → 「오후 12:15」 (12시는 그대로 12)
-    expect(kstTime(new Date('2026-09-13T03:15:00Z'))).toBe('오후 12:15');
-    // 경계 바로 앞뒤
-    expect(kstTime(new Date('2026-09-13T02:59:00Z'))).toBe('오전 11:59');
-    expect(kstTime(new Date('2026-09-13T04:00:00Z'))).toBe('오후 1:00');
+  it('보는 사람의 시간대 자정을 기준으로 가른다 — 같은 순간도 시간대에 따라 오늘이거나 어제다', () => {
+    // KST 09-14 00:30 = UTC 09-13 15:30. UTC 로는 어제, 한국에서는 오늘이다.
+    expect(lastFeedbackParts('2026-09-13T15:30:00Z', now, KST).kind).toBe('today');
+    expect(lastFeedbackParts('2026-09-13T15:30:00Z', now, 'UTC').kind).toBe('yesterday');
+    // KST 09-13 23:59 = UTC 09-13 14:59 — 한국에서는 어제.
+    expect(lastFeedbackParts('2026-09-13T14:59:00Z', now, KST).kind).toBe('yesterday');
+    // 미국 서부(UTC-7): now 는 09-13 23:00 이라 같은 순간(UTC 09-13 15:30 = 08:30)이 오늘이다.
+    expect(lastFeedbackParts('2026-09-13T15:30:00Z', now, 'America/Los_Angeles').kind).toBe('today');
   });
 });
 
-describe('kstDayNumber', () => {
-  it('KST 자정에서 하루가 넘어간다', () => {
+describe('dayNumber', () => {
+  it('시간대 자정에서 하루가 넘어간다', () => {
     const beforeMidnight = new Date('2026-09-13T14:59:59Z'); // KST 09-13 23:59:59
     const afterMidnight = new Date('2026-09-13T15:00:00Z'); // KST 09-14 00:00:00
-    expect(kstDayNumber(afterMidnight) - kstDayNumber(beforeMidnight)).toBe(1);
+    expect(dayNumber(afterMidnight, 'Asia/Seoul') - dayNumber(beforeMidnight, 'Asia/Seoul')).toBe(1);
+    expect(dayNumber(afterMidnight, 'UTC') - dayNumber(beforeMidnight, 'UTC')).toBe(0);
   });
 });
 

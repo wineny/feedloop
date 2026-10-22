@@ -372,7 +372,7 @@ describe('DELETE — 익명화', () => {
   it('③ 작성자 이름만 치환하고 본문은 건드리지 않는다', async () => {
     const { msgs } = await disconnect();
 
-    expect(msgs.patch).toEqual({ author_name: '채널톡 이용자' });
+    expect(msgs.patch).toEqual({ author_name: null });
     expect(msgs.patch).not.toHaveProperty('body');
   });
 
@@ -447,7 +447,7 @@ describe('PATCH /api/bots/[id] — 채널톡이 붙어 있으면 자동 모드�
     const { status, body } = await patchPrMode('auto');
 
     expect(status).toBe(400);
-    expect(body.error).toContain('승인 모드');
+    expect(body.error).toContain('approve mode');
     expect(updateCalls).toHaveLength(0);
   });
 
@@ -488,7 +488,7 @@ describe('입구는 한 번에 하나 — 위젯이 받고 있으면 채널톡�
 
     const { status, body } = await call('PATCH', { body: VALID_BODY });
     expect(status).toBe(400);
-    expect(body.error).toContain('위젯');
+    expect(body.error).toContain('web widget');
     expect(updateCalls).toHaveLength(0);
   });
 

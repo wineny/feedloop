@@ -9,6 +9,7 @@
 // 모델을 불러보는 미리보기는 없다. 저장할 때마다 돈이 나가면 안 된다.
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +17,6 @@ import { Plus, Trash2, Loader2, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SectionTitle } from '@/components/layout/SectionTitle';
 import { KNOWLEDGE_LIMITS, knowledgeSize, type FaqItem } from '@/lib/bot/knowledge';
-import { HOLDING_MESSAGE } from '@/lib/bot/holding';
 
 interface KnowledgeFormProps {
   botId: string;
@@ -31,6 +31,7 @@ type Status = { kind: 'ok' | 'error'; message: string } | null;
  * (컴포넌트에 useState 를 늘어놓지 않기 위한 추출 — 화면은 그리기만 한다)
  */
 function useKnowledgeDraft(botId: string, initial: KnowledgeFormProps['initial']) {
+  const t = useTranslations('bots');
   const [text, setText] = useState(initial.knowledge_text ?? '');
   const [faq, setFaq] = useState<FaqItem[]>(initial.knowledge_faq);
   const [saving, setSaving] = useState(false);
@@ -54,13 +55,13 @@ function useKnowledgeDraft(botId: string, initial: KnowledgeFormProps['initial']
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setStatus({ kind: 'error', message: (data && data.error) || '저장하지 못했습니다' });
+        setStatus({ kind: 'error', message: (data && data.error) || t('knowledge.errors.save') });
         return;
       }
       // 봇 설정 캐시를 라우트가 바로 비운다 — 5분을 기다릴 필요가 없다.
-      setStatus({ kind: 'ok', message: '저장했어요. 지금부터 이 내용으로 답합니다' });
+      setStatus({ kind: 'ok', message: t('knowledge.saved') });
     } catch {
-      setStatus({ kind: 'error', message: '네트워크 오류로 저장하지 못했습니다' });
+      setStatus({ kind: 'error', message: t('knowledge.errors.network') });
     } finally {
       setSaving(false);
     }
@@ -70,6 +71,8 @@ function useKnowledgeDraft(botId: string, initial: KnowledgeFormProps['initial']
 }
 
 export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProps) {
+  const t = useTranslations('bots');
+  const holding = useTranslations('common')('holdingMessage');
   const draft = useKnowledgeDraft(botId, initial);
   const { text, faq } = draft;
 
@@ -84,16 +87,14 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
     <div className="flex max-w-[660px] flex-col gap-7">
       {isEmpty && (
         <p className="border-l-2 border-border-strong pl-3 text-[13px] leading-relaxed text-muted-foreground">
-          지식이 비어 있는 동안 봇은 사실 질문(정책·가격·수량 같은 것)에 답하지 않고
-          &ldquo;{HOLDING_MESSAGE}&rdquo;로 넘깁니다. 피드백에는 평소처럼 답해요. 여기에
-          지식을 넣으면 그 범위 안에서 바로 답합니다.
+          {t('knowledge.emptyNote', { holding })}
         </p>
       )}
       <section className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
           {/* 섹션 제목이면서 textarea 의 label 이다 — SectionTitle(h2)로 바꾸면 htmlFor 연결이 끊긴다 */}
           <label htmlFor="knowledge-text" className="text-lg font-bold tracking-[-0.015em]">
-            알려줄 내용
+            {t('knowledge.textTitle')}
           </label>
           <span
             className={cn(
@@ -101,7 +102,7 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
               textOver ? 'font-semibold text-destructive' : 'text-faint',
             )}
           >
-            {text.trim().length.toLocaleString('ko-KR')} / {KNOWLEDGE_LIMITS.text.toLocaleString('ko-KR')}자
+            {t('knowledge.count', { count: text.trim().length, max: KNOWLEDGE_LIMITS.text })}
           </span>
         </div>
         <Textarea
@@ -109,21 +110,20 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
           rows={14}
           value={text}
           onChange={(e) => draft.setText(e.target.value)}
-          placeholder={`${serviceName}에 대해 봇이 알아야 할 것을 그대로 붙여넣으세요. 이용 안내, 요금, 배송·환불 규정, 자주 나오는 상황 같은 것들이요.`}
+          placeholder={t('knowledge.textPlaceholder', { name: serviceName })}
           className="resize-y leading-relaxed"
         />
         <p className="text-[13px] leading-relaxed text-muted-foreground">
-          노션이나 README 에 이미 쓴 글을 그대로 붙여넣어도 됩니다. 여기 없는 내용은 봇이
-          지어내지 않고 &ldquo;{HOLDING_MESSAGE}&rdquo;로 넘깁니다.
+          {t('knowledge.textNote', { holding })}
         </p>
       </section>
 
       <section className="flex flex-col gap-4 border-t border-border pt-5">
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <SectionTitle>자주 묻는 질문</SectionTitle>
+            <SectionTitle>{t('knowledge.faqTitle')}</SectionTitle>
             <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">
-              질문과 답을 나눠 적으면 봇이 훨씬 잘 찾아냅니다.
+              {t('knowledge.faqHint')}
             </p>
           </div>
           <span
@@ -132,13 +132,13 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
               faqOver ? 'font-semibold text-destructive' : 'text-faint',
             )}
           >
-            {filledFaq.length} / {KNOWLEDGE_LIMITS.faqItems}개
+            {t('knowledge.faqCount', { count: filledFaq.length, max: KNOWLEDGE_LIMITS.faqItems })}
           </span>
         </div>
 
         {faq.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground">
-            아직 없습니다. 아래에서 첫 항목을 추가하세요.
+            {t('knowledge.faqEmpty')}
           </p>
         ) : (
           <ul className="flex flex-col gap-4">
@@ -148,16 +148,16 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
                   <Input
                     value={item.q}
                     onChange={(e) => draft.updateFaq(i, { q: e.target.value })}
-                    placeholder="예: 환불은 언제까지 되나요?"
+                    placeholder={t('knowledge.faqQuestionPlaceholder')}
                     maxLength={KNOWLEDGE_LIMITS.faqQuestion}
-                    aria-label={`질문 ${i + 1}`}
+                    aria-label={t('knowledge.questionLabel', { n: i + 1 })}
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     onClick={() => draft.removeFaq(i)}
-                    aria-label={`질문 ${i + 1} 삭제`}
+                    aria-label={t('knowledge.questionDelete', { n: i + 1 })}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -166,10 +166,10 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
                   rows={3}
                   value={item.a}
                   onChange={(e) => draft.updateFaq(i, { a: e.target.value })}
-                  placeholder="봇이 이렇게 답하면 좋겠다 싶은 내용을 적으세요."
+                  placeholder={t('knowledge.faqAnswerPlaceholder')}
                   maxLength={KNOWLEDGE_LIMITS.faqAnswer}
                   className="resize-none"
-                  aria-label={`답변 ${i + 1}`}
+                  aria-label={t('knowledge.answerLabel', { n: i + 1 })}
                 />
               </li>
             ))}
@@ -178,7 +178,7 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
 
         <Button type="button" variant="outline" size="sm" onClick={draft.addFaq} className="self-start">
           <Plus className="h-4 w-4" />
-          항목 추가
+          {t('knowledge.addItem')}
         </Button>
       </section>
 
@@ -190,32 +190,32 @@ export function KnowledgeForm({ botId, serviceName, initial }: KnowledgeFormProp
         */}
         <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
           <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
-          여기 넣은 내용은 방문자 답변에 그대로 인용될 수 있어요. 공개해도 되는 정보만 넣어 주세요.
+          {t('knowledge.publicWarning')}
         </p>
 
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs text-muted-foreground">프롬프트에 실리는 크기</p>
+            <p className="text-xs text-muted-foreground">{t('knowledge.sizeLabel')}</p>
             <p className="text-[26px] font-extrabold leading-none tracking-[-0.025em] tabular-nums">
-              ≈ {size.toLocaleString('ko-KR')}자
+              {t('knowledge.size', { size })}
             </p>
             <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              답변할 때마다 이만큼이 모델에 함께 들어갑니다. 길수록 비용과 응답 시간이 늘어요.
+              {t('knowledge.sizeNote')}
             </p>
           </div>
           <Button onClick={draft.save} disabled={blocked}>
-            {draft.saving ? <Loader2 className="animate-spin" /> : '저장'}
+            {draft.saving ? <Loader2 className="animate-spin" /> : t('knowledge.save')}
           </Button>
         </div>
 
         {textOver && (
           <p className="text-xs text-destructive">
-            알려줄 내용이 상한을 넘었습니다. 줄여야 저장할 수 있어요 — 잘라서 저장하지 않습니다.
+            {t('knowledge.textOver')}
           </p>
         )}
         {faqOver && (
           <p className="text-xs text-destructive">
-            자주 묻는 질문이 {KNOWLEDGE_LIMITS.faqItems}개를 넘었습니다.
+            {t('knowledge.faqOver', { max: KNOWLEDGE_LIMITS.faqItems })}
           </p>
         )}
         {draft.status && (

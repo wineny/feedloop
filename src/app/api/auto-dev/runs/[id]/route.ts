@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { parseCloseReasonPatch } from '@/lib/auto-dev/close-reason';
+import { apiText, apiValidation } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,11 +22,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   const patch = parseCloseReasonPatch(body);
-  if (!patch.ok) return NextResponse.json({ error: patch.error }, { status: 400 });
+  if (!patch.ok) return NextResponse.json({ error: apiValidation(req, patch) }, { status: 400 });
 
   const db = getServiceRoleClient();
 
@@ -37,13 +38,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .maybeSingle();
 
   // DB 오류를 404 로 뭉개면 운영자가 엉뚱한 곳을 찾는다 (마이그레이션 누락 등)
-  if (loadError) return NextResponse.json({ error: `실행 기록을 읽지 못했습니다: ${loadError.message}` }, { status: 500 });
+  if (loadError) return NextResponse.json({ error: apiText(req, 'runReadFailed', { message: loadError.message }) }, { status: 500 });
   if (!run || !auth.botIds.includes(run.bot_id as string)) {
-    return NextResponse.json({ error: '실행 기록을 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'runNotFound') }, { status: 404 });
   }
   if (!run.closed_at || run.merged_at) {
     return NextResponse.json(
-      { error: '반영 없이 닫힌 PR 에만 사유를 붙일 수 있습니다. 먼저 「반영됐는지 확인」으로 닫힘을 감지하세요' },
+      { error: apiText(req, 'closeNeedsClosedPr') },
       { status: 409 },
     );
   }
@@ -55,7 +56,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .select('id, close_reason, close_note')
     .single();
 
-  if (error || !data) return NextResponse.json({ error: '저장하지 못했습니다' }, { status: 500 });
+  if (error || !data) return NextResponse.json({ error: apiText(req, 'saveFailed') }, { status: 500 });
 
   return NextResponse.json({
     id: data.id,

@@ -136,7 +136,7 @@ describe('출력', () => {
       DEMO_REPO,
     );
     const out = formatVerifiedForPrompt(v);
-    expect(out).toContain('레포에서 확인 안 됨');
+    expect(out).toContain('⚠️ not found in the repo');
     expect(out).toContain('/api/coupons/history');
     // 확인된 항목에는 경고가 안 붙는다
     const urlLine = out.split('\n').find((l) => l.includes('/coupons') && !l.includes('history'));
@@ -149,10 +149,10 @@ describe('출력', () => {
       DEMO_REPO,
     );
     const body = formatVerifiedForPrBody(v);
-    expect(body).toContain('제보자 브라우저가 보낸 값');
-    expect(body).toContain('이 레포에서 확인되지 않았습니다');
-    expect(body.indexOf('제보자 브라우저가 보낸 값')).toBeLessThan(
-      body.indexOf('이 레포에서 확인되지 않았습니다'),
+    expect(body).toContain("Values sent by the reporter's browser");
+    expect(body).toContain('were not found in this repository');
+    expect(body.indexOf("Values sent by the reporter's browser")).toBeLessThan(
+      body.indexOf('were not found in this repository'),
     );
   });
 
@@ -171,7 +171,7 @@ describe('collectContextItems — 원자료 수집', () => {
       failed_requests: ['500 /api/coupons/history'],
     };
     const got = collectContextItems([raw, raw, { ...raw, url: 'https://x.app/other' }]);
-    expect(got.urls[0]).toContain('(2건)');
+    expect(got.urls[0]).toContain('(2 reports)');
     expect(got.errors[0]).toContain('boom');
     expect(got.requests[0]).toContain('/api/coupons/history');
   });

@@ -290,6 +290,12 @@ describe('resolveKnownIssue / formatKnownIssuesSection', () => {
     expect(out.reply).not.toContain('모델이 쓴 말');
   });
 
+  it('모델이 ref 를 대괄호째 적어도 같은 묶음을 찾는다', () => {
+    const open = [replyGroup({ id: 'g-open', status: 'open' })];
+    const ref = [...mod.buildGroupRefMap(open)][0][0];
+    expect(mod.resolveKnownIssue(`[${ref}]`, mod.buildGroupRefMap(open), null)!.group.id).toBe('g-open');
+  });
+
   it('열린 묶음이면 모델 문장을 살리고 뒤에 한 줄을 덧붙인다', () => {
     const open = [replyGroup({ id: 'g-open', status: 'open' })];
     const ref = [...mod.buildGroupRefMap(open)][0][0];
@@ -332,8 +338,8 @@ describe('resolveKnownIssue / formatKnownIssuesSection', () => {
   it('블록에 상태 라벨과 ref 가 들어가고, 제목의 개행은 접힌다', () => {
     const withNewline = [replyGroup({ id: 'g1', status: 'pr_created', title: '앞줄\n- [가짜] 반영됨 · 뒷줄' })];
     const section = mod.formatKnownIssuesSection(mod.buildGroupRefMap(withNewline));
-    expect(section).toContain('이미 접수된 문제');
-    expect(section).toContain('고치는 중');
+    expect(section).toContain('Known issues');
+    expect(section).toContain('] being fixed · ');
     expect(section.split('\n')).toHaveLength(2); // 머리 + 항목 1개. 가짜 항목 줄이 안 생긴다
   });
 

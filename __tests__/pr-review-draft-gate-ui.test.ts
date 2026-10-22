@@ -1,7 +1,7 @@
 import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DraftGateLine, mergeErrorMessage } from '@/components/monitor/PrReviewPanel';
+import { renderWithIntl, translator } from './helpers/intl';
 import { effectiveBlock, needsPolling, type PrReviewData, type PrReviewResponse } from '@/lib/hooks/usePrReview';
 
 // 초안 PR 게이트 화면(2026-10-09) — 상태 한 줄 · 반영 잠금 · 대기 중 폴링.
@@ -14,16 +14,19 @@ const build = (state: Build['state'], extra: Partial<Build> = {}): Build => ({
   state, description: null, targetUrl: null, updatedAt: null, unavailable: false, ...extra,
 });
 const line = (draftGate: PrReviewData['draftGate'] | undefined, b: Build = build('pending'), draftGateBlocked?: PrReviewData['draftGateBlocked']) =>
-  renderToStaticMarkup(React.createElement(DraftGateLine, { review: { draftGate, draftGateBlocked, build: b } as PrReviewData }));
+  renderWithIntl(React.createElement(DraftGateLine, { review: { draftGate, draftGateBlocked, build: b } as PrReviewData })).replaceAll('&#x27;', "'");
+
+// 반영 실패 문구를 읽는 번역기 — 실제 영어 사전
+const t = translator('monitor');
 
 const response = (review: Partial<PrReviewData>, blockedBy: PrReviewResponse['blockedBy'] = null) =>
   ({ review: { build: build('unknown'), preview: { url: null, state: 'none' }, ...review }, blockedBy, legacyExplanation: null }) as unknown as PrReviewResponse;
 
 describe('DraftGateLine', () => {
   it('waiting — 검사가 있으면 통과 뒤, 없으면 10분 뒤 바뀐다고 말한다', () => {
-    expect(line('waiting')).toContain('자동 검사를 기다리는 중이에요');
-    expect(line('waiting')).toContain('통과하면 검토 요청으로 바뀌어요');
-    expect(line('waiting', build('unknown'))).toContain('10분 뒤 검토 요청으로 바뀌어요');
+    expect(line('waiting')).toContain('Waiting for automatic checks');
+    expect(line('waiting')).toContain('It becomes ready for review once they pass');
+    expect(line('waiting', build('unknown'))).toContain('10 minutes after the PR opens');
   });
 
   it('failed — 실패한 검사 이름과 https 링크만 건다', () => {
@@ -34,62 +37,62 @@ describe('DraftGateLine', () => {
         { name: 'evil', url: 'javascript:alert(1)' },
       ],
     }));
-    expect(html).toContain('자동 검사에 실패해 초안으로 두었어요');
+    expect(html).toContain('Automatic checks failed, so it stays a draft');
     expect(html).toContain('href="https://vercel.com/x"');
     expect(html).toContain('lint');
     expect(html).toContain('evil');
     expect(html).not.toContain('javascript:');
-    expect(line('failed', build('failure'))).not.toContain('실패한 검사:');
+    expect(line('failed', build('failure'))).not.toContain('Failed checks:');
   });
 
   it('promoted — 검사 없이 바뀐 PR 에 「통과」라고 말하지 않는다', () => {
-    expect(line('promoted', build('success'))).toContain('자동 검사를 통과해 검토 요청으로 바뀌었어요');
+    expect(line('promoted', build('success'))).toContain('Passed the automatic checks and was marked ready for review');
     const noChecks = line('promoted', build('unknown'));
-    expect(noChecks).not.toContain('통과');
-    expect(noChecks).toContain('확인할 자동 검사가 없어');
+    expect(noChecks).not.toContain('Passed');
+    expect(noChecks).toContain('There were no automatic checks to wait for');
   });
 
   it('unsupported 는 안내, not_draft·필드 없음(옛 응답·데모)은 아무것도 안 그린다', () => {
-    expect(line('unsupported')).toContain('이 레포는 초안 PR 을 지원하지 않아 바로 열었어요');
+    expect(line('unsupported')).toContain("This repository doesn't support draft PRs, so it was opened directly");
     expect(line('not_draft')).toBe('');
     expect(line(undefined)).toBe('');
-    expect(renderToStaticMarkup(React.createElement(DraftGateLine, { review: null }))).toBe('');
+    expect(renderWithIntl(React.createElement(DraftGateLine, { review: null }))).toBe('');
   });
 
   it('awaiting_human·checks_unavailable — 권한이 없어 자동으로 안 바꿨고 직접 반영하라고 말한다', () => {
     const unavailable = build('unknown', { unavailable: true });
     for (const html of [line('awaiting_human', unavailable, 'checks_unavailable'), line('awaiting_human', unavailable), line('waiting', build('pending', { unavailable: true }), 'checks_unavailable')]) {
-      expect(html).toContain('검사 결과를 읽을 권한이 없어 자동으로 바꾸지 않았어요');
-      expect(html).toContain('직접 확인하고 반영하세요');
+      expect(html).toContain("No permission to read check results, so it wasn't changed automatically");
+      expect(html).toContain('Check it yourself and ship');
     }
   });
 
   it('잠금·쓰기·게이트 확인 실패는 같은 「잠시 문제」 한 줄', () => {
     for (const r of ['lock_unavailable', 'write_failed', 'gate_failed'] as const) {
       const html = line('waiting', build('unknown'), r);
-      expect(html).toContain('잠시 문제가 있어 자동으로 바꾸지 못했어요');
-      expect(html).toContain('잠시 후 다시 확인해요');
-      expect(html).not.toContain('자동 검사를 기다리는 중이에요');
+      expect(html).toContain("Something went wrong, so it couldn't be changed automatically");
+      expect(html).toContain('Will check again shortly');
+      expect(html).not.toContain('Waiting for automatic checks');
     }
   });
 
   it('manual_draft — 담당자가 되돌린 초안은 자동으로 안 바꾼다고 말한다', () => {
     const html = line('waiting', build('success'), 'manual_draft');
-    expect(html).toContain('담당자가 다시 초안으로 돌려 둔 PR 이에요');
-    expect(html).toContain('자동으로 바꾸지 않아요');
+    expect(html).toContain('The owner turned this PR back into a draft');
+    expect(html).toContain("It won't be changed automatically");
   });
 
   it('빌드 실패는 다른 사유보다 먼저 보인다', () => {
     const html = line('failed', build('failure', { failedChecks: [{ name: 'Vercel', url: null }] }), 'write_failed');
-    expect(html).toContain('자동 검사에 실패해 초안으로 두었어요');
-    expect(html).not.toContain('잠시 문제');
+    expect(html).toContain('Automatic checks failed, so it stays a draft');
+    expect(html).not.toContain('Something went wrong');
   });
 
-  it('화면 문구에 「머지」를 쓰지 않는다', () => {
-    for (const g of ['waiting', 'failed', 'promoted', 'unsupported', 'awaiting_human'] as const) expect(line(g)).not.toContain('머지');
+  it('화면 문구에 「머지」(merge)를 쓰지 않는다 — 반영은 ship', () => {
+    for (const g of ['waiting', 'failed', 'promoted', 'unsupported', 'awaiting_human'] as const) expect(line(g)).not.toMatch(/merge/i);
     for (const r of ['lock_unavailable', 'write_failed', 'gate_failed', 'manual_draft', 'checks_unavailable'] as const) {
-      expect(line('waiting', build('unknown'), r)).not.toContain('머지');
-      expect(mergeErrorMessage({ reason: r })).not.toContain('머지');
+      expect(line('waiting', build('unknown'), r)).not.toMatch(/merge/i);
+      expect(mergeErrorMessage({ reason: r }, t)).not.toMatch(/merge/i);
     }
   });
 });
@@ -138,15 +141,21 @@ describe('needsPolling', () => {
 
 describe('mergeErrorMessage', () => {
   it('409 reason 을 화면 문구로 바꾼다', () => {
-    const transient = ['lock_unavailable', 'write_failed', 'gate_failed'].map((reason) => mergeErrorMessage({ error: 'server text', reason, blockedBy: 'draft_waiting' } as never));
-    for (const m of transient) expect(m).toBe('잠시 문제가 있어 반영을 멈췄어요. 잠시 후 다시 눌러 주세요');
-    expect(mergeErrorMessage({ error: 'x', reason: 'manual_draft' })).toContain('담당자가 다시 초안으로 돌려 둔 PR 이에요');
-    expect(mergeErrorMessage({ error: 'x', reason: 'checks_unavailable' })).toContain('검사 결과를 읽을 권한이 없어');
+    const transient = ['lock_unavailable', 'write_failed', 'gate_failed'].map((reason) => mergeErrorMessage({ error: 'server text', reason, blockedBy: 'draft_waiting' } as never, t));
+    for (const m of transient) expect(m).toBe('Something went wrong, so shipping was paused. Please try again in a moment');
+    expect(mergeErrorMessage({ error: 'x', reason: 'manual_draft' }, t)).toContain('The owner turned this PR back into a draft');
+    expect(mergeErrorMessage({ error: 'x', reason: 'checks_unavailable' }, t)).toContain('no permission to read check results');
   });
   it('모르는 reason·reason 없음은 서버 error, 그것도 없으면 기본 문구', () => {
-    expect(mergeErrorMessage({ error: '자동 검사를 기다리는 초안이에요', blockedBy: 'draft_waiting' } as never)).toBe('자동 검사를 기다리는 초안이에요');
-    expect(mergeErrorMessage({ error: '서버 문구', reason: 'toString' })).toBe('서버 문구');
-    expect(mergeErrorMessage({})).toBe('반영하지 못했어요');
-    expect(mergeErrorMessage(null)).toBe('반영하지 못했어요');
+    expect(mergeErrorMessage({ error: 'Waiting for checks', blockedBy: 'draft_waiting' } as never, t)).toBe('Waiting for checks');
+    expect(mergeErrorMessage({ error: 'server text', reason: 'toString' }, t)).toBe('server text');
+    expect(mergeErrorMessage({}, t)).toBe("Couldn't ship");
+    expect(mergeErrorMessage(null, t)).toBe("Couldn't ship");
+  });
+  it('반영을 잠그는 이유마다 사전에 문구가 있다(en·ko)', () => {
+    for (const locale of ['en', 'ko'] as const) {
+      const tl = translator('monitor.mergeBlock', locale);
+      for (const reason of ['merged', 'closed', 'build_failed', 'build_pending', 'conflict', 'draft_waiting', 'manual_draft']) expect(tl.has(reason)).toBe(true);
+    }
   });
 });

@@ -8,15 +8,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { ExternalLink, MapPin, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  PAGE_LINK_LABEL,
-  PAGE_LINK_NOTE,
-  SHOT_FOOTNOTE,
   frameOf,
   pagePathLabel,
-  missingShotReason,
+  missingShotKind,
   thumbLayout,
   type PickedShotData,
 } from '@/lib/widget/picked-shot';
@@ -34,13 +32,14 @@ type Size = keyof typeof SIZES;
  * 지금의 페이지라 방문자가 본 화면과 다를 수 있어서 title 에 각주를 함께 싣는다.
  */
 function PageLink({ url, tone }: { url: string; tone: 'card' | 'dark' }) {
+  const t = useTranslations('picked');
   const path = pagePathLabel(url);
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      title={`${url}\n${PAGE_LINK_NOTE}`}
+      title={`${url}\n${t('pageLinkNote')}`}
       onClick={(e) => e.stopPropagation()}
       className={cn(
         'inline-flex min-w-0 items-center gap-1 font-semibold',
@@ -52,17 +51,17 @@ function PageLink({ url, tone }: { url: string; tone: 'card' | 'dark' }) {
       {tone === 'dark' ? (
         <>
           {/* 좁은 화면에선 아이콘만 — 제목(짚은 요소 이름)이 잘리지 않게. 이름은 스크린리더에 남긴다 */}
-          <span className="sr-only sm:not-sr-only">{PAGE_LINK_LABEL}</span>
+          <span className="sr-only sm:not-sr-only">{t('pageLinkLabel')}</span>
           <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
         </>
       ) : (
         <>
           <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
-          <span className="shrink-0">{PAGE_LINK_LABEL}</span>
+          <span className="shrink-0">{t('pageLinkLabel')}</span>
           <span className="truncate font-normal text-faint">{path}</span>
         </>
       )}
-      <span className="sr-only">{tone === 'dark' ? ` (새 탭, ${path})` : ' (새 탭)'}</span>
+      <span className="sr-only">{tone === 'dark' ? ` ${t('newTabPath', { path })}` : ` ${t('newTab')}`}</span>
     </a>
   );
 }
@@ -115,6 +114,7 @@ function Thumb({ data, size, onBroken }: { data: PickedShotData; size: Size; onB
 }
 
 function Lightbox({ data, onClose, onBroken }: { data: PickedShotData; onClose: () => void; onBroken: () => void }) {
+  const t = useTranslations('picked');
   const [showMark, setShowMark] = useState(true);
   const closeRef = useRef<HTMLButtonElement>(null);
   // 부모가 다시 그릴 때마다(수정안 화면은 60초 폴링) 포커스를 닫기 버튼으로 끌어가지 않게 ref 로 든다(코드 리뷰 M5)
@@ -124,6 +124,8 @@ function Lightbox({ data, onClose, onBroken }: { data: PickedShotData; onClose: 
   }, [onClose]);
   const f = frameOf(data);
   const r = data.rect;
+  const missing = missingShotKind(data);
+  const lightboxReason = missing ? t(`missing.${missing}`) : null;
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -143,12 +145,12 @@ function Lightbox({ data, onClose, onBroken }: { data: PickedShotData; onClose: 
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="방문자가 짚은 화면"
+      aria-label={t('dialogLabel')}
       className="fixed inset-0 z-[100] flex flex-col bg-[rgba(25,29,27,.82)] p-4 sm:p-8"
       onClick={onClose}
     >
       <div className="mx-auto flex w-full max-w-[1200px] items-center gap-3 pb-3 text-white" onClick={(e) => e.stopPropagation()}>
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold">화면에서 선택 · {data.label}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t('pickedLabel', { label: data.label })}</span>
         {data.pageUrl && <PageLink url={data.pageUrl} tone="dark" />}
         <button
           type="button"
@@ -156,13 +158,13 @@ function Lightbox({ data, onClose, onBroken }: { data: PickedShotData; onClose: 
           className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] font-semibold hover:bg-white/25"
           aria-pressed={showMark}
         >
-          {showMark ? '테두리 끄기' : '테두리 켜기'}
+          {showMark ? t('marksOff') : t('marksOn')}
         </button>
         <button
           ref={closeRef}
           type="button"
           onClick={onClose}
-          aria-label="닫기 (Esc)"
+          aria-label={t('closeEsc')}
           className="shrink-0 rounded-full bg-white/15 p-1.5 hover:bg-white/25"
         >
           <X className="h-4 w-4" />
@@ -197,11 +199,11 @@ function Lightbox({ data, onClose, onBroken }: { data: PickedShotData; onClose: 
         </div>
       </div>
       <p className="mx-auto pt-3 text-center text-[12.5px] text-white/70" onClick={(e) => e.stopPropagation()}>
-        {data.shot ? SHOT_FOOTNOTE : missingShotReason(data)}
+        {data.shot ? t('footnote') : lightboxReason}
         {data.pageUrl && (
           <>
             <br />
-            「{PAGE_LINK_LABEL}」 링크는 {PAGE_LINK_NOTE}
+            {t('pageLinkNoteSentence')}
           </>
         )}
       </p>
@@ -214,6 +216,7 @@ function Lightbox({ data, onClose, onBroken }: { data: PickedShotData; onClose: 
  * size='card' 는 설명 줄(라벨·셀렉터·각주)을 함께, 나머지는 썸네일만(라벨은 부모가 그린다).
  */
 export function PickedShot({ data: given, size = 'card', className }: { data: PickedShotData; size?: Size; className?: string }) {
+  const t = useTranslations('picked');
   const [open, setOpen] = useState(false);
   // 서명 URL(10분)이 만료되면 깨진 아이콘 대신 미니맵 폴백으로(코드 리뷰 M3). 새 URL 이 오면 다시 시도한다
   const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
@@ -224,14 +227,15 @@ export function PickedShot({ data: given, size = 'card', className }: { data: Pi
     setOpen(false);
     btnRef.current?.focus();
   }, []);
-  const reason = missingShotReason(data);
+  const missing = missingShotKind(data);
+  const reason = missing ? t(`missing.${missing}`) : null;
   const thumb = (
     <button
       ref={btnRef}
       type="button"
       onClick={() => setOpen(true)}
       className="group relative shrink-0 rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label={`짚은 화면 크게 보기 — ${data.label}`}
+      aria-label={t('viewLarge', { label: data.label })}
       title={size === 'card' ? undefined : `${data.label}${reason ? ` · ${reason}` : ''}`}
     >
       <Thumb data={data} size={size} onBroken={markBroken} />
@@ -244,10 +248,10 @@ export function PickedShot({ data: given, size = 'card', className }: { data: Pi
           {thumb}
           <span className="inline-flex min-w-0 items-center gap-1 text-[12.5px] font-medium text-brand-strong" title={data.selector}>
             <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="truncate">화면에서 선택 · {data.label}</span>
+            <span className="truncate">{t('pickedLabel', { label: data.label })}</span>
           </span>
           {data.pageUrl && <PageLink url={data.pageUrl} tone="card" />}
-          <span className="max-w-[240px] text-[11.5px] leading-[1.45] text-faint">{reason ?? SHOT_FOOTNOTE}</span>
+          <span className="max-w-[240px] text-[11.5px] leading-[1.45] text-faint">{reason ?? t('footnote')}</span>
         </div>
       ) : (
         <span className={className}>{thumb}</span>

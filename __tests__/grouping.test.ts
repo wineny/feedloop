@@ -121,14 +121,14 @@ describe('buildGroupingPrompt', () => {
     expect(prompt).toContain('i1');
     expect(prompt).toContain('쿠폰이 안 눌림');
     expect(prompt).toContain('i2');
-    expect(prompt).toContain('지어내지 마세요');
+    expect(prompt).toContain('Never invent a new id');
     // 예시 id 도 실제 목록의 것을 써서 모델을 엉뚱한 형식으로 유도하지 않는다
     expect(prompt).toContain('"insight_ids": ["i1"]');
   });
 
   it('혼자인 피드백을 빠뜨리지 말라고 지시한다', () => {
     const prompt = mod.buildGroupingPrompt([{ id: 'i1', category: 'bug', summary: 'x' }]);
-    expect(prompt).toContain('1개짜리 묶음');
+    expect(prompt).toContain('one-item group');
   });
 
   // I-11 — 같은 대화의 조각을 모델이 알아보게 대화 라벨을 싣는다.
@@ -138,10 +138,10 @@ describe('buildGroupingPrompt', () => {
       { id: 'i2', category: 'bug', summary: 'b', conversation_id: null },
       { id: 'i3', category: 'bug', summary: 'c' },
     ]);
-    expect(prompt).toContain('대화: #90fea505');
+    expect(prompt).toContain('conversation: #90fea505');
     expect(prompt).not.toContain('90fea505-aaaa'); // 전체 uuid 는 안 싣는다
-    expect((prompt.match(/대화: #/g) ?? []).length).toBe(1);
-    expect(prompt).toContain('같은 「대화」에서 온 제보');
+    expect((prompt.match(/conversation: #/g) ?? []).length).toBe(1);
+    expect(prompt).toContain('Reports from the same "conversation"');
   });
 
   it('conversationTag — 짧거나 없는 값은 null', () => {
@@ -516,7 +516,7 @@ describe('runGrouping — 기존 묶음 대조', () => {
       [{ id: 'a1', category: 'bug', summary: 'x' }],
       existingOf('merged'),
     );
-    expect(prompt).toContain('여기 없는 id 는 쓰지 마세요');
+    expect(prompt).toContain('Do not use an id that is not here');
     expect(prompt).toContain('pr_created');
     expect(prompt).toContain('"existing_group_id": null');
   });
@@ -609,7 +609,7 @@ describe('runGrouping — 기존 묶음 대조', () => {
     const out = await mod.runGrouping([BOT]);
 
     expect(out.failures).toEqual([]);
-    expect(out.loopFailures!.join(' ')).toContain('3건');
+    expect(out.loopFailures!.join(' ')).toContain('loop_closed_deferred: 3');
   });
 
   it('스냅샷이 30개를 넘겨도 프롬프트에는 최근 30개만 싣는다 — 마이그레이션 없이도', async () => {

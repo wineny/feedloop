@@ -2,7 +2,6 @@
 //
 // 주 CTA 는 「로그인 → 봇 등록」이다. 로그인은 `PrimaryCta` 가 클라이언트에서 처리하고,
 // JS 가 없으면 `/bots/new` 로 가서 그 화면의 「로그인」 버튼을 만난다.
-export const PRIMARY_CTA_LABEL = '무료로 5분 만에 붙이기';
 export const PRIMARY_CTA_HREF = '/bots/new';
 // 「하루 100건 무료 · 신용카드 없이」 받침 문구는 뺐다(ny 지시 2026-09-18).
 // 무료 범위는 「확장」 섹션 플랜 카드가 같은 상수에서 받아 보여준다 — 히어로에서 두 번 말하지 않는다.
@@ -22,18 +21,4 @@ export const DEMO_URL = 'https://nulnul.vercel.app';
  * 예전엔 「라이브 데모」였는데 이제 각본 재생이라 **「라이브」를 뺐다** — 실시간으로 도는 것처럼
  * 읽히면 안 된다.
  */
-export const DEMO_LABEL = '데모';
 
-/**
- * 히어로 알약. 2026-10-18 **수상 표시**로 바꿨다 — 2026-10-17 원티드 AI Championship 2026
- * 대상(1,389개 과제 중 1위).
- *
- * 예전 알약 「피드백 접수부터 수정까지 한 번에」(9/18, 하는 일)는 뺐다. 그 역할은 h1 아래
- * 부제(「내 서비스에 챗봇 한 줄을 붙이면…」)가 이미 맡고 있어, 둘을 나란히 두면 첫 화면이
- * 같은 말을 두 번 한다.
- *
- * ⚠️ 모바일 390px 에서 한 줄 한계가 25자 안팎이다. 그래서 경쟁률(`AWARD_RATIO`)은
- * sm(640px) 이상에서만 붙인다 — 모바일은 `AWARD_LINE` 만.
- */
-export const AWARD_LINE = '원티드 AI Championship 2026 대상';
-export const AWARD_RATIO = '1,389 : 1';

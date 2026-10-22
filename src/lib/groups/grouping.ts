@@ -3,6 +3,7 @@
 // 왜 묶는가: 같은 버그를 열 명이 제보하면 지금은 PR 이 열 개 생긴다.
 // 묶어두면 PR 하나로 고치고, 되돌림은 그 묶음에 속한 사람 전원에게 간다.
 
+import { OWNER_CONTENT_LANGUAGE } from '@/i18n/owner-locale';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { getBotConfigFromDB } from '@/lib/bot/core';
 import { callLlm, type BotConfig } from '@/lib/bot/handler';
@@ -91,7 +92,7 @@ async function dismissChannelChatter(botId: string): Promise<number> {
   let dismissed = 0;
 
   for (const row of rows) {
-    const summary = row.summary?.trim() || '내용 없음';
+    const summary = row.summary?.trim() || '(no content)';
     const { data: group, error: insertError } = await db()
       .from('insight_groups')
       .insert({
@@ -167,35 +168,35 @@ export function buildGroupingPrompt(insights: UngroupedInsight[], existing: Exis
   const list = insights
     .map((i) => {
       const tag = conversationTag(i.conversation_id);
-      return `- id: ${i.id}\n  분류: ${i.category}${tag ? `\n  대화: ${tag}` : ''}\n  요약: ${i.summary}`;
+      return `- id: ${i.id}\n  category: ${i.category}${tag ? `\n  conversation: ${tag}` : ''}\n  summary: ${i.summary}`;
     })
     .join('\n');
 
-  return `당신은 유저 피드백을 정리하는 전문가입니다. 아래 피드백들을 **같은 문제끼리** 묶으세요.
+  return `You are an expert at organizing user feedback. Group the feedback below **by the same problem**.
 
-## 기존 묶음 (이 봇만, 최근 ${EXISTING_GROUPS_LIMIT}개 · 머지된 묶음도 포함)
+## Existing groups (this bot only, latest ${EXISTING_GROUPS_LIMIT} · merged groups included)
 ${JSON.stringify(existing)}
-같은 증상·문제이면 새 묶음을 만들지 말고 existing_group_id 에 기존 id 를 지정하세요.
-**여기 없는 id 는 쓰지 마세요.** 새 id 를 지어내면 그 묶음은 통째로 버려집니다.
-같은 문제가 아니면 existing_group_id 는 null 입니다.
-status 가 뜻하는 것 — open: 아직 고치는 중 · pr_created: 수정 PR 을 기다리는 중 ·
-merged: 수정이 반영됨 · dismissed: 운영자가 닫음.
-머지됨(merged)은 배포·해결 확인이 아닙니다. 같은 증상이면 반드시 그 기존 묶음의 후속 확인입니다.
-수정 대상(bug/ux)과 기능 명세(feature_request)는 합치지 마세요.
+If it is the same symptom or problem, do not create a new group; set existing_group_id to the existing id.
+**Do not use an id that is not here.** If you invent a new id, that whole group is discarded.
+If it is not the same problem, existing_group_id is null.
+What status means — open: still being fixed · pr_created: waiting for a fix PR ·
+merged: the fix was merged · dismissed: closed by the owner.
+merged does not confirm deployment or resolution. If the symptom is the same, it must be a follow-up of that existing group.
+Do not merge fix targets (bug/ux) with feature specs (feature_request).
 
-## 피드백 목록
+## Feedback list
 ${list}
 
-## 응답 형식
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.
+## Response format
+Respond only in the JSON format below. Output only the JSON, with no other text.
 
 \`\`\`json
 {
   "groups": [
     {
       "existing_group_id": null,
-      "title": "쿠폰 적용 버튼이 눌리지 않음",
-      "summary": "결제 화면에서 쿠폰 적용 버튼을 눌러도 반응이 없다는 제보. 모바일·PC 모두에서 보고됨.",
+      "title": "Coupon apply button does not respond",
+      "summary": "Reports that tapping the coupon apply button on the checkout screen does nothing. Reported on both mobile and PC.",
       "category": "bug",
       "insight_ids": ["${insights[0]?.id ?? ''}"]
     }
@@ -203,18 +204,20 @@ ${list}
 }
 \`\`\`
 
-## 규칙
-- **insight_ids 의 모든 값은 위 목록에 있는 id 를 글자 그대로 써야 합니다.** 새 id 를 지어내지 마세요.
-- **existing_group_id 는 「기존 묶음」 목록의 id 이거나 null 입니다.** 피드백 id 를 여기 쓰지 마세요.
-- 같은 원인·같은 화면의 문제만 한 묶음으로. 애매하면 따로 두세요.
-- **같은 「대화」에서 온 제보는 한 사람이 이어 말한 것일 가능성이 높습니다.** 같은 화면·같은 증상을
-  더 자세히 말한 것이면 한 묶음으로 두세요. 단 같은 대화라도 다른 문제(예: 쿠폰함 흰 화면 vs 지도 안 뜸)면 따로 두세요.
-- 혼자인 피드백도 **1개짜리 묶음**으로 만드세요. 빠뜨리지 마세요.
-- title 은 개발자가 보고 바로 이해할 한 줄. summary 는 수정 작업의 근거가 되도록
-  증상·재현 조건·영향 범위를 담으세요.
-- category 는 그 묶음을 대표하는 값 하나 (bug | ux | feature_request).
-  **고장이 있으면 bug, 고장은 없는데 쓰기 나쁘면 ux, 지금 없는 능력을 원하면 feature_request.**
-  섞인 묶음이면 가장 많은 쪽을 따른다.`;
+## Rules
+- **Every value in insight_ids must be an id from the list above, exactly as written.** Never invent a new id.
+- **existing_group_id is an id from "Existing groups" or null.** Do not put a feedback id here.
+- Put only problems with the same cause on the same screen in one group. If unsure, keep them apart.
+- **Reports from the same "conversation" are likely one person continuing to talk.** If they describe the same
+  screen and symptom in more detail, keep them in one group. But even in the same conversation, a different problem
+  (for example a blank coupon box vs. a map that does not load) goes in a separate group.
+- Make a **one-item group** for feedback that stands alone. Do not leave any out.
+- title is one line a developer understands at a glance. summary holds the symptom, steps to reproduce and impact,
+  as the basis for the fix.
+- Write title and summary in ${OWNER_CONTENT_LANGUAGE}, even when the feedback is in another language.
+- category is the one value that represents the group (bug | ux | feature_request).
+  **bug if something is broken, ux if nothing is broken but it is bad to use, feature_request if it asks for a capability that does not exist.**
+  For a mixed group, follow the majority.`;
 }
 
 /**
@@ -320,7 +323,7 @@ export function validateGroups(
 const GROUPING_TIMEOUT_MS = 60_000;
 
 const GROUPING_SYSTEM_PROMPT =
-  '너는 서비스 피드백을 «같은 문제끼리» 묶는 도우미다. 지시된 JSON 형식으로만 답한다. JSON 밖의 문장은 버려진다.';
+  'You group service feedback «by the same problem». Answer only in the JSON format you are given. Text outside the JSON is discarded.';
 
 /**
  * 묶기 모델 호출 — **즉답·배치 분류와 같은 경로**(`callLlm`): 봇에 운영자 키가 있으면 그 키·모델,
@@ -338,17 +341,17 @@ export async function proposeGroups(config: BotConfig, insights: UngroupedInsigh
     timeoutMs: Math.max(1, Math.min(GROUPING_TIMEOUT_MS, deadlineMs - Date.now())),
     recordKeyFailure: false,
   });
-  if (!raw) throw new Error('묶기 모델 호출이 실패했습니다 (키·모델 설정 또는 시간 초과)');
+  if (!raw) throw new Error('The grouping model call failed (key or model settings, or timeout)');
 
   let cleaned = raw.trim();
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
   }
   const match = cleaned.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('묶기 응답에서 JSON을 찾지 못했습니다');
+  if (!match) throw new Error('No JSON found in the grouping response');
 
   const parsed = JSON.parse(match[0]) as { groups?: ProposedGroup[] };
-  if (!Array.isArray(parsed.groups)) throw new Error('묶기 응답 groups 배열이 없습니다');
+  if (!Array.isArray(parsed.groups)) throw new Error('The grouping response has no groups array');
   return parsed.groups;
 }
 
@@ -431,7 +434,7 @@ export async function runGrouping(botIds: string[], deadlineMs = Date.now() + 24
         // 자동 묶기가 값 없이 재무장된다(`loopFailures` 주석 참고). 회수는 크론 몫이다.
         result.loopFailures!.push(...closed.failures);
         if (closed.skippedDeadline > 0) {
-          result.loopFailures!.push(`loop_closed_deferred: ${closed.skippedDeadline}건 (크론이 회수)`);
+          result.loopFailures!.push(`loop_closed_deferred: ${closed.skippedDeadline} (the cron picks them up)`);
         }
       }
       // 사업 임팩트 실패는 이미 완료된 묶기를 실패로 바꾸지 않는다.

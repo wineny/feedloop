@@ -20,13 +20,14 @@
 // 카드는 잠기고, 갈아타려면 쓰던 쪽을 먼저 내린다.
 
 import type { ReactNode } from 'react';
+import { useFormatter, useLocale, useTimeZone, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RiChat1Line } from 'react-icons/ri';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { lastFeedbackLabel } from '@/lib/connect/last-feedback';
-import { ENTRANCE_NAME, type Entrance } from '@/lib/connect/exclusive';
+import { lastFeedbackParts } from '@/lib/connect/last-feedback';
+import type { Entrance } from '@/lib/connect/exclusive';
 import { DisconnectButton } from '@/components/onboarding/DisconnectButton';
 
 /** 위젯 쪽은 우리 것이라 잉크 사각형, 채널톡은 공식 마크(스쿼클이 자기 배경을 갖고 있다) */
@@ -135,7 +136,32 @@ function StateLine({ on, children }: { on: boolean; children: ReactNode }) {
   );
 }
 
-const CHANNEL_NEED = '채널톡 유료 플랜이 있어야 API 키를 발급할 수 있어요 · 3단계';
+/** 입구 이름 — 둘 다 받침으로 끝나서 한국어 문구의 「…으로」·「…을」이 맞는다 */
+function useEntranceName() {
+  const t = useTranslations('connect');
+  return (e: Entrance) => t(`entrance.${e}`);
+}
+
+/** 「마지막 피드백」 한 구절. 오늘·어제 판정과 시각 모두 보는 사람의 시간대 기준이다(영어는 시간대 이름을 붙인다) */
+function useLastFeedbackText() {
+  const t = useTranslations('connect.lastFeedback');
+  const format = useFormatter();
+  const locale = useLocale();
+  const timeZone = useTimeZone();
+  return (iso: string | null) => {
+    const p = lastFeedbackParts(iso, new Date(), timeZone);
+    if (p.kind === 'none' || p.kind === 'invalid') return t(p.kind);
+    if (p.kind === 'date') {
+      return t('date', { date: format.dateTime(p.at, { month: 'long', day: 'numeric' }) });
+    }
+    const time = format.dateTime(p.at, {
+      hour: 'numeric',
+      minute: '2-digit',
+      ...(locale === 'ko' ? {} : { timeZoneName: 'short' as const }),
+    });
+    return t(p.kind, { time });
+  };
+}
 
 /* ─────────────────────────────────────────────────────────────
    화면 1 — 갈림길. 아직 아무 입구도 열리지 않았을 때.
@@ -155,57 +181,46 @@ export function ConnectChooser({
   dailyLimit: number | null;
   dailyLimitOverridden: boolean;
 }) {
+  const t = useTranslations('connect');
+  const name = useEntranceName();
   return (
     <div className="flex max-w-[860px] flex-col gap-4">
       <p className="text-[15px] font-bold tracking-[-0.01em]">
-        지금 고객 문의를 어떻게 받고 계세요?
+        {t('chooser.question')}
       </p>
 
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <ChoiceCard kind="widget" name="Feedloop 웹 위젯">
-          <CardTitle>상담 챗봇이 없어요. 새로 붙일래요</CardTitle>
+        <ChoiceCard kind="widget" name={name('widget')}>
+          <CardTitle>{t('chooser.widgetTitle')}</CardTitle>
           <CardBody>
-            서비스에 말풍선을 띄웁니다. 방문자가 남긴 말에 AI가 그 자리에서 답하고, 모르는 건
-            담당자에게 넘깁니다. 고친 게 반영되면 그 방문자에게 바로 알려줘요.
+            {t('chooser.widgetBody')}
           </CardBody>
-          <CardNeed>서비스에 코드 한 줄을 붙일 수 있으면 됩니다 · 1단계</CardNeed>
+          <CardNeed>{t('chooser.widgetNeed')}</CardNeed>
           <CardActions>
             <Button asChild>
-              <Link href={`/bots/${botId}/connect?via=widget`}>위젯 붙이기</Link>
+              <Link href={`/bots/${botId}/connect?via=widget`}>{t('chooser.widgetCta')}</Link>
             </Button>
           </CardActions>
         </ChoiceCard>
 
-        <ChoiceCard kind="channel" name="채널톡">
-          <CardTitle>이미 채널톡을 쓰고 있어요</CardTitle>
+        <ChoiceCard kind="channel" name={name('channel')}>
+          <CardTitle>{t('chooser.channelTitle')}</CardTitle>
           <CardBody>
-            쓰던 상담창에 그대로 붙습니다. 들어온 문의를 Feedloop 이 읽어 분류하고, 답은 지금처럼
-            상담원이 합니다.
+            {t('chooser.channelBody')}
           </CardBody>
-          <CardNeed>{CHANNEL_NEED}</CardNeed>
+          <CardNeed>{t('chooser.channelNeed')}</CardNeed>
           <CardActions>
             <Button asChild variant="outline">
-              <Link href={`/bots/${botId}/connect?via=channel`}>채널톡 연결하기</Link>
+              <Link href={`/bots/${botId}/connect?via=channel`}>{t('chooser.channelCta')}</Link>
             </Button>
           </CardActions>
         </ChoiceCard>
       </div>
 
       <p className="max-w-[66ch] border-t border-border pt-4 text-[12.5px] leading-relaxed text-muted-foreground">
-        <b className="font-semibold text-foreground">한 서비스에 한 곳만 붙습니다.</b> 나중에 마음이
-        바뀌면 쓰던 쪽을 「연결 해제」로 내리고 반대쪽을 붙이면 돼요. AI 답변은 어느 쪽이든{' '}
-        {dailyLimit === null ? (
-          <>
-            <b className="font-semibold text-foreground">내 API 키로 한도 없이</b> 나가고, 요금은 그 키로 청구됩니다.
-          </>
-        ) : (
-          <>
-            <b className="font-semibold text-foreground">
-              하루 {dailyLimit.toLocaleString('ko-KR')}건까지{dailyLimitOverridden ? '' : ' 무료'}
-            </b>
-            {/* 상한 예외 봇은 키를 넣어도 예외가 이긴다 — 「키를 넣으면 한도가 없다」는 그 운영자에게 거짓말 */}
-            {dailyLimitOverridden ? '예요.' : '이고, 내 API 키를 넣으면 한도가 없습니다.'}
-          </>
+        {t.rich(
+          dailyLimit === null ? 'chooser.limitNoLimit' : dailyLimitOverridden ? 'chooser.limitOverridden' : 'chooser.limitFree',
+          { limit: dailyLimit ?? 0, b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b> },
         )}
       </p>
     </div>
@@ -233,24 +248,25 @@ export function ConnectLocked({
   want: Entrance;
   using: Entrance;
 }) {
+  const t = useTranslations('connect');
+  const name = useEntranceName();
   return (
     <div className="flex max-w-[560px] flex-col gap-3.5 rounded-[14px] border border-border-strong bg-background p-6">
-      <MarkRow kind={using} name={ENTRANCE_NAME[using]} />
-      <CardTitle>이미 {ENTRANCE_NAME[using]}으로 받고 있어요</CardTitle>
+      <MarkRow kind={using} name={name(using)} />
+      <CardTitle>{t('locked.title', { using: name(using) })}</CardTitle>
+      <CardBody>{t('locked.body1')}</CardBody>
+      {/* 위젯은 서버가 내릴 수 없다 — 스크립트가 남아 있으면 다음 방문자가 되살린다.
+          순서를 안 알려주면 해제하자마자 다시 켜져서 이 화면으로 돌아온다 */}
       <CardBody>
-        한 서비스에는 입구를 하나만 둡니다. 같은 손님이 두 문으로 들어오면 어느 쪽으로 답했는지
-        기록이 갈라지고, 두 입구가 주는 기능도 서로 달라요.
-      </CardBody>
-      <CardBody>
-        {ENTRANCE_NAME[want]}으로 옮기시려면 «서비스에 연결» 화면에서 {ENTRANCE_NAME[using]}을 먼저
-        「연결 해제」하세요. 그동안 쌓인 대화와 피드백은 지워지지 않습니다.
-        {/* 위젯은 서버가 내릴 수 없다 — 스크립트가 남아 있으면 다음 방문자가 되살린다.
-            순서를 안 알려주면 해제하자마자 다시 켜져서 이 화면으로 돌아온다 */}
-        {using === 'widget' && ' 서비스 코드에서 위젯 스크립트 한 줄을 지우는 게 먼저예요.'}
+        {t('locked.body2', {
+          want: name(want),
+          using: name(using),
+          hint: using === 'widget' ? t('locked.widgetHint') : '',
+        })}
       </CardBody>
       <CardActions>
         <Button asChild>
-          <Link href={`/bots/${botId}/connect`}>서비스에 연결로 가기</Link>
+          <Link href={`/bots/${botId}/connect`}>{t('locked.goBack')}</Link>
         </Button>
       </CardActions>
     </div>
@@ -271,14 +287,18 @@ export function ConnectLocked({
  * 대신 다음 행동을 문장으로 적는다 — 그 행동이 이 카드가 아니라 **옆 카드**에 있기 때문이다.
  */
 function LockedSide({ want, using }: { want: Entrance; using: Entrance }) {
+  const t = useTranslations('connect');
+  const name = useEntranceName();
   return (
     <>
-      <StateLine on={false}>지금은 못 붙여요</StateLine>
-      <CardTitle>{ENTRANCE_NAME[using]}을 쓰는 중이에요</CardTitle>
+      <StateLine on={false}>{t('locked.cannotAttach')}</StateLine>
+      <CardTitle>{t('locked.sideTitle', { using: name(using) })}</CardTitle>
       <CardBody>
-        한 서비스에는 입구를 하나만 둡니다. {ENTRANCE_NAME[want]}으로 옮기시려면 옆의{' '}
-        <b className="font-semibold text-foreground">「연결 해제」</b>로 {ENTRANCE_NAME[using]}을
-        먼저 내려 주세요.
+        {t.rich('locked.sideBody', {
+          want: name(want),
+          using: name(using),
+          b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b>,
+        })}
       </CardBody>
     </>
   );
@@ -301,25 +321,28 @@ export function ConnectOverview({
   channel: ChannelState;
   appearanceHref: string;
 }) {
+  const t = useTranslations('connect');
+  const name = useEntranceName();
+  const lastFeedback = useLastFeedbackText();
   return (
     <div className="flex max-w-[860px] flex-col gap-4">
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <ChoiceCard kind="widget" name="Feedloop 웹 위젯" on={widget.on}>
+        <ChoiceCard kind="widget" name={name('widget')} on={widget.on}>
           {widget.on ? (
             <>
-              <StateLine on>연결됨</StateLine>
-              <CardTitle>{lastFeedbackLabel(widget.lastAt)}</CardTitle>
+              <StateLine on>{t('overview.connected')}</StateLine>
+              <CardTitle>{lastFeedback(widget.lastAt)}</CardTitle>
               <CardActions push>
                 {/* 붙인 뒤에도 스니펫으로 돌아갈 길을 남긴다 — 다른 페이지나 다른 빌드에
                     또 붙일 일이 있다. 채널톡 카드의 「연결 설정」과 같은 자리다 */}
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/bots/${botId}/connect?via=widget`}>스크립트 보기</Link>
+                  <Link href={`/bots/${botId}/connect?via=widget`}>{t('overview.viewScript')}</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm">
-                  <Link href={appearanceHref}>모양 바꾸기</Link>
+                  <Link href={appearanceHref}>{t('ww.appearance')}</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm">
-                  <Link href="/inbox">대화 보기</Link>
+                  <Link href="/inbox">{t('ww.viewInbox')}</Link>
                 </Button>
                 {/* I-25 — 표시만 내린다. 스크립트가 남아 있으면 다음 방문자가 열 때 다시 켜진다 */}
                 <DisconnectButton botId={botId} kind="widget" />
@@ -330,17 +353,17 @@ export function ConnectOverview({
           )}
         </ChoiceCard>
 
-        <ChoiceCard kind="channel" name="채널톡" on={channel.on}>
+        <ChoiceCard kind="channel" name={name('channel')} on={channel.on}>
           {channel.on ? (
             <>
-              <StateLine on>연결됨</StateLine>
-              <CardTitle>{lastFeedbackLabel(channel.lastAt)}</CardTitle>
+              <StateLine on>{t('overview.connected')}</StateLine>
+              <CardTitle>{lastFeedback(channel.lastAt)}</CardTitle>
               <CardActions push>
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/bots/${botId}/connect?via=channel`}>연결 설정</Link>
+                  <Link href={`/bots/${botId}/connect?via=channel`}>{t('overview.settings')}</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm">
-                  <Link href="/inbox">대화 보기</Link>
+                  <Link href="/inbox">{t('ww.viewInbox')}</Link>
                 </Button>
                 {/* I-25 — 키·웹훅 주소를 지우고 채널톡 대화의 실명·연락처를 익명화한다(U6) */}
                 <DisconnectButton botId={botId} kind="channel" />
@@ -354,8 +377,7 @@ export function ConnectOverview({
 
       {/* 「스크립트를 지우면 꺼진다」고 쓰지 않는다 — 그렇게 동작하지 않는다. 내리는 건 사람이 「연결 해제」로 한다(I-25) */}
       <p className="max-w-[66ch] border-t border-border pt-4 text-[12.5px] leading-relaxed text-muted-foreground">
-        연결 표시는 한 번이라도 들어오면 계속 남습니다. 스크립트를 지우거나 웹훅을 내려도 자동으로 꺼지지는
-        않아요 — 그때는 카드의 「연결 해제」로 내리세요. 서비스 자체를 지우려면 「챗봇 설정」 목록에서 합니다.
+        {t('overview.footnote')}
       </p>
     </div>
   );

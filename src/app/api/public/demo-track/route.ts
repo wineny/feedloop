@@ -15,6 +15,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { checkReadRate, isUuid } from '@/lib/widget/http';
 import { normalizeCategory, type Category } from '@/lib/classify/taxonomy';
+import { serverT } from '@/i18n/server-messages';
+import { localeFromRequest } from '@/i18n/server-locale';
 
 /**
  * 추적을 허용하는 봇. **랜딩 「라이브 데모」가 띄우는 널널투어 하나뿐이다.**
@@ -28,17 +30,6 @@ import { normalizeCategory, type Category } from '@/lib/classify/taxonomy';
  */
 const DEMO_BOT_IDS = new Set(['8cb62530-1c10-498f-b03d-8c51ad31d4c6']);
 
-/** 화면에 그대로 찍히는 라벨. 대시보드 `CATEGORY_LABEL` 과 같은 값이되, 공개 라우트가
- *  대시보드 클라이언트 컴포넌트를 import 하지 않도록 여기 둔다. */
-const CATEGORY_LABEL: Record<Category, string> = {
-  bug: '버그',
-  ux: 'UX',
-  feature_request: '기능 요청',
-  praise: '칭찬',
-  cs: '문의',
-  other: '기타',
-};
-
 export type DemoTrackStage = 'received' | 'classified' | 'grouped';
 
 export interface DemoTrackResult {
@@ -48,6 +39,11 @@ export interface DemoTrackResult {
   /** 이 제보가 묶인 묶음의 제보 수. 묶이기 전엔 null. 제목·요약은 싣지 않는다(다른 사람 말이 섞인다). */
   groupSize: number | null;
   at: { received: string; classified: string | null; grouped: string | null };
+}
+
+/** 화면에 그대로 찍히는 라벨 — 대시보드 분류 이름과 같은 사전(`dashboard.groups.categories`), 요청 언어로. */
+function categoryLabel(req: NextRequest, category: Category): string {
+  return serverT(localeFromRequest(req), 'dashboard.groups.categories')(category);
 }
 
 export async function GET(req: NextRequest) {
@@ -128,7 +124,7 @@ export async function GET(req: NextRequest) {
     return json({
       stage: 'classified',
       category,
-      categoryLabel: CATEGORY_LABEL[category],
+      categoryLabel: categoryLabel(req, category),
       groupSize: null,
       at: { received, classified, grouped: null },
     });
@@ -147,7 +143,7 @@ export async function GET(req: NextRequest) {
   return json({
     stage: 'grouped',
     category,
-    categoryLabel: CATEGORY_LABEL[category],
+    categoryLabel: categoryLabel(req, category),
     groupSize: count ?? null,
     at: { received, classified, grouped: (group?.created_at as string | null) ?? null },
   });

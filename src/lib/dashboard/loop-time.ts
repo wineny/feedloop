@@ -164,16 +164,19 @@ export function loopTimeStats(
  * 사람이 읽는 단위 하나로만 말한다 — 「2.4일」·「5시간」·「37분」.
  * 초 단위는 쓰지 않는다(루프에 사람 손이 끼는 값이라 1분 밑은 의미가 없다).
  */
-export function formatLoopDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return '아직 없음';
+export type LoopDurationParts =
+  | { unit: 'none' }
+  | { unit: 'lessThanMinute' }
+  | { unit: 'minutes' | 'hours' | 'days'; value: string };
 
+/** 화면용 — 같은 단위 판정을 숫자·단위 코드로 돌려준다. 문구는 사전(`dashboard.quality.dur.<unit>`)이 쓴다 */
+export function loopDurationParts(ms: number): LoopDurationParts {
+  if (!Number.isFinite(ms) || ms < 0) return { unit: 'none' };
   const minutes = ms / 60_000;
-  if (minutes < 1) return '1분 미만';
-  if (Math.round(minutes) < 60) return `${Math.round(minutes)}분`;
-
+  if (minutes < 1) return { unit: 'lessThanMinute' };
+  if (Math.round(minutes) < 60) return { unit: 'minutes', value: String(Math.round(minutes)) };
   const hours = minutes / 60;
-  if (Math.round(hours) < 24) return `${Math.round(hours)}시간`;
-
+  if (Math.round(hours) < 24) return { unit: 'hours', value: String(Math.round(hours)) };
   const days = Math.round((hours / 24) * 10) / 10;
-  return Number.isInteger(days) ? `${days}일` : `${days.toFixed(1)}일`;
+  return { unit: 'days', value: Number.isInteger(days) ? String(days) : days.toFixed(1) };
 }

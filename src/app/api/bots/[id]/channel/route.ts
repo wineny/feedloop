@@ -16,20 +16,12 @@ import {
   validateVerifyTokenInput,
 } from '@/lib/bot/channel-registration';
 import { verifyCredentials } from '@/lib/channel/client';
-import { PERSON_LABEL } from '@/lib/channel/labels';
 import { generateWebhookToken } from '@/lib/channel/verify';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { decrypt, encrypt } from '@/lib/utils/crypto';
+import { apiText, apiValidation } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * 익명화가 남기는 작성자 이름. 사람을 특정하지 않으면서 「누가 썼는지」 칸을 비우지 않는다.
- *
- * 화면이 부르는 호칭과 **같은 값이어야 한다** — 다르면 익명화된 메시지만 목록에서
- * 딴 이름으로 뜬다. 복제해 두면 한쪽만 고쳐지므로 공용 맵에서 가져온다.
- */
-const ANONYMIZED_AUTHOR = PERSON_LABEL.channel;
 
 /** 키·시크릿·토큰 암호문은 여기 없다. 목록에 없는 컬럼은 실수로도 못 나간다. */
 const SAFE_SELECT = 'id, channel_slug, channel_id, channel_bot_name, channel_connected_at';
@@ -80,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const widgetGuard = await loadBot(id, 'widget_connected_at');
   if (widgetGuard?.widget_connected_at) {
     return NextResponse.json(
-      { error: '이 서비스는 웹 위젯으로 받고 있어요. 「서비스에 연결」에서 위젯을 먼저 해제해 주세요' },
+      { error: apiText(req, 'usesWidget') },
       { status: 400 },
     );
   }
@@ -89,12 +81,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   const parsed = validateChannelInput(body);
   if (!parsed.ok) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
+    return NextResponse.json({ error: apiValidation(req, parsed) }, { status: 400 });
   }
   const values = parsed.values;
 
@@ -149,7 +141,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (error) {
     console.error(`[channel/${id}] save failed:`, error.message);
-    return NextResponse.json({ error: '저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'saveFailed') }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -184,7 +176,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     | null;
 
   if (!bot) {
-    return NextResponse.json({ error: '봇을 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'botNotFound') }, { status: 404 });
   }
 
   let token = '';
@@ -221,7 +213,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const action = req.nextUrl.searchParams.get('action');
   if (action !== 'rotate' && action !== 'verify_token') {
-    return NextResponse.json({ error: '지원하지 않는 동작입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'unsupportedAction') }, { status: 400 });
   }
 
   const auth = await resolveOwnedBots(id);
@@ -233,7 +225,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     | { channel_access_key_encrypted: string | null }
     | null;
   if (!bot?.channel_access_key_encrypted) {
-    return NextResponse.json({ error: '먼저 채널톡을 연결해 주세요' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'connectChannelFirst') }, { status: 400 });
   }
 
   if (action === 'verify_token') return saveVerifyToken(req, id);
@@ -252,7 +244,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (error) {
     console.error(`[channel/${id}] token rotate failed:`, error.message);
-    return NextResponse.json({ error: '주소를 새로 만들지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'urlRegenFailed') }, { status: 500 });
   }
 
   // 옛 토큰은 이 순간부터 404 다. 화면이 「채널톡에 새 주소를 다시 넣어야 한다」고 말한다.
@@ -268,12 +260,12 @@ async function saveVerifyToken(req: NextRequest, id: string) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   const parsed = validateVerifyTokenInput(body);
   if (!parsed.ok) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
+    return NextResponse.json({ error: apiValidation(req, parsed) }, { status: 400 });
   }
 
   const { error } = await getServiceRoleClient()
@@ -285,7 +277,7 @@ async function saveVerifyToken(req: NextRequest, id: string) {
 
   if (error) {
     console.error(`[channel/${id}] verify token save failed:`, error.message);
-    return NextResponse.json({ error: '웹훅 토큰을 저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'webhookTokenSaveFailed') }, { status: 500 });
   }
 
   return NextResponse.json({ verifyTokenSet: Boolean(parsed.value) });
@@ -298,7 +290,7 @@ async function saveVerifyToken(req: NextRequest, id: string) {
 // 「어느 제보가 어느 PR 이 됐나」 이력이 끊긴다. 본문은 인사이트·묶음·PR 의 근거라
 // 지우면 루프 기록 자체가 깨진다. 완전 삭제도 유지도 아닌 중간을 고른 이유가 이것이다.
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const auth = await resolveOwnedBots(id);
@@ -323,7 +315,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   if (botError) {
     console.error(`[channel/${id}] disconnect failed:`, botError.message);
-    return NextResponse.json({ error: '연결을 해제하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'channelDisconnectFailed') }, { status: 500 });
   }
 
   // 2) 연락처를 지우고 대화를 닫는다. 실명·연락처는 연결이 끊긴 뒤 보관할 이유가 없다.
@@ -333,10 +325,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .eq('bot_id', id)
     .eq('source', 'channel');
 
-  // 3) 작성자 이름을 고정 문자열로 바꾼다. 본문은 건드리지 않는다.
+  // 3) 작성자 이름을 NULL 로 비운다(화면은 NULL 이면 출처별 호칭 「채널톡 이용자」를 보인다). 본문은 건드리지 않는다.
   const { error: msgError } = await db
     .from('messages')
-    .update({ author_name: ANONYMIZED_AUTHOR })
+    .update({ author_name: null })
     .eq('bot_id', id)
     .eq('source', 'channel');
 
@@ -344,7 +336,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     // 자격증명은 이미 지워져 새 데이터는 안 들어온다. 남은 PII 가 있다는 사실을 삼키지 않는다.
     console.error(`[channel/${id}] anonymize incomplete:`, convError?.message ?? msgError?.message);
     return NextResponse.json(
-      { error: '연결은 끊었지만 일부 기록을 익명화하지 못했습니다. 다시 시도해 주세요' },
+      { error: apiText(req, 'anonymizeFailed') },
       { status: 500 },
     );
   }

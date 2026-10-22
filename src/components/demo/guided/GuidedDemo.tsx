@@ -4,7 +4,8 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Wordmark } from '@/components/landing/Logo';
 import { SiteStage } from './SiteStage';
-import { INITIAL, STEPS, isCustomerPage, type Frame, type Picked, type Scene } from './script';
+import { useLocale, useTranslations } from 'next-intl';
+import { INITIAL, getScript, isCustomerPage, type Frame, type Picked, type Scene, type Script } from './script';
 
 /**
  * 가이드 데모 — 왼쪽 안내 패널 + 오른쪽 「고객이 보는 진짜 화면」 (ny 결정 2026-09-18 17:40)
@@ -79,11 +80,11 @@ function runFrames(
   };
 }
 
-/** 「화면에서 선택하기」로 집는 단계. 건너뛰어 왔을 때 이름을 채워 줘야 하는 자리다 */
-const POINT_STEP = STEPS.findIndex((s) => s.key === 'point');
-
 /** 0번부터 `upto` 직전까지를 몰아서 적용한 장면. 단계를 눌러 건너뛸 때 쓴다 */
-function sceneAt(upto: number): Scene {
+function sceneAt(script: Script, upto: number): Scene {
+  const { STEPS } = script;
+  // 「화면에서 선택하기」로 집는 단계. 건너뛰어 왔을 때 이름을 채워 줘야 하는 자리다
+  const POINT_STEP = STEPS.findIndex((s) => s.key === 'point');
   let s: Scene = { ...INITIAL };
   for (let i = 0; i < upto; i++) {
     for (const f of STEPS[i].frames) {
@@ -91,7 +92,7 @@ function sceneAt(upto: number): Scene {
     }
   }
   // 집는 단계는 사람이 «직접» 누른 자리라 각본에 좌표가 없다. 건너뛰어 왔을 때만 이름을 채운다
-  if (upto > POINT_STEP && !s.picked) s.picked = { x: 0, y: 0, w: 0, h: 0, label: '쿠폰 받기' };
+  if (upto > POINT_STEP && !s.picked) s.picked = { x: 0, y: 0, w: 0, h: 0, label: script.POINT_LABEL };
   // 단계마다 서 있는 화면이 정해져 있다. 마지막 단계를 지나 끝났으면 각본이 남긴 화면 그대로 둔다
   const step = STEPS[upto];
   if (step) s.page = step.page;
@@ -99,6 +100,10 @@ function sceneAt(upto: number): Scene {
 }
 
 export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; inline?: boolean }) {
+  const t = useTranslations('demo');
+  // 언어마다 각본이 따로 있다(`script.en.ts` · `script.ko.ts`). 구조는 같고 말과 화면 사본만 다르다.
+  const script = getScript(useLocale());
+  const { STEPS } = script;
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -176,7 +181,7 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
         },
       );
     },
-    [apply],
+    [apply, STEPS],
   );
 
   /** 단계 목록을 눌러 그 자리로. 사이 단계는 몰아서 적용한다 */
@@ -189,9 +194,9 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
     clearTimeout(handoffTimer.current);
     setHandoff(false);
     frameRef.current = 0;
-    setScene(sceneAt(i));
+    setScene(sceneAt(script, i));
     setIdx(i);
-  }, []);
+  }, [script]);
 
   const handleHit = useCallback(() => {
     if (playing || !step) return;
@@ -262,20 +267,20 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
     return () => document.removeEventListener('keydown', onKey, true);
   }, [inline]);
 
-  const heading = idx < 0 ? '고객이 남긴 한마디가 고쳐져서 돌아오기까지' : finished ? '한 바퀴 다 돌았어요' : (step?.title ?? '');
+  const heading = idx < 0 ? t('guided.intro') : finished ? t('guided.done') : (step?.title ?? '');
 
   /** 아래 버튼이 무엇을 하나 — 시작 · 건너뛰기 · 다음 단계 · 다시 보기 */
   const action =
     idx < 0
-      ? { label: '둘러보기 시작하기', run: () => jumpTo(0) }
+      ? { label: t('guided.start'), run: () => jumpTo(0) }
       : playing
         ? // 재생 중 건너뛰기는 «남은» 프레임만 몰아친다 — 처음부터 돌리면 같은 말이 두 번 붙는다
-          { label: '재생 중 · 건너뛰기', run: () => advance(idx, true, frameRef.current) }
+          { label: t('guided.playing'), run: () => advance(idx, true, frameRef.current) }
         : finished
-          ? { label: '처음부터 다시 보기', run: () => jumpTo(0) }
+          ? { label: t('guided.replay'), run: () => jumpTo(0) }
           : step && (!step.target || missing)
-            ? { label: step.label ?? '계속 보기', run: () => advance(idx) }
-            : { label: '이 단계 건너뛰기', run: () => advance(idx, true) };
+            ? { label: step.label ?? t('guided.continue'), run: () => advance(idx) }
+            : { label: t('guided.skipStep'), run: () => advance(idx, true) };
 
   const stepList = (
     <ol className="flex flex-col gap-[1px]">
@@ -362,10 +367,10 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
         {/* 머리 */}
         <div className="flex flex-none items-center gap-3 border-b border-[var(--line)] px-4 py-2.5 lg:px-5">
           <div id={titleId} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] font-bold text-[var(--ink)]">
-            <span>한 바퀴 둘러보기</span>
+            <span>{t('guided.title')}</span>
             {/* 🔴 정직 표시 — 이게 각본이라는 걸 화면에서 숨기지 않는다 */}
             <span className="rounded-full bg-[var(--chip)] px-2 py-[2px] text-[11px] font-semibold text-[var(--l-muted)]">
-              시연용 재생 · {STEPS.length}단계
+              {t('guided.badge', { count: STEPS.length })}
             </span>
           </div>
           <div className="hidden flex-none items-center gap-1 sm:flex" aria-hidden="true">
@@ -386,7 +391,7 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
               ref={closeRef}
               type="button"
               onClick={onClose}
-              aria-label="둘러보기 닫기"
+              aria-label={t('guided.close')}
               className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[var(--ink)] hover:bg-[var(--chip)]"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -398,14 +403,14 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
 
         <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
           {/* 안내 — 데스크톱 */}
-          <aside className="hidden min-h-0 flex-col overflow-y-auto border-r border-[var(--line)] bg-[var(--chip)] p-5 lg:flex" aria-label="둘러보기 단계">
+          <aside className="hidden min-h-0 flex-col overflow-y-auto border-r border-[var(--line)] bg-[var(--chip)] p-5 lg:flex" aria-label={t('guided.stepsLabel')}>
             <div className="flex items-center gap-2 border-b border-[var(--line)] pb-3.5">
               <Wordmark markSize={22} className="text-[15px] font-extrabold tracking-[-0.02em] text-[var(--ink)]" />
             </div>
 
             <div role="status" aria-live="polite" className="pt-3.5" key={idx} style={{ animation: 'gdFade .3s ease' }}>
               <div className="text-[13px] font-bold text-[var(--coral-strong)]">
-                {idx < 0 ? '눌러서 시작하세요' : `${Math.min(idx + 1, STEPS.length)} / ${STEPS.length}`}
+                {idx < 0 ? t('guided.clickToStart') : `${Math.min(idx + 1, STEPS.length)} / ${STEPS.length}`}
               </div>
               <h2 className="mt-1.5 text-[18px] font-bold leading-[1.35] text-[var(--ink)]" style={{ textWrap: 'pretty' }}>
                 {heading}
@@ -413,7 +418,7 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
             </div>
 
             <div className="mt-4">{stepList}</div>
-            <p className="mt-2 pl-2 text-[11px] text-[var(--faint)]">단계를 눌러 앞뒤로 건너뛸 수 있어요</p>
+            <p className="mt-2 pl-2 text-[11px] text-[var(--faint)]">{t('guided.stepsHint')}</p>
 
             {/* ⚠️ 여기 있던 긴 안내문을 ny 가 지우게 했다(2026-09-18). 「이건 시연용이고 실방문자
                 정보가 아니다」라는 고지는 **떠 온 팀 화면 안의 「예시 데이터로 둘러보는 중이에요」
@@ -434,7 +439,7 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
                 className="flex-none text-[11.5px] font-semibold text-[var(--l-muted)]"
                 aria-expanded={listOpen}
               >
-                단계 {listOpen ? '▴' : '▾'}
+                {t('guided.stepsToggle')} {listOpen ? '▴' : '▾'}
               </button>
             </div>
             {listOpen && <div className="mt-2 max-h-[40vh] overflow-y-auto">{stepList}</div>}
@@ -460,7 +465,7 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
             {idx < 0 && (
               <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-[rgba(25,29,27,.55)] px-6 backdrop-blur-[2px]">
                 <p className="max-w-[24rem] text-center text-[15px] font-semibold leading-[1.6] text-white" style={{ textWrap: 'pretty' }}>
-                  고객이 남긴 한마디가 고쳐져서 돌아오기까지
+                  {t('guided.intro')}
                 </p>
                 <button
                   type="button"
@@ -469,12 +474,12 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
                   className="flex items-center gap-2 rounded-full bg-[var(--coral-strong)] px-7 py-4 text-[16px] font-extrabold text-white"
                   style={{ animation: 'gdAttn 1.7s ease-in-out infinite' }}
                 >
-                  둘러보기 시작하기
+                  {t('guided.start')}
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
                 </button>
-                <p className="text-center text-[12px] text-white/75">{STEPS.length}단계 · 눌러야 할 곳마다 알려드려요</p>
+                <p className="text-center text-[12px] text-white/75">{t('guided.startNote', { count: STEPS.length })}</p>
               </div>
             )}
           </div>
@@ -482,18 +487,24 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
           {/* 버튼 — 모바일은 맨 아래 */}
           <div className="flex-none border-t border-[var(--line)] bg-white px-4 py-3 lg:hidden">
             {actionButton}
-            <p className="mt-2 text-center text-[11px] text-[var(--faint)]">전부 시연용 사본입니다 · 서버로 나가는 요청 없음</p>
+            <p className="mt-2 text-center text-[11px] text-[var(--faint)]">{t('guided.copyNote')}</p>
           </div>
         </div>
       </div>
+      {/*
+        ⚠️ 설명은 CSS 안이 아니라 여기에 둔다 — `<style>` 안의 주석은 그대로 HTML 에 실려 나가서 영어 화면에 한국어가 남는다.
+        · gdMail: 제보가 고객 화면에서 팀 편지함으로 «건너가는» 장면. 우편물은 도착지(편지함 그 줄)에 놓여 있고,
+          --fl-dx/dy 만큼 떨어진 자리(위젯이 있던 오른쪽 아래)에서 날아온다. 가운데를 살짝 띄워 포물선을 그리고 마지막에 쏙 줄어든다.
+        · gdBlock: 「이 셋이 같은 문제예요」 — 줄마다 하나씩 시차를 두고 켜진다. 동시에 켜면 한 덩어리로 보여서 «셋»이 안 읽힌다.
+          각 칸의 animation-delay 는 SiteStage 가 넣는다.
+        · 움직임 줄이기는 globals.css 의 .landing * 규칙(animation:none!important)이 이미 끈다 — 포털 루트에 landing 클래스가
+          있어 여기까지 닿는다. 여기서 또 쓰지 않는다.
+      */}
       <style>{`
         @keyframes gdDot{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
         @keyframes gdCaret{0%,49%{opacity:1}50%,100%{opacity:0}}
         @keyframes gdRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
         @keyframes gdFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-        /* 제보가 고객 화면에서 팀 편지함으로 «건너가는» 장면.
-           우편물은 도착지(편지함 그 줄)에 놓여 있고, --fl-dx/dy 만큼 떨어진 자리(위젯이 있던
-           오른쪽 아래)에서 날아온다. 가운데를 살짝 띄워 포물선을 그리고 마지막에 쏙 줄어든다. */
         @keyframes gdMail{
           0%  {opacity:0;transform:translate(-50%,-50%) translate(var(--fl-dx,0px),var(--fl-dy,0px)) scale(.5)}
           14% {opacity:1;transform:translate(-50%,-50%) translate(calc(var(--fl-dx,0px)*.86),calc(var(--fl-dy,0px)*.86 - 20px)) scale(1)}
@@ -501,8 +512,6 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
           82% {opacity:1;transform:translate(-50%,-50%) translate(0px,0px) scale(.6)}
           100%{opacity:0;transform:translate(-50%,-50%) translate(0px,0px) scale(.34)}
         }
-        /* 「이 셋이 같은 문제예요」 — 줄마다 하나씩 시차를 두고 켜진다. 동시에 켜면 한 덩어리로
-           보여서 «셋»이 안 읽힌다. 각 칸의 animation-delay 는 SiteStage 가 넣는다. */
         @keyframes gdBlock{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
         @keyframes gdPulse{0%,100%{outline-color:#F2645C;outline-width:3px}50%{outline-color:#D13A2D;outline-width:5px}}
         @keyframes gdAttn{
@@ -510,8 +519,6 @@ export function GuidedDemo({ onClose, inline = false }: { onClose?: () => void; 
           55%{box-shadow:0 0 0 10px rgba(242,100,92,0);transform:translateY(-1px)}
           100%{box-shadow:0 0 0 0 rgba(242,100,92,0);transform:translateY(0)}
         }
-        /* 움직임 줄이기는 globals.css 의 .landing * 규칙(animation:none!important)이 이미 끈다
-           — 포털 루트에 landing 클래스가 있어 여기까지 닿는다. 여기서 또 쓰지 않는다. */
       `}</style>
     </>
   );

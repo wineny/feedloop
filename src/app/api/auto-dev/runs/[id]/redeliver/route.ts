@@ -8,12 +8,13 @@ import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { retryUndeliveredForRun, MANUAL_RETRY_MAX } from '@/lib/channel/redeliver';
+import { apiText } from '@/lib/http/api-text';
 
 /** 건당 3초 × 최대 5건 + DB 왕복. 사람이 기다리는 화면이라 넉넉히 잡되 상한은 둔다. */
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const auth = await resolveOwnedBots();
@@ -30,13 +31,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   // DB 오류를 404 로 뭉개면 운영자가 엉뚱한 곳을 찾는다.
   if (loadError) {
     return NextResponse.json(
-      { error: `실행 기록을 읽지 못했습니다: ${loadError.message}` },
+      { error: apiText(req, 'runReadFailed', { message: loadError.message }) },
       { status: 500 },
     );
   }
   // 남의 봇 run 은 404 로 — 존재 여부를 알려주지 않는다.
   if (!run || !auth.botIds.includes(run.bot_id as string)) {
-    return NextResponse.json({ error: '실행 기록을 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'runNotFound') }, { status: 404 });
   }
 
   const outcome = await retryUndeliveredForRun(id, MANUAL_RETRY_MAX);

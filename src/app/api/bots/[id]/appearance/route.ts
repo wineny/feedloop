@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { validateAppearanceInput } from '@/lib/bot/appearance';
+import { apiText, apiValidation } from '@/lib/http/api-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,23 +36,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // Content-Length 는 위조·생략될 수 있으므로 실제로 읽은 길이도 확인한다.
   const declared = Number(req.headers.get('content-length') ?? '0');
   if (Number.isFinite(declared) && declared > MAX_APPEARANCE_BODY_BYTES) {
-    return NextResponse.json({ error: '요청 본문이 너무 큽니다' }, { status: 413 });
+    return NextResponse.json({ error: apiText(req, 'bodyTooLarge') }, { status: 413 });
   }
 
   let body: unknown;
   try {
     const raw = await req.text();
     if (raw.length > MAX_APPEARANCE_BODY_BYTES) {
-      return NextResponse.json({ error: '요청 본문이 너무 큽니다' }, { status: 413 });
+      return NextResponse.json({ error: apiText(req, 'bodyTooLarge') }, { status: 413 });
     }
     body = JSON.parse(raw);
   } catch {
-    return NextResponse.json({ error: '잘못된 요청 형식입니다' }, { status: 400 });
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
   }
 
   const parsed = validateAppearanceInput(body);
   if (!parsed.ok) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
+    return NextResponse.json({ error: apiValidation(req, parsed) }, { status: 400 });
   }
 
   const { data, error } = await getServiceRoleClient()
@@ -62,7 +63,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: '저장하지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'saveFailed') }, { status: 500 });
   }
 
   return NextResponse.json(data);

@@ -115,7 +115,7 @@ describe('봇별 시간당 상한 — 통과와 차단', () => {
     const res = await checkWriteRate(request(), BOT_A, VISITOR);
 
     expect(res?.status).toBe(429);
-    expect((await body(res))?.error).toContain('문의가 몰려');
+    expect((await body(res))?.error).toBe('bot_busy');
   });
 
   it('봇이 다르면 독립이다 — 한 봇이 막혀도 옆 봇은 통과한다', async () => {
@@ -132,7 +132,7 @@ describe('봇별 시간당 상한 — 통과와 차단', () => {
     const res = await checkWriteRate(request(), BOT_A, VISITOR);
 
     expect(res?.status).toBe(429);
-    expect((await body(res))?.error).toContain('너무 빨리');
+    expect((await body(res))?.error).toBe('too_fast');
   });
 
   it('계수가 실패하면 막지 않는다 — 뒤에 일일 예산이 fail-closed 로 버틴다', async () => {

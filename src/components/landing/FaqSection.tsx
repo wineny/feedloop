@@ -33,44 +33,10 @@
  *      「어디까지 전달」 `public/widget-pick.js` describe·skeleton + `lib/widget/context.ts` sanitizeTarget
  *                      (2026-09-23 추가 — 고객사 질문. 봇 지식 FAQ 에도 같은 답이 있다)
  */
+import { useTranslations } from 'next-intl';
 import { SectionHead } from './SectionHead';
 
-interface Qa {
-  q: string;
-  /** 두세 문장. 길어지면 접힌 걸 펴는 값이 사라진다. */
-  a: string;
-}
-
-const items: Qa[] = [
-  {
-    q: '운영 중인 챗봇이 없는데, 피드백을 어떻게 받나요?',
-    a: '피드루프가 챗봇을 만들어 드립니다. 서비스 이름과 주소만 적으면 내 챗봇이 생기고, 스크립트 한 줄을 붙이면 그 자리에서 고객 말을 받기 시작합니다. 따로 준비하실 게 없습니다.',
-  },
-  {
-    q: '개발을 몰라도 되나요?',
-    a: '스크립트 한 줄을 서비스에 붙일 수 있으면 됩니다. 저장소를 연결하지 않아도 고객 말 받기부터 AI 분류, 반영 알림까지는 그대로 돌아갑니다. 수정안 PR은 저장소를 연결한 분들을 위한 단계입니다.',
-  },
-  {
-    q: 'AI가 우리 코드를 마음대로 고치나요?',
-    a: '아니요. 피드루프는 PR을 올리는 데까지만 갑니다. 반영할지는 사람이 보고 정합니다. GitHub에 요구하는 권한도 Contents와 Pull requests 둘뿐입니다.',
-  },
-  {
-    q: '얼마인가요?',
-    a: '지금은 베타테스터 기간이라 피드루프 이용료가 없습니다. 내 API 키를 넣으면 한도 없이 쓰고, 드는 돈은 그 키로 나가는 API 요금뿐입니다. 키가 없어도 하루 100건까지는 저희 키로 돌아갑니다.',
-  },
-  {
-    q: 'AI가 엉뚱하게 답하면요?',
-    a: '모르는 건 답하지 않고 담당자에게 넘깁니다. 답의 재료가 되는 지식은 대시보드에서 언제든 고칠 수 있고, 고치면 다음 대화부터 바로 반영됩니다.',
-  },
-  {
-    q: '「화면에서 선택하기」로 어디까지 전달되나요?',
-    a: '고객이 짚은 요소의 종류와 글자, 다시 찾을 수 있는 선택자와 페이지 안 위치, 태그와 class만 남긴 HTML 뼈대, 화면 좌표, 그 시점의 페이지 주소가 함께 옵니다. 스크린샷과 요소 안 실제 내용, 입력칸에 적힌 값은 보내지 않고, 토큰·이메일·전화번호 같은 값은 저장 전에 지웁니다.',
-  },
-  {
-    q: '이미 채널톡 같은 CS 도구를 쓰는데요?',
-    a: '채널톡에 그대로 붙일 수 있습니다. 챗봇을 새로 띄우지 않아도 채널톡으로 들어온 말이 똑같이 분류되고, 반영되면 채널톡으로 알림이 갑니다.',
-  },
-];
+const ITEM_KEYS = ['noBot', 'noDev', 'codeSafety', 'price', 'wrongAnswer', 'pick', 'channelTalk'] as const;
 
 /** 닫힘 +, 열림 ×. 세로획만 돌리면 되므로 path 둘로 끝난다. */
 function Toggle() {
@@ -96,22 +62,23 @@ function Toggle() {
 }
 
 export function FaqSection() {
+  const t = useTranslations('landing');
   return (
     <section
       id="faq"
       className="mx-auto max-w-[1200px] px-6"
       style={{ paddingTop: 'var(--space-section)' }}
     >
-      <SectionHead kicker="궁금한 것들" title="FAQ" lead="가장 자주 받은 질문 일곱입니다." />
+      <SectionHead kicker={t('faq.kicker')} title={t('faq.title')} lead={t('faq.lead')} />
 
       {/* ⚠️ 폭을 따로 좁히지 않는다 — 가로선이 섹션 폭(1200px)을 그대로 가로질러야
           위 섹션들의 가로선과 한 줄에서 시작하고 끝난다. 예전엔 여기 `lg:max-w-[820px]` 이
           있어서 FAQ 만 화면 절반에서 끊겼다(ny 지적 9/18). 읽기 폭은 답 문단이 혼자 맡는다. */}
       <div className="mt-8 lg:mt-10">
-        {items.map((item, i) => (
+        {ITEM_KEYS.map((key, i) => (
           <details
-            key={item.q}
-            className={`group ${i < items.length - 1 ? 'border-b border-[var(--line)]' : ''}`}
+            key={key}
+            className={`group ${i < ITEM_KEYS.length - 1 ? 'border-b border-[var(--line)]' : ''}`}
           >
             <summary
               className="flex cursor-pointer list-none items-start gap-4 py-5 font-bold lg:gap-5 lg:py-6 [&::-webkit-details-marker]:hidden"
@@ -124,7 +91,7 @@ export function FaqSection() {
               }}
             >
               <Toggle />
-              <span>{item.q}</span>
+              <span>{t(`faq.items.${key}.q`)}</span>
             </summary>
             <p
               className="pb-5 pl-[32px] text-[var(--l-muted)] lg:max-w-[820px] lg:pb-6 lg:pl-[36px]"
@@ -135,7 +102,7 @@ export function FaqSection() {
                 wordBreak: 'keep-all',
               }}
             >
-              {item.a}
+              {t(`faq.items.${key}.a`)}
             </p>
           </details>
         ))}

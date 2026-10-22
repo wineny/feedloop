@@ -2,16 +2,17 @@ import { acquireDraftGateLease, DraftGateLockError, type DraftGateLease } from '
 import { readGithubAppConfig } from '@/lib/github/app';
 import { parseRepoInfo } from '@/lib/github/repo-url';
 import { octokitForBot, noteGithubError } from './github-auth';
+import { DRAFT_PROMOTED_MARKER, hasDraftWaitMarker, hasPromotedMarker } from './draft-markers';
 import { getPrReview, mergeBlockedBy, safeExternalUrl, type GithubOpts, type PrReview } from './pr-review';
 
 export const DRAFT_GRACE_MS = 10 * 60 * 1000;
 export const DRAFT_FAILED_MARKER = '<!-- feedloop:draft-gate:failed -->';
 export const DRAFT_PROMOTION_MARKER = '<!-- feedloop:draft-gate:promotion -->';
 const GRACE_REASON = '<!-- feedloop:draft-gate:reason:grace -->';
-const GRACE_TEXT = '생성 후 10분 동안 확인할 수 있는 검사가 없어 검토 요청으로 바꿨습니다';
-const PROMOTED_TEXT = '자동 검사를 통과해 검토 요청으로 바꿨습니다';
+const GRACE_TEXT = 'Marked ready for review: no checks were available for 10 minutes after creation';
+const PROMOTED_TEXT = 'Marked ready for review: automatic checks passed';
 const HUMAN_REASON = '<!-- feedloop:draft-gate:reason:human-unavailable -->';
-const HUMAN_TEXT = '검사 결과를 읽을 권한이 없어 담당자 판단으로 반영하기 위해 검토 요청으로 바꿨습니다';
+const HUMAN_TEXT = 'Marked ready for review at the owner\'s request: Feedloop has no permission to read check results';
 
 export interface DraftPromotionOpts extends GithubOpts {
   /** 소유 확인과 Origin 검사를 지난 명시적 반영 요청에서만 사용한다. */
@@ -49,7 +50,7 @@ export async function reviewAndPromoteDraft(repoUrl: string, prNumber: number, o
     const review = await getPrReview(repoUrl, prNumber, opts);
     const humanPromotion = humanUnavailablePromotion(review, opts);
     if (review.draft && review.state === 'open' && !review.merged && review.draftGate !== 'unsupported'
-      && review.body?.includes('## 자동 검사 대기') && review.build.unavailable && !humanPromotion) {
+      && hasDraftWaitMarker(review.body) && review.build.unavailable && !humanPromotion) {
       return { ...review, draftGateBlocked: 'checks_unavailable' };
     }
     if (!humanPromotion && isNoop(review)) return review;
@@ -89,7 +90,7 @@ function markdownText(value: string): string {
 
 function isNoop(review: PrReview): boolean {
   return review.state !== 'open' || review.merged || review.draftGate === 'unsupported'
-    || !review.draft || !review.body?.includes('## 자동 검사 대기')
+    || !review.draft || !hasDraftWaitMarker(review.body)
     || decideDraftPromotion(review) === 'wait';
 }
 
@@ -124,7 +125,7 @@ async function applyGate(repoUrl: string, prNumber: number, review: PrReview, le
     ? c.user?.type === 'Bot' && c.user.login.toLowerCase() === `${slug}[bot]` && c.performed_via_github_app?.slug?.toLowerCase() === slug
     : c.user?.login.toLowerCase() === login);
   const promotion = trusted.find(c => c.body?.includes(DRAFT_PROMOTION_MARKER));
-  if (!humanPromotion && trusted.some(c => c.body?.includes(DRAFT_PROMOTION_MARKER) && c.body.includes('검토 요청으로 바꿨습니다'))) {
+  if (!humanPromotion && trusted.some(c => c.body?.includes(DRAFT_PROMOTION_MARKER) && hasPromotedMarker(c.body))) {
     return { ...review, draftGateBlocked: 'manual_draft' };
   }
   // A manual convert-to-draft survives even if the completion comment was lost.
@@ -137,7 +138,7 @@ async function applyGate(repoUrl: string, prNumber: number, review: PrReview, le
     if (!Array.isArray(conversions)) throw new Error('GitHub draft history unavailable');
     if (conversions.length) return { ...review, draftGateBlocked: 'manual_draft' };
   }
-  const promotionText = successText;
+  const promotionText = `${DRAFT_PROMOTED_MARKER}\n${successText}`;
   const reasonMarker = humanPromotion ? HUMAN_REASON : review.build.state === 'unknown' ? GRACE_REASON : '';
   if (decision === 'keep_failed') {
     if (!trusted.some((c) => c.body?.includes(DRAFT_FAILED_MARKER))) {
@@ -146,12 +147,12 @@ async function applyGate(repoUrl: string, prNumber: number, review: PrReview, le
         return `- ${markdownText(c.name)}${url ? ` — <${url.replace(/</g, '%3C').replace(/>/g, '%3E')}>` : ''}`;
       });
       await lease.assertOwned();
-      await github(true, () => octokit.issues.createComment({ ...issue, body: `${DRAFT_FAILED_MARKER}\n자동 검사가 실패해 초안으로 유지합니다.\n${failures.join('\n')}` }));
+      await github(true, () => octokit.issues.createComment({ ...issue, body: `${DRAFT_FAILED_MARKER}\nAutomatic checks failed, so this PR stays a draft.\n${failures.join('\n')}` }));
     }
     return review;
   }
   if (!promotion) await lease.assertOwned();
-  const intentText = humanPromotion ? '검사 결과를 읽을 권한이 없어 담당자 판단으로 반영할 준비를 합니다.' : '자동 검사 판정을 마쳐 검토 요청으로 전환합니다.';
+  const intentText = humanPromotion ? 'Feedloop has no permission to read check results, so it is getting this PR ready for the owner to ship.' : 'Automatic checks are done; marking this PR ready for review.';
   const intent = promotion ?? (await github(true, () => octokit.issues.createComment({ ...issue, body: `${DRAFT_PROMOTION_MARKER}\n${reasonMarker}\n${intentText}` }))).data;
   if (promotion && (humanPromotion || Boolean(promotion.body?.includes(GRACE_REASON)) !== Boolean(reasonMarker))) {
     await lease.assertOwned();

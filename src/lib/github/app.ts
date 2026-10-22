@@ -14,6 +14,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createAppAuth } from '@octokit/auth-app';
 import { Octokit } from '@octokit/rest';
+import { serverT } from '@/i18n/server-messages';
+import type { Locale } from '@/i18n/routing';
 
 export interface GithubAppConfig {
   appId: string;
@@ -270,17 +272,7 @@ export function verifyWebhookSignature(secret: string | null | undefined, rawBod
 
 export type InstallationLostReason = 'uninstalled' | 'suspended' | 'repo_removed' | 'missing';
 
-export function installationLostMessage(reason: string | null | undefined): string {
-  switch (reason) {
-    case 'uninstalled':
-      return 'GitHub 에서 Feedloop 앱이 제거됐어요. 다시 설치하면 이어서 씁니다';
-    case 'suspended':
-      return 'GitHub 에서 Feedloop 앱이 일시 정지됐어요. 설치 설정에서 정지를 풀어 주세요';
-    case 'repo_removed':
-      return '이 저장소가 앱의 접근 목록에서 빠졌어요. 설치 설정에서 저장소를 다시 추가해 주세요';
-    case 'missing':
-      return '이 저장소에서 Feedloop 앱 설치를 찾지 못했어요. 다시 설치해 주세요';
-    default:
-      return 'GitHub 앱 연결을 확인해 주세요';
-  }
+export function installationLostMessage(reason: string | null | undefined, locale: Locale = 'en'): string {
+  const t = serverT(locale, 'errors.installLost');
+  return t.has(reason ?? '') ? t(reason as string) : t('default');
 }

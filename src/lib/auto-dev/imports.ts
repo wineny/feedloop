@@ -282,5 +282,5 @@ export function truncateNeighbor(content: string, maxBytes: number = MAX_NEIGHBO
   if (Buffer.byteLength(content, 'utf-8') <= maxBytes) return content;
   let cut = content.slice(0, maxBytes);
   while (Buffer.byteLength(cut, 'utf-8') > maxBytes) cut = cut.slice(0, -1000);
-  return `${cut}\n\n// … (이하 생략 — ${maxBytes.toLocaleString()} 바이트 초과. 참고용이라 앞부분만 실었습니다)`;
+  return `${cut}\n\n// … (rest omitted — over ${maxBytes.toLocaleString('en-US')} bytes. Reference only, so only the beginning is included)`;
 }

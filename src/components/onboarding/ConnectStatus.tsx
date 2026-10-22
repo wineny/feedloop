@@ -11,6 +11,7 @@
 // 멈춘 뒤에는 운영자가 직접 재개한다.
 
 import type { ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 
 interface WaitingLineProps {
@@ -24,6 +25,7 @@ interface WaitingLineProps {
 
 /** 단계 안에 놓는 대기 줄. 점이 뛰는 동안은 우리가 보고 있다는 뜻이다. */
 export function WaitingLine({ polling, onResume, title, description }: WaitingLineProps) {
+  const t = useTranslations('connect.status');
   // aria-live: 「기다리는 중 → 연결됐어요」는 이 화면이 주는 유일한 완료 신호인데
   // 여태 시각 전용이었다. 스크린리더 사용자는 연결이 됐는지 알 방법이 없었다.
   return (
@@ -32,17 +34,17 @@ export function WaitingLine({ polling, onResume, title, description }: WaitingLi
         {polling && (
           <i className="block h-1.5 w-1.5 animate-pulse rounded-full bg-faint" aria-hidden />
         )}
-        {polling ? title : '자동 확인을 잠시 멈췄습니다'}
+        {polling ? title : t('paused')}
       </p>
       <p className="text-[13px] leading-relaxed text-muted-foreground">
         {polling
           ? description
-          : '오래 기다려서 자동 확인을 중단했습니다. 연결을 마친 뒤 다시 확인을 눌러주세요.'}
+          : t('pausedNote')}
       </p>
       {!polling && (
         <div>
           <Button variant="outline" size="sm" onClick={onResume} className="mt-1.5">
-            다시 확인
+            {t('checkAgain')}
           </Button>
         </div>
       )}
@@ -61,6 +63,7 @@ interface ConnectedPanelProps {
 
 /** 연결이 끝나면 단계를 대신하는 카드. 이 화면에서 코랄 테두리는 여기 하나뿐이다. */
 export function ConnectedPanel({ title, description, children }: ConnectedPanelProps) {
+  const t = useTranslations('connect.status');
   return (
     <section
       className="flex flex-col gap-2 rounded-[14px] border border-primary bg-brand-subtle p-5"
@@ -69,7 +72,7 @@ export function ConnectedPanel({ title, description, children }: ConnectedPanelP
     >
       <p className="inline-flex items-center gap-2 text-[13px] font-semibold text-brand-strong">
         <i className="block h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
-        연결됐어요
+        {t('connectedBadge')}
       </p>
       <h3 className="text-[17px] font-bold tracking-[-0.015em]">{title}</h3>
       <p className="text-[13.5px] leading-relaxed text-muted-foreground">{description}</p>

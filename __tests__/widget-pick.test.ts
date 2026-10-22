@@ -129,14 +129,14 @@ describe('sanitizeTarget — 무인증 값의 모양·크기·비밀', () => {
 describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
   it('formatContextForPrompt 에 「짚은 요소」 절이 생기고 html 은 한 줄', () => {
     const out = formatContextForPrompt({ url: 'https://a.b/c', target: { ...TARGET, html: '<b>\n  x\n</b>' } });
-    expect(out).toContain('- 제보자가 화면에서 짚은 요소:');
-    expect(out).toContain('「쿠폰 받기」 버튼 <button>');
-    expect(out).toContain('셀렉터: `' + TARGET.selector + '`');
+    expect(out).toContain('- Element the reporter picked on screen:');
+    expect(out).toContain('"쿠폰 받기" button <button>');
+    expect(out).toContain('selector: `' + TARGET.selector + '`');
     expect(out).toContain('html: `<b> x </b>`');
   });
 
   it('target 이 없으면 절이 없다(빈 껍데기 금지)', () => {
-    expect(formatContextForPrompt({ url: 'https://a.b/c' })).not.toContain('짚은 요소');
+    expect(formatContextForPrompt({ url: 'https://a.b/c' })).not.toContain('picked on screen');
   });
 
   it('formatTargetLines 는 html 안의 백틱을 무력화한다 — 마크다운 펜스를 못 깬다', () => {
@@ -153,12 +153,12 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
       { target: { ...TARGET, selector: '#four', text: '넷' } },
     ];
     const out = mergeContextsForPrompt(raws);
-    expect(out).toContain('- 제보자들이 화면에서 짚은 요소:');
-    expect(out).toContain('「쿠폰 받기」 버튼 <button> — 페이지 https://nulnul.vercel.app/coupons?tab=today&token=*** (2건)');
+    expect(out).toContain('- Elements the reporters picked on screen:');
+    expect(out).toContain('"쿠폰 받기" button <button> — page https://nulnul.vercel.app/coupons?tab=today&token=*** (2 reports)');
     const items = collectContextItems(raws);
     // 첫 줄(이름 줄)만 세면 3개
     expect(items.targets!.filter((l) => l.startsWith('  · ')).length).toBe(3);
-    expect(items.targets!.join('\n')).not.toContain('「넷」');
+    expect(items.targets!.join('\n')).not.toContain('"넷"');
   });
 
   it('verify — 원본을 읽기 전엔 「확인 못 함, 대조 불가」로 싣는다(트리만으로는 판정 없음)', () => {
@@ -169,12 +169,12 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
     expect(v.targetClaims).toHaveLength(1);
     expect(v.targetClaims[0].status).toBe('unknown');
     const prompt = formatVerifiedForPrompt(v);
-    expect(prompt).toContain('짚은 요소 (DOM 값 — 레포 원본에서 확인 못 함, 대조 불가)');
-    expect(prompt).not.toContain('이 파일이 그린다');
+    expect(prompt).toContain('picked on screen (DOM values — not found in the repo source, cannot be matched)');
+    expect(prompt).not.toContain('rendered by');
     expect(prompt).toContain(TARGET.selector);
     const pr = formatVerifiedForPrBody(v);
-    expect(pr).toContain('«짚은 요소» (검증되지 않은 입력');
-    expect(pr).toContain('「쿠폰 받기」 버튼');
+    expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
+    expect(pr).toContain('"쿠폰 받기" button');
     // PR 본문(GitHub 에 남는 글)엔 html 뼈대가 없다. 프롬프트엔 있다 (보안 리뷰 H2)
     expect(pr).not.toContain('html:');
     expect(prompt).toContain('html:');
@@ -186,11 +186,11 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
     const v = verifyContextItems(legacy, ['app/coupons/page.tsx']);
     expect(v.targetClaims).toEqual([]);
     const prompt = formatVerifiedForPrompt(v);
-    expect(prompt).toContain('짚은 요소 (DOM 값 — 레포 트리로는 대조 불가)');
+    expect(prompt).toContain('picked on screen (DOM values — cannot be matched against the repo tree)');
     expect(prompt).toContain(TARGET.selector);
     const pr = formatVerifiedForPrBody(v);
-    expect(pr).toContain('«짚은 요소» (검증되지 않은 입력');
-    expect(pr).toContain('「쿠폰 받기」 버튼');
+    expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
+    expect(pr).toContain('"쿠폰 받기" button');
     expect(pr).not.toContain('html:');
   });
 
@@ -220,9 +220,9 @@ describe('프롬프트 — 짚은 요소가 단서로 실린다', () => {
       { owner: 'o', repo: 'r', sourcePaths: ['app/coupons/page.tsx'], truncated: false },
       { prompt: formatVerifiedForPrompt(v), prBody: '', hasMissing: false },
     );
-    expect(prompt).toContain('"화면에서 짚은 요소" 도 단서이지 근거가 아닙니다');
-    expect(prompt).toContain('억지로 맞추지 마세요');
-    expect(prompt).toContain('「쿠폰 받기」 버튼');
+    expect(prompt).toContain('"Element the reporter picked on screen" is also a clue, not evidence');
+    expect(prompt).toContain('do not force a match');
+    expect(prompt).toContain('"쿠폰 받기" button');
   });
 });
 
@@ -276,7 +276,9 @@ describe('widget.js — 화면에서 짚기 (로더·첨부 칩·payload)', () =
   it('첨부 칩의 이름 규칙(targetLabel)이 pick.ts 와 같은 값을 낸다', () => {
     const m = widgetSrc.match(/function targetLabel\(t\) \{[\s\S]*?\n  \}/);
     expect(m).not.toBeNull();
-    const fn = new Function(`${m![0]}; return targetLabel;`)() as typeof targetLabel;
+    // 위젯의 한국어 표를 그대로 흉내 낸다(이름 규칙은 ko 가 pick.ts 와 같아야 한다)
+    const T = (k: string) => ({ q1: '「', q2: '」', section: '구역', area: '영역' })[k as 'q1'];
+    const fn = new Function('T', 'LOCALE', 'KIND_EN', `${m![0]}; return targetLabel;`)(T, 'ko', {}) as typeof targetLabel;
     for (const t of [
       { kind: '버튼', text: '쿠폰 받기' },
       { kind: '이미지', label: '대릉원 사진' },
@@ -292,7 +294,7 @@ describe('widget.js — 화면에서 짚기 (로더·첨부 칩·payload)', () =
 
   it('I-55 — 촬영기를 «누를 때» 받고, 촬영 상태를 칩에 싣고, 촬영이 보내기를 막지 않는다(최대 5초)', () => {
     expect(widgetSrc).toContain("loadJs('widget-shot.js', '__feedloopShot')");
-    expect(widgetSrc).toContain('window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId })');
+    expect(widgetSrc).toContain('window.__feedloopShot({ ignore: host, api: apiBase, visitorId: visitorId, locale: LOCALE })');
     expect(widgetSrc).toContain("' · 촬영 중…'");
     expect(widgetSrc).toContain("'화면은 담지 못했어요 · 위치는 함께 보내요'");
     expect(widgetSrc).toContain('setTimeout(ok, 5000)');
@@ -345,7 +347,7 @@ describe('I-55 — 큰 영역 라벨 · shot 필드', () => {
   it('프롬프트에 shot id 는 실리지 않는다 — 이미지는 LLM·PR 에 안 간다', () => {
     const shot = 'aaaaaaaa-1111-4111-8111-111111111111';
     const out = formatContextForPrompt({ target: { kind: '영역', tag: 'div', selector: 'main', heading: '쿠폰 목록', shot } });
-    expect(out).toContain('「쿠폰 목록」 구역');
+    expect(out).toContain('"쿠폰 목록" section');
     expect(out).not.toContain(shot);
   });
 });
@@ -711,14 +713,14 @@ describe('confirmTargetClaims — 후보를 읽어 판정을 올린다', () => {
       paths: DEMO_PATHS, readBlob: async (p) => (p.endsWith('RegionSelector.tsx') ? 'styles.pill 서울 종로' : 'nothing'),
     });
     const prompt = formatVerifiedForPrompt(v);
-    expect(prompt).toContain('레포 원본에서 확인됨, 이 파일이 그린다: app/components/RegionSelector.tsx');
-    expect(prompt).toContain("CSS 모듈 클래스 'pill'");
-    expect(prompt).not.toContain('원인'); // 「그린다」까지만 — 「원인이 여기 있다」는 말은 안 한다(PR #6)
-    expect(prompt).toContain('레포 원본에서 확인 못 함, 대조 불가'); // 두 번째 요소
+    expect(prompt).toContain('confirmed in the repo source, rendered by: app/components/RegionSelector.tsx');
+    expect(prompt).toContain("CSS module class 'pill'");
+    expect(prompt).not.toContain('cause'); // 「그린다」까지만 — 「원인이 여기 있다」는 말은 안 한다(PR #6)
+    expect(prompt).toContain('not found in the repo source, cannot be matched'); // 두 번째 요소
     const pr = formatVerifiedForPrBody(v);
-    expect(pr).toContain('- 짚은 요소: 「서울 종로」 버튼 → `app/components/RegionSelector.tsx` 이(가) 그린다');
-    expect(pr).toContain('«짚은 요소» (검증되지 않은 입력');
-    expect(pr).toContain('「없는 글자」 버튼');
+    expect(pr).toContain('- Picked element: "서울 종로" button → `app/components/RegionSelector.tsx` renders it');
+    expect(pr).toContain("Picked elements sent by the reporter's browser (unverified input");
+    expect(pr).toContain('"없는 글자" button');
     expect(pr).not.toContain('html:');
   });
 });

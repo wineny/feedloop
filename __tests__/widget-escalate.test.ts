@@ -99,10 +99,10 @@ beforeEach(() => {
   emailOwnerHandoff.mockResolvedValue({ sent: true, to: 'owner@example.com' });
 });
 
-async function post(body: unknown, botId = BOT_ID) {
+async function post(body: unknown, botId = BOT_ID, locale: 'ko' | 'en' | null = 'ko') {
   const { NextRequest } = await import('next/server');
   const { POST } = await import('@/app/api/widget/[botId]/escalate/route');
-  const req = new NextRequest(`https://feedloop.test/api/widget/${botId}/escalate`, {
+  const req = new NextRequest(`https://feedloop.test/api/widget/${botId}/escalate${locale ? `?locale=${locale}` : ''}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: 'https://nulnul.vercel.app' },
     body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -137,13 +137,14 @@ describe('POST /api/widget/[botId]/escalate — 관문', () => {
   it('이메일 형식이 틀리면 400 — 저장 전에 거른다', async () => {
     const { status, body } = await post({ visitorId: VISITOR, text: '환불 문의', email: 'not-an-email' });
     expect(status).toBe(400);
-    expect(body.error).toContain('이메일');
+    expect(body.error).toBe('email_invalid');
+    expect(body.message).toBe('이메일 형식을 확인해주세요'); // post() 의 기본은 ?locale=ko
     expect(upsertConversation).not.toHaveBeenCalled();
   });
 
   it('속도 제한에 걸리면 그 응답을 그대로 돌려준다', async () => {
     const { widgetError } = await import('@/lib/widget/http');
-    checkWriteRate.mockResolvedValue(widgetError('잠시 후', 429));
+    checkWriteRate.mockResolvedValue(widgetError(new Request('http://localhost/x'), 'too_fast', 429));
     const { status } = await post({ visitorId: VISITOR, text: '환불 문의' });
     expect(status).toBe(429);
     expect(upsertConversation).not.toHaveBeenCalled();
@@ -151,6 +152,23 @@ describe('POST /api/widget/[botId]/escalate — 관문', () => {
 });
 
 describe('POST /api/widget/[botId]/escalate — 말을 남기는 경로', () => {
+  it('locale=en 이면 안내 칩이 영어이고, 상태 문구가 없을 때 영어 기본 문구를 쓴다', async () => {
+    resolveWidgetBot.mockResolvedValue({ id: BOT_ID, service_name: 'Nulnul', status: 'active', status_text: null });
+    const { status } = await post({ visitorId: VISITOR, text: 'How do I get a refund?' }, BOT_ID, 'en');
+    expect(status).toBe(200);
+    const n = savedNotice();
+    expect(n.body).toBe(
+      '"How do I get a refund?" was passed to a person.' +
+        ' Usually replies in a few minutes. We\'ll let you know here when they reply 🙏',
+    );
+  });
+
+  it('?locale 없이 온 요청은 대화에 저장된 언어를 덮어쓰지 않는다(Accept-Language 짐작은 저장하지 않는다)', async () => {
+    const { status } = await post({ visitorId: VISITOR, text: '환불은 어떻게 하나요?' }, BOT_ID, null);
+    expect(status).toBe(200);
+    expect(upsertConversation).toHaveBeenCalledWith(expect.objectContaining({ locale: undefined }));
+  });
+
   it('메시지를 handoff 로 저장하고(AI 답 없음), 상태를 찍고, 인용 칩을 남기고, 소유자에게 메일을 보낸다', async () => {
     const { status, body, res } = await post({ visitorId: VISITOR, text: '환불은 어떻게 하나요?' });
 
@@ -158,6 +176,8 @@ describe('POST /api/widget/[botId]/escalate — 말을 남기는 경로', () => 
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
     // 내용이 있으면 대화를 만들어도 된다 — 운영자가 받을 말이 있다
     expect(upsertConversation).toHaveBeenCalledTimes(1);
+    // 방문자 언어를 대화에 남긴다(반영 알림이 그 언어로 간다) — post() 의 기본이 ?locale=ko
+    expect(upsertConversation).toHaveBeenCalledWith(expect.objectContaining({ locale: 'ko' }));
     const msg = saveWebMessage.mock.calls[0][0] as Record<string, unknown>;
     expect(msg).toMatchObject({ text: '환불은 어떻게 하나요?', handoff: true, origin: 'https://nulnul.vercel.app' });
     expect(msg).toHaveProperty('context');
@@ -286,7 +306,7 @@ describe('POST /api/widget/[botId]/escalate — 버튼만 누른 경로', () => 
 describe('widget.js — 상담원 연결', () => {
   const src = readFileSync(new URL('../public/widget.js', import.meta.url), 'utf8');
 
-  it('gzip 21KB 상한 안이다', () => {
+  it('gzip 24KB 상한 안이다', () => {
     // 위젯은 남의 사이트에 붙는다. 15 → 16KB 는 2026-09-13(상담원 연결 v2), 16 → 17KB 는
     // 2026-09-16 ny 결정(되돌림 확인을 카드 «안»에서 받기 — I-30), 17 → 18KB 는 같은 날 B3
     // 「화면에서 선택하기」 — 선택기 본체는 widget-pick.js 로 갈라 여기엔 로더·첨부·payload 몫만 들었다.
@@ -299,17 +319,19 @@ describe('widget.js — 상담원 연결', () => {
     // 실측 증가분 gzip 672B(20,435 → 21,107).
     // 21 → 22KB 는 2026-10-21 PayPal 3단계 5/6 — `payment` 종류의 결제 카드(서버 고정 영어 문장 + paypal.com
     // 호스트만 통과하는 「Pay with PayPal」 버튼). 설계 v2 §10 의 결정(여유 188B → 상한 22KB 로 올리고 이유를 적는다).
-    expect(gzipSync(src).length).toBeLessThanOrEqual(22 * 1024);
+    // 22 → 24KB 는 2026-10-21 i18n 3/8 — 방문자에게 보이는 문구를 en·ko 표로 모두 싣는다(표 하나가 gzip 약 2KB).
+    // 측정: 21,747B(22KB 상한 안) → 23,716B. 한쪽 언어만 받게 쪼개면 요청이 하나 늘어 첫 화면이 늦으니 한 파일에 둔다.
+    expect(gzipSync(src).length).toBeLessThanOrEqual(24 * 1024);
   });
 
   it('escalate 라우트에 남긴 말·연락처를 보내고, 서버의 escalated 로 상태 줄을 켜고 끈다', () => {
-    expect(src).toContain("apiBase + '/escalate'");
+    expect(src).toContain("apiBase + '/escalate?' + LQ");
     expect(src).toContain('payload.text = text');
     expect(src).toContain('state.escalated = esc');
   });
 
   it('상태 줄은 「상담원에게 전달됐어요」만 — 기대치 문구를 안 붙여 「보통 몇 …」로 잘리지 않는다 (2026-09-16)', () => {
-    const i = src.indexOf("el('b', null, '상담원에게 전달됐어요')");
+    const i = src.indexOf("el('b', null, T('passed'))");
     expect(i).toBeGreaterThan(0);
     // 그 알약(st) 안에서 statusText 를 이어 붙이던 줄이 없다
     const pill = src.slice(i, src.indexOf('row.appendChild(st)', i));
@@ -331,15 +353,20 @@ describe('widget.js — 상담원 연결', () => {
     expect(src).toContain(`'${HANDOFF_FORM_TITLE}'`);
     expect(src).toContain(`'${HANDOFF_SUBMIT_LABEL}'`);
     // AI 대기 문구 밑 제안 칩은 대기 문구의 앞부분으로 판별한다
-    const m = src.match(/it\.body\.indexOf\('([^']+)'\)/);
-    expect(m).not.toBeNull();
-    expect(HOLDING_MESSAGE.startsWith(m![1])).toBe(true);
+    // en·ko 표의 holdKey 가 각각 대기 문구(한국어 HOLDING_MESSAGE · 영어 HOLDING_MESSAGE_EN)의 앞부분이다
+    const ko = src.match(/holdKey: '([^']+)', holdMsg: '([^']+)'/g);
+    expect(ko).toHaveLength(2);
+    expect(src).toContain('isHolding(it.body)');
+    const { HOLDING_MESSAGE_EN } = await import('@/lib/bot/holding');
+    const keys = [...src.matchAll(/holdKey: '([^']+)', holdMsg: '([^']+)'/g)].map((x) => [x[1], x[2]]);
+    expect(keys.map((k) => k[1])).toEqual([HOLDING_MESSAGE_EN, HOLDING_MESSAGE]);
+    for (const [key, msg] of keys) expect(msg.startsWith(key)).toBe(true);
   });
 
   it('폼 입력은 state 에 살아 재렌더에도 남고, 마지막 내 말을 처음 열 때만 미리 채우며, 그대로 보내면 중복 저장 대신 대화만 넘긴다', () => {
     expect(src).toContain('hf.text = ta.value');
     expect(src).toContain('if (!state.hf.text) state.hf.text = lastMine()');
-    expect(src).toContain("if (!text && !hasUserMsg()) { state.error = '상담원에게 남길 말을 적어주세요'");
+    expect(src).toContain("if (!text && !hasUserMsg()) { state.error = T('hEmpty')");
     expect(src).toContain("if (text === lastMine().trim()) text = ''");
   });
 

@@ -1,0 +1,153 @@
+{
+  "cta": {
+    "primary": "Set up free in 5 minutes"
+  },
+  "nav": {
+    "main": "Main menu",
+    "how": "How it works",
+    "demo": "Demo",
+    "menuOpen": "Open menu",
+    "menuClose": "Close menu",
+    "login": "Log in",
+    "myDashboard": "My dashboard"
+  },
+  "hero": {
+    "line1": "Customer feedback",
+    "line2": "comes back as <em>code</em>",
+    "line3": "you can review",
+    "sub": "Add one chat snippet to your product. Feedloop's AI sorts what customers tell you and opens a pull request with the fix.",
+    "watchDemo": "Watch demo",
+    "setupNote": "One script tag · 5-minute setup",
+    "screensNote": "Real product screens · sample data"
+  },
+  "steps": {
+    "feedback": {
+      "title": "Feedback",
+      "desc": "Customers leave it in the Feedloop chat widget on your site. AI answers right away and hands off to you when it doesn't know."
+    },
+    "classify": {
+      "title": "AI triage",
+      "desc": "Sorted into bug, UX issue, feature request, or question. Similar reports are grouped with one click."
+    },
+    "fix": {
+      "title": "Fix PR",
+      "desc": "It reads your repository, writes the fix as code, and opens a pull request. A person approves what ships."
+    },
+    "notify": {
+      "title": "Notification",
+      "desc": "The sender gets \"It's fixed.\" By email too, if they left one."
+    }
+  },
+  "phone": {
+    "botName": "Daily Market",
+    "botStatus": "Usually replies in a few minutes",
+    "greeting": "Hi! Tell us anything that bothers you or anything you'd like to see.",
+    "visitorMessage": "My cart empties when I press Back on the checkout page",
+    "time": "2:14 PM",
+    "aiReply": "Sorry about that! I've flagged the cart emptying on Back to the team.",
+    "fixedTitle": "Fixed",
+    "fixedBody": "The cart now stays when you go back. Check it out in today's update.",
+    "viewPr": "View PR →",
+    "chipYes": "Yes, it works",
+    "chipNo": "Still the same",
+    "toolPick": "Pick on screen",
+    "toolHuman": "Talk to a person",
+    "placeholder": "Tell us anything…",
+    "send": "Send"
+  },
+  "problem": {
+    "kicker": "The problem",
+    "title1": "Feedback keeps piling up,",
+    "title2": "but nothing gets fixed",
+    "lead1": "It isn't that you won't fix it. You can't keep up.",
+    "lead2": "Customers are already telling you. The problem is what happens next.",
+    "pains": {
+      "buried": {
+        "line": "Product feedback gets buried under support tickets",
+        "desc": "You clear the urgent tickets first and the day is gone."
+      },
+      "unsorted": {
+        "line": "Similar feedback piles up and never gets sorted",
+        "desc": "It grows in a jumble, and later you can't tell where to start."
+      },
+      "unaware": {
+        "line": "Even after you fix it, the customer who reported it never finds out",
+        "desc": "Nobody tells them it was fixed."
+      }
+    }
+  },
+  "how": {
+    "kicker": "How it works",
+    "title": "From one comment to a shipped fix",
+    "lead": "Four steps, one closed loop."
+  },
+  "demo": {
+    "kicker": "Demo",
+    "title": "Try Feedloop",
+    "lead1": "Talk to the Feedloop chat widget.",
+    "lead2": "Walk the whole loop yourself, from AI triage to the fix PR and the customer notification."
+  },
+  "plans": {
+    "kicker": "How to install",
+    "title": "Get Feedloop running",
+    "lead": "Three steps and you are done.",
+    "botId": "bot ID",
+    "steps": {
+      "bot": {
+        "title": "Create your chat bot",
+        "desc": "Enter your product name and URL, and your bot is ready."
+      },
+      "script": {
+        "title": "Paste the script into your site",
+        "desc": "Once it is in, the Feedloop chat widget appears on your site."
+      },
+      "github": {
+        "title": "Connect GitHub",
+        "desc": "Choose a GitHub App install, your own token, or a shared account. Only two permissions are needed: Contents and Pull requests."
+      }
+    }
+  },
+  "faq": {
+    "kicker": "Questions",
+    "title": "FAQ",
+    "lead": "The seven questions we get most.",
+    "items": {
+      "noBot": {
+        "q": "I don't have a chat bot running. How do I collect feedback?",
+        "a": "Feedloop builds one for you. Enter your product name and URL to get your bot, then paste one script line and it starts taking customer messages right there. There is nothing else to prepare."
+      },
+      "noDev": {
+        "q": "Do I need to know how to code?",
+        "a": "If you can paste one script line into your site, you are set. Without a connected repository, everything from receiving messages to AI triage and customer notifications still runs. Fix PRs are the step for teams that connect a repository."
+      },
+      "codeSafety": {
+        "q": "Does the AI change our code on its own?",
+        "a": "No. Feedloop stops at opening a pull request. A person reviews it and decides whether to merge. The only GitHub permissions it asks for are Contents and Pull requests."
+      },
+      "price": {
+        "q": "How much does it cost?",
+        "a": "Feedloop is free during the beta. If you add your own API key there is no limit, and the only cost is the API fees on that key. Without a key, up to 100 messages a day run on ours."
+      },
+      "wrongAnswer": {
+        "q": "What if the AI answers wrongly?",
+        "a": "It doesn't answer what it doesn't know. It hands the conversation to you. You can edit the knowledge it answers from in the dashboard at any time, and changes apply from the next conversation."
+      },
+      "pick": {
+        "q": "What does \"Pick on screen\" send?",
+        "a": "You receive the type and text of the element the customer pointed at, a selector and position that can find it again, an HTML skeleton with only tags and classes, screen coordinates, and the page URL at that moment. Screenshots, the actual content inside the element, and values typed into inputs aren't sent, and tokens, emails, and phone numbers are removed before saving."
+      },
+      "channelTalk": {
+        "q": "We already use a support tool like Channel Talk.",
+        "a": "Connect it to Channel Talk as is. You don't need to show a new chat widget: messages that arrive in Channel Talk are triaged the same way, and the notification goes back through Channel Talk when the fix ships."
+      }
+    }
+  },
+  "final": {
+    "kicker": "Get started",
+    "title": "Add Feedloop to your product",
+    "lead": "Setup takes five minutes. When a fix ships, the person who reported it is notified."
+  },
+  "footer": {
+    "privacy": "To improve the service, we record sessions and screen replays of visitors who aren't logged in, using PostHog. Input fields and the support widget are masked in recordings."
+  }
+}

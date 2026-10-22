@@ -1,0 +1,104 @@
+{
+  "form": {
+    "saved": {
+      "remove": "키 제거",
+      "confirmRemove": "정말 제거",
+      "replaceKey": "키 교체",
+      "changeModel": "모델 변경",
+      "verifiedOn": "확인한 날",
+      "stored": "저장됨",
+      "key": "키",
+      "model": "모델",
+      "unknown": "알 수 없음",
+      "provider": "제공사",
+      "defaultModel": "(기본) {model}",
+      "removeNote": "제거하면 기본 설정(무료 하루 {limit, number}건)으로 돌아가요."
+    },
+    "cancel": "취소",
+    "saveModel": "모델 저장",
+    "verifyAndSave": "확인하고 저장",
+    "changeModelTitle": "모델 바꾸기",
+    "failedNote": "그 사이 들어온 피드백은 저장돼 있고 「대화」에서 볼 수 있어요. 잃은 건 자동 답변뿐입니다.",
+    "lastCallFailed": "마지막 호출이 실패했어요",
+    "status": {
+      "keyRemoved": "키를 제거했어요. 이제 기본 설정으로 답합니다",
+      "modelChanged": "모델을 바꿨어요. 키는 그대로입니다",
+      "keySaved": "키를 확인하고 저장했어요. 지금부터 이 키로 답합니다"
+    },
+    "errors": {
+      "network": "네트워크 오류로 저장하지 못했습니다",
+      "save": "저장하지 못했습니다"
+    },
+    "loading": "불러오는 중…",
+    "loadError": "키 설정을 불러오지 못했습니다. 새로고침해 주세요.",
+    "freeNote": "키를 넣지 않으면 {name} 봇은 하루 {limit, number}건까지 무료로 답해요(기본 모델 {model}). 답변 지식에 없는 사실 질문은 지어내지 않고 “{holding}”로 넘겨 「대화」에 “{badge}”로 표시됩니다. 내 API 키를 넣으면 모델을 직접 고르고 한도 없이 답해요. 요금은 내 키로 청구됩니다.",
+    "budget": {
+      "noLimit": "내 키로 <b>한도 없이</b> 답해요. 요금은 그 키로 청구됩니다.",
+      "freeLimit": "지금은 하루 <b>{limit, number}건</b>까지 무료로 답해요.",
+      "autoLimit": "지금은 하루 <b>{limit, number}건</b>까지 자동으로 답해요.",
+      "defaultModel": "기본 모델은 {model} 입니다.",
+      "upgrade": "{provider} 키를 넣으면 <b>한도 없이</b> 답하고, 요금은 그 키로 청구됩니다."
+    }
+  },
+  "fields": {
+    "customNote": "목록에 없는 모델도 쓸 수 있어요. 대신 이름이 맞는지는 저장할 때 확인하지 못합니다 — 잘못된 이름이면 첫 답변에서 실패로 표시돼요.",
+    "customLabel": "직접 입력한 모델 이름",
+    "customPlaceholder": "예: gemini-3.8-flash",
+    "custom": "직접 입력…",
+    "modelLabel": "모델",
+    "keyLabel": "API 키",
+    "step3": "3. API 키",
+    "step2": "2. 어떤 모델로",
+    "providerLabel": "AI 제공사",
+    "step1": "1. 어디 모델을 쓸까요",
+    "recommended": "추천",
+    "providerKeyPlaceholder": "{provider} API 키를 붙여넣으세요",
+    "keyNote": "저장하기 전에 {provider}에 한 번 물어봐서 실제로 통하는 키인지 확인합니다. 저장한 뒤에는 마지막 4자만 보이고, 원문은 어떤 화면에도 다시 나오지 않아요.",
+    "auto": "자동 — 추천 모델({model})을 씁니다"
+  },
+  "models": {
+    "gemini-3_5-flash-lite": "빠르고 저렴해요 · 입력 $0.30 / 1M",
+    "gemini-3_8-flash": "최신 Flash · 입력 $0.75 / 1M",
+    "gemini-3_5-flash": "입력 $1.50 / 1M",
+    "gemini-2_5-flash-lite": "가장 저렴해요 · 입력 $0.10 / 1M",
+    "gemini-2_5-flash": "규칙을 잘 지켜요 · 입력 $0.30 / 1M",
+    "claude-haiku-4-5-20251001": "가장 빨라요 · 입력 $1 / 1M",
+    "claude-sonnet-5": "속도와 성능의 균형 · 입력 $2 / 1M",
+    "claude-opus-5": "입력 $5 / 1M",
+    "claude-fable-5-1": "가장 똑똑해요 · 입력 $10 / 1M",
+    "gpt-5_6-luna": "빠르고 저렴해요 · 입력 $0.20 / 1M",
+    "gpt-5_6-terra": "입력 $2 / 1M",
+    "gpt-5_6-sol": "입력 $4 / 1M",
+    "gpt-6-astra": "가장 똑똑해요 · 입력 $10 / 1M"
+  },
+  "purposes": {
+    "intro": "{name} 봇은 루프의 칸마다 다른 일을 합니다. 지금은 베타 기간이라 <b>피드백 정리와 수정안 만들기는 피드루프가 부담해요.</b> 키를 넣지 않아도 네 칸이 모두 돕니다.",
+    "open": "내 키로 돌릴 수 있어요",
+    "locked": "베타 기간에는 피드루프가 부담",
+    "lockedLabel": "{title} — 베타 기간에는 설정할 수 없습니다",
+    "lockedModel": "모델 — 베타 이후 선택",
+    "lockedKey": "API 키 — 지금은 필요 없어요",
+    "reply": {
+      "stage": "들어온 피드백",
+      "title": "고객에게 답하기",
+      "what": "방문자가 위젯이나 채널에 말을 걸면 그 자리에서 답합니다. 사람을 기다리게 할 수 없어 10초 안에 끝나야 해요.",
+      "guide": "빠르고 저렴한 모델이 어울리는 자리예요. 다만 답변 지식이 많아질수록, 모르는 것을 지어내지 않고 담당자에게 넘기는 규칙을 저렴한 모델이 놓치는 일이 있었습니다."
+    },
+    "organize": {
+      "stage": "AI 가 분류",
+      "title": "피드백 정리하기",
+      "what": "들어온 피드백을 갈래별로 나누고 같은 문제끼리 묶습니다. 한 번에 수십 건을 함께 읽어요.",
+      "guide": "한 번에 읽는 양이 답변 때보다 훨씬 많은 자리라, 저렴한 모델은 놓치는 것이 생기기 쉽습니다."
+    },
+    "fix": {
+      "stage": "수정안",
+      "title": "수정안 만들기",
+      "what": "묶인 문제를 실제 코드 수정안(PR)으로 만듭니다. 저장소를 읽고 고쳐 쓰는 가장 무거운 작업이에요.",
+      "guide": "코드를 읽고 직접 고쳐 쓰기 때문에 가장 좋은 모델이 필요한 자리입니다."
+    },
+    "closing": {
+      "stage": "반영 알림",
+      "what": "고친 내용을 처음 말해 준 사람에게 돌려줍니다. 정해진 문장을 쓰기 때문에 AI 를 거의 쓰지 않아요."
+    }
+  }
+}

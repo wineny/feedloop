@@ -1,0 +1,281 @@
+{
+  "knowledge": {
+    "textOver": "알려줄 내용이 상한을 넘었습니다. 줄여야 저장할 수 있어요 — 잘라서 저장하지 않습니다.",
+    "save": "저장",
+    "sizeNote": "답변할 때마다 이만큼이 모델에 함께 들어갑니다. 길수록 비용과 응답 시간이 늘어요.",
+    "sizeLabel": "프롬프트에 실리는 크기",
+    "publicWarning": "여기 넣은 내용은 방문자 답변에 그대로 인용될 수 있어요. 공개해도 되는 정보만 넣어 주세요.",
+    "addItem": "항목 추가",
+    "faqAnswerPlaceholder": "봇이 이렇게 답하면 좋겠다 싶은 내용을 적으세요.",
+    "faqQuestionPlaceholder": "예: 환불은 언제까지 되나요?",
+    "faqEmpty": "아직 없습니다. 아래에서 첫 항목을 추가하세요.",
+    "faqHint": "질문과 답을 나눠 적으면 봇이 훨씬 잘 찾아냅니다.",
+    "faqTitle": "자주 묻는 질문",
+    "textTitle": "알려줄 내용",
+    "errors": {
+      "network": "네트워크 오류로 저장하지 못했습니다",
+      "save": "저장하지 못했습니다"
+    },
+    "saved": "저장했어요. 지금부터 이 내용으로 답합니다",
+    "emptyNote": "지식이 비어 있는 동안 봇은 사실 질문(정책·가격·수량 같은 것)에 답하지 않고 “{holding}”로 넘깁니다. 피드백에는 평소처럼 답해요. 여기에 지식을 넣으면 그 범위 안에서 바로 답합니다.",
+    "count": "{count, number} / {max, number}자",
+    "textPlaceholder": "{name}에 대해 봇이 알아야 할 것을 그대로 붙여넣으세요. 이용 안내, 요금, 배송·환불 규정, 자주 나오는 상황 같은 것들이요.",
+    "textNote": "노션이나 README 에 이미 쓴 글을 그대로 붙여넣어도 됩니다. 여기 없는 내용은 봇이 지어내지 않고 “{holding}”로 넘깁니다.",
+    "faqCount": "{count} / {max}개",
+    "questionLabel": "질문 {n}",
+    "questionDelete": "질문 {n} 삭제",
+    "answerLabel": "답변 {n}",
+    "size": "≈ {size, number}자",
+    "faqOver": "자주 묻는 질문이 {max}개를 넘었습니다."
+  },
+  "appearance": {
+    "previewSend": "보내기",
+    "previewPlaceholder": "무엇이든 편하게 남겨주세요",
+    "previewReply": "확인해서 알려드릴게요.",
+    "previewVisitor": "쿠폰함이 계속 비어 보여요",
+    "previewFaq": "자주 묻는 질문",
+    "previewLabel": "위젯 미리보기",
+    "resetDefault": "기본값으로",
+    "default": "기본값",
+    "previewTitle": "방문자에게 보이는 모습 (첫 화면 + 말풍선 예시)",
+    "saving": "저장 중…",
+    "save": "저장",
+    "bubbleHelp": "방문자가 보낸 말풍선의 배경색입니다. 글자색은 밝기에 따라 흰색·검정 중 읽히는 쪽이 자동으로 선택됩니다.",
+    "bubble": "내 말풍선색",
+    "accentHelp": "플로팅 버튼·미읽음 배지·프로필 이니셜·보내기 버튼·링크·반영 알림 카드에 쓰입니다. 그 위의 글자색은 밝기에 따라 흰색·검정 중 읽히는 쪽이 자동으로 선택되고, 밝은 색을 고르면 링크·테두리는 조금 어둡게 조정됩니다.",
+    "accent": "강조색",
+    "colorsHelp": "비워두면 Feedloop 기본색을 씁니다. 서비스 브랜드색을 넣으면 위젯이 우리 사이트의 일부처럼 보입니다.",
+    "colors": "색상",
+    "imageUrlHelp": "512×512 정사각 PNG/JPG 권장. 파일 업로드는 준비 중이라 지금은 공개 URL 을 넣어주세요.",
+    "imageUrl": "프로필 이미지 URL",
+    "operatorNameHelp": "대화 탭에서 보낸 답장에 붙는 이름입니다.",
+    "operatorName": "운영자 답장 이름",
+    "fallbackNote": "위 칸에 질문을 직접 쓰면 언제나 그게 우선입니다. 이 선택은 칸이 비었을 때만 쓰입니다.",
+    "fallbackOffNote": "첫 화면에 인사말과 의견 남기기만 보입니다. 답변 지식은 그대로 쓰이고, 방문자가 직접 물어보면 답합니다.",
+    "fallbackOff": "띄우지 않기",
+    "fallbackOn": "답변 지식에서 채우기",
+    "fallbackTitle": "시작 질문을 비워뒀을 때",
+    "starters": "시작 질문",
+    "greetingHelp": "위젯을 열면 가장 먼저 보이는 말풍선입니다.",
+    "greeting": "첫 인사말",
+    "statusTextHelp": "표시 이름 아래 한 줄. 답장이 언제쯤 가는지 미리 알려주는 자리입니다.",
+    "statusText": "상태 문구",
+    "displayNameHelp": "위젯 헤더와 플로팅 버튼에 쓰입니다. 비워두면 서비스 이름을 씁니다.",
+    "displayName": "표시 이름",
+    "errors": {
+      "network": "네트워크 오류로 저장하지 못했습니다",
+      "save": "저장하지 못했습니다"
+    },
+    "saved": "저장했어요. 방문자 위젯에는 몇 분 안에 반영돼요",
+    "starterExample1": "쿠폰은 하루 몇 장까지 받나요?",
+    "starterExample2": "혼잡도가 실시간인가요?",
+    "startersHelp": "한 줄에 하나씩, {max}개까지 (각 {chars}자). 인사말 아래에 뜨고, 방문자가 누르면 바로 전송돼 그 자리에서 답을 받습니다.",
+    "fallbackOnNote": "FAQ 앞쪽 질문이 그대로 방문자에게 보입니다. 지금이라면 「{first}」 부터 {count}개입니다.",
+    "fallbackOnEmpty": "답변 지식에 FAQ 를 넣으면 그 앞쪽 질문이 방문자에게 보입니다. 지금은 FAQ 가 없어 아무것도 뜨지 않습니다.",
+    "colorSwatch": "{label} 견본",
+    "previewPick": "화면에서 선택하기",
+    "previewHuman": "상담원 연결",
+    "chips": {
+      "bug": "불편한 점이 있어요",
+      "feature": "기능 제안이 있어요"
+    }
+  },
+  "defaults": {
+    "statusText": "보통 몇 분 안에 답해요",
+    "greeting": "안녕하세요! {name} 이용 중 불편했던 점이나 바라는 점을 편하게 남겨주세요. 팀이 직접 읽고 답해드려요.",
+    "operatorName": "{name} 팀"
+  },
+  "new": {
+    "loginToRegister": "로그인 후 등록 가능",
+    "cancel": "취소",
+    "prAutoBody": "매일 09:00 가장 큰 새 묶음 하나에 수정안을 자동으로 올립니다. 반영은 여전히 사람이 합니다. 나중에 챗봇 설정 화면에서 바꿀 수 있습니다.",
+    "prAuto": "자동으로 만들기",
+    "prApproveBody": "묶음마다 대시보드에서 [수정안 만들기] 를 눌러 만듭니다. AI 수정이 옳은지 사람이 먼저 봅니다.",
+    "prApprove": "승인 후 PR",
+    "prMode": "수정안 모드",
+    "githubTokenHelp": "내 계정으로 위 저장소에 PR 을 열게 하는 fine-grained 토큰(Contents·Pull requests Read and write, 그 저장소만). 비워두면 Feedloop 공용 계정으로 시도하는데, 그 계정을 협업자로 초대한 저장소에서만 됩니다. 나중에 설정에서 넣어도 돼요.",
+    "githubToken": "GitHub 토큰 (선택)",
+    "repoUrlHelp": "피드백을 보고 자동으로 수정안을 올릴 저장소입니다.",
+    "repoUrl": "GitHub 저장소 URL (선택)",
+    "fix": "수정안",
+    "fixSub": "비워두면 분류까지만 하고 수정안은 만들지 않습니다",
+    "continueWithoutKey": "키 없이 계속",
+    "keyFailedNote": "서비스는 등록됐지만 키는 저장되지 않았어요. 키를 고쳐 다시 저장하거나, 나중에 챗봇 설정 → API 키에서 넣을 수 있어요",
+    "ownBody": "모델을 직접 고르고 한도 없이 답해요. 요금은 내 키로.",
+    "ownTitle": "내 API 키로 시작",
+    "freeTitle": "무료로 시작",
+    "apiKey": "API 키",
+    "ai": "AI 답변",
+    "aiSub": "위젯이 연결되면 바로 답하기 시작합니다",
+    "serviceUrl": "서비스 URL (선택)",
+    "serviceDescriptionPlaceholder": "이 서비스가 무엇인지, 어떤 피드백을 받을지 간단한 설명",
+    "serviceDescription": "서비스 설명 (선택)",
+    "serviceNameHelp": "대시보드에서 서비스를 구분할 이름입니다.",
+    "serviceNamePlaceholder": "예: 널널투어, 로나",
+    "serviceName": "서비스 이름 *",
+    "basic": "기본 정보",
+    "basicSub": "대시보드와 위젯에 쓰이는 이름·주소",
+    "lockedNote": "서비스는 이미 등록됐어요. 지금은 키만 저장합니다 — 다른 정보는 챗봇 설정 화면에서 바꿀 수 있어요",
+    "description": "피드백을 받을 서비스를 등록합니다. 창구(채널톡·웹 위젯)는 다음 화면에서 고릅니다.",
+    "title": "새 서비스 등록",
+    "errors": {
+      "register": "서비스 등록 중 오류가 발생했습니다.",
+      "keySave": "키를 저장하지 못했어요"
+    },
+    "githubFail": "GitHub 토큰을 저장하지 못했어요 — {reason}. 연결 뒤 「답변 지식 › GitHub」 탭에서 다시 넣을 수 있어요",
+    "githubFailReason": "확인에 실패했어요",
+    "afterRegister": "등록을 마치면 연결 화면으로 갑니다. <b>쓰던 채널톡 상담창에 붙이거나</b>, 상담 창구가 없다면 <b>서비스에 위젯 한 줄을 넣거나</b> — 거기서 고르시면 됩니다. 나중에 바꾸거나 둘 다 붙일 수 있어요.",
+    "freeBody": "하루 <b>{limit, number}건</b>까지 무료. {model} 로 답해요.",
+    "aiNote": "어느 쪽이든 답변 지식에 없는 사실은 지어내지 않고 「{holding}」로 넘깁니다. 나중에 챗봇 설정 화면에서 바꿀 수 있어요.",
+    "submit": {
+      "savingKey": "키 저장 중...",
+      "registering": "등록 중...",
+      "saveKey": "키 저장하고 연결하기",
+      "register": "등록하고 연결하기"
+    }
+  },
+  "delete": {
+    "cancel": "취소",
+    "deleting": "삭제하는 중…",
+    "confirm": "영구 삭제",
+    "confirmLabel": "확인을 위해 서비스 이름을 그대로 입력해 주세요",
+    "body": "대화·피드백·묶음·수정안 기록·답변 지식·API 키가 모두 지워지고 되돌릴 수 없어요. GitHub 에 이미 만든 PR·브랜치는 그대로 남습니다. 서비스에 붙인 위젯은 더 이상 뜨지 않아요.",
+    "button": "서비스 삭제",
+    "error": "삭제하지 못했습니다",
+    "title": "「{name}」을(를) 삭제할까요?"
+  },
+  "prMode": {
+    "label": "수정안 모드",
+    "error": "저장하지 못했습니다",
+    "approve": "승인 후 만들기",
+    "approveHint": "대시보드에서 [수정안 만들기]를 눌러야 만듭니다",
+    "auto": "자동으로 만들기",
+    "autoHint": "매일 09:00 가장 큰 새 묶음 하나에 수정안을 자동으로 올립니다"
+  },
+  "scoped": {
+    "zero": "서비스 0개",
+    "only": "<b>{name}</b>만 보는 중 · 전체 <strong>{total}개</strong>",
+    "summary": "서비스 <strong>{total}개</strong> · 들어오는 중 <strong>{receiving}개</strong>",
+    "subOnly": "{name} 전용 · 다른 서비스는 각 행의 「연결 설정하기」에서",
+    "subAll": "{name} · 서비스 {body} 끝에 한 줄",
+    "snippetTitle": "위젯 스크립트",
+    "snippetNote": "붙이고 첫 방문자가 위젯을 열면 「연결됨」으로 바뀝니다. 위젯 모양을 바꾸면 반영에 1~2분 걸려요."
+  },
+  "title": "챗봇 설정",
+  "list": {
+    "registerNew": "새 서비스 등록",
+    "registerService": "서비스 등록하기",
+    "emptyText": "서비스를 등록하고 스크립트 한 줄을 붙이면 피드백이 들어오기 시작해요",
+    "status": {
+      "active": "활성",
+      "pending": "대기중",
+      "error": "오류"
+    },
+    "keyCheck": "키 확인 필요",
+    "githubTokenCheck": "GitHub 토큰 확인 필요",
+    "githubAppCheck": "GitHub 앱 확인 필요",
+    "gh": {
+      "tokenAlso": " · 토큰 ····{last4} 도 있음",
+      "appLostToken": " · 토큰 ····{last4} 로 시도",
+      "appLostShared": " · 공용 계정으로 시도",
+      "appName": "Feedloop 앱",
+      "manage": "설치 관리 →",
+      "tokenFailed": "GitHub 토큰 확인 필요",
+      "myToken": "내 GitHub 토큰 ····{last4}",
+      "broad": "· 계정 전체 권한",
+      "shared": "공용 계정으로 시도 · 초대된 저장소만",
+      "connect": "GitHub 연결하기 →"
+    },
+    "channel": {
+      "on": "연결됨",
+      "off": "미연결"
+    },
+    "noUrl": "서비스 주소 없음",
+    "registered": "등록 {date}",
+    "approverBadge": "승인자",
+    "cell": {
+      "entrances": "입구",
+      "myRole": "내 역할",
+      "repo": "고칠 저장소",
+      "appearance": "위젯 모양",
+      "knowledge": "답변 지식"
+    },
+    "openInbox": "받은편지함 열기",
+    "approverNote": "이 봇의 환불 요청은 받은편지함에서 승인하거나 거절합니다. 답장, 설정, API 키는 봇 주인이 관리합니다.",
+    "key": {
+      "check": "API 키 확인 필요",
+      "own": "내 키 · {provider} {model}",
+      "exception": "하루 {count, number}건 · 예외 적용{key}",
+      "free": "무료 {count}건/일 · {model}"
+    },
+    "setupConnection": "연결 설정하기",
+    "noEntrance": "아직 들어올 길이 없어요. 스크립트 한 줄을 붙이면 됩니다",
+    "noRepo": "저장소가 없어 수정안을 만들지 않아요. 피드백 분류까지만 합니다",
+    "changeAppearance": "모양 바꾸기",
+    "replyAs": " · 답장 {name}",
+    "customGreeting": "“{text}”",
+    "defaultGreeting": "기본 인사말 “{text}”",
+    "checkKey": "키 확인하기",
+    "addKnowledge": "지식 넣기",
+    "knowledgeKey": "지식·키 설정",
+    "noKnowledge": "아직 지식이 없어요. 넣으면 근거를 갖고 답합니다",
+    "chars": "{count, number}<small>자</small>",
+    "faq": "FAQ <n>{count}</n>개",
+    "settings": {
+      "label": "설정",
+      "connection": "연결",
+      "appearance": "위젯 모양",
+      "knowledge": "답변 지식",
+      "key": "API 키",
+      "github": "GitHub 연결"
+    },
+    "demo": {
+      "rona": {
+        "description": "rona.so 커뮤니티 피드백 수집 및 AI 분류",
+        "displayName": "로나",
+        "greeting": "안녕하세요! 로나를 쓰다 불편한 점이 있으면 알려주세요.",
+        "knowledge": "로나는 실무형 AI 코칭 서비스입니다. 결제는 월 단위이고 환불은 7일 이내 전액입니다.",
+        "q1": "환불은 어떻게 하나요?",
+        "a1": "결제 7일 이내면 설정 > 결제에서 전액 환불됩니다.",
+        "q2": "코칭 시간은 언제인가요?",
+        "a2": "평일 오전 10시부터 오후 7시까지 예약할 수 있어요."
+      },
+      "test": {
+        "name": "Feedloop 테스트",
+        "description": "개발/테스트용"
+      }
+    },
+    "tryDemo": {
+      "button": "데모 봇 써보기",
+      "joining": "데모 봇에 참여하는 중…",
+      "error": "데모 봇에 참여하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    }
+  },
+  "pages": {
+    "appearance": {
+      "title": "위젯 모양",
+      "description": "{name} 방문자가 보는 위젯의 이름·인사말·시작 질문·프로필·색을 정합니다",
+      "back": "연결 화면으로 돌아가기"
+    },
+    "knowledge": {
+      "title": "답변 지식",
+      "description": "{name} 봇이 무엇을 근거로 답할지 정합니다. 여기 없는 내용은 지어내지 않고 사람에게 넘겨요",
+      "back": "챗봇 설정으로 돌아가기",
+      "tabKnowledge": "답변 지식",
+      "tabKey": "API 키",
+      "tabGithub": "GitHub"
+    },
+    "connect": {
+      "fallbackName": "이 서비스",
+      "lockedTitle": "{want}으로 옮기기",
+      "lockedDescription": "이 서비스는 지금 {using}으로 피드백을 받고 있어요.",
+      "widgetTitle": "위젯 붙이기",
+      "widgetDescription": "이 한 줄을 모든 페이지에 들어가는 레이아웃에 넣으면 끝납니다.",
+      "channelTitle": "채널톡에 연결",
+      "channelDescription": "키를 발급해 넣고, 웹훅 주소를 등록하면 끝납니다. 세 단계예요.",
+      "overviewTitle": "서비스에 연결",
+      "overviewDescription": "지금 {name}에 피드백이 들어오는 길입니다.",
+      "chooserDescription": "{name}에 들어오는 피드백을 받을 창구를 냅니다."
+    }
+  }
+}

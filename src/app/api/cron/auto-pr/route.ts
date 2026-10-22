@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { runAutoPrForBot, type AutoPrBotResult } from '@/lib/auto-dev/auto-pr';
+import { apiText } from '@/lib/http/api-text';
 
 // 2-pass 엔진 한 번이 85~128초. 봇 하나 끝낸 뒤 남은 시간이 넉넉할 때만 다음 봇을 시작한다.
 export const maxDuration = 300;
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   // 열려 있으면 아무나 남의 레포에 PR 을 만들 수 있다.
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET이 설정되지 않았습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'cronSecretMissing') }, { status: 500 });
   }
   if (req.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

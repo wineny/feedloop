@@ -200,6 +200,6 @@ describe('truncateNeighbor', () => {
     const long = 'x'.repeat(5000);
     const out = truncateNeighbor(long, 2000);
     expect(out.length).toBeLessThan(long.length);
-    expect(out).toContain('이하 생략');
+    expect(out).toContain('rest omitted');
   });
 });

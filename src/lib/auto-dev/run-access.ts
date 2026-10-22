@@ -4,6 +4,7 @@
 // 레포 URL 은 **DB 에서만** 읽는다. 요청 본문에서 받으면 플랫폼 공용 GITHUB_TOKEN 이
 // 남의 레포로 향한다(confused deputy). 남의 봇 run 은 존재 여부를 알려주지 않으려고 404 다.
 
+import { apiText } from '@/lib/http/api-text';
 import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { parseStoredExplanation, type RunExplanation } from '@/lib/auto-dev/explanation';
@@ -46,11 +47,11 @@ export function repoUrlOfPr(prUrl: string | null | undefined): string | null {
   return m ? `https://github.com/${m[1]}/${m[2]}` : null;
 }
 
-export async function loadOwnedRun(runId: string): Promise<RunAccess> {
+export async function loadOwnedRun(runId: string, req?: Request): Promise<RunAccess> {
   const auth = await resolveOwnedBots();
   if (!auth.ok) return { ok: false, status: auth.status, error: auth.error };
   // UUID 가 아니면 Postgres 22P02 가 500 으로 새어 나간다 — 없는 것과 같은 404
-  if (!UUID_RE.test(runId)) return { ok: false, status: 404, error: '실행 기록을 찾을 수 없습니다' };
+  if (!UUID_RE.test(runId)) return { ok: false, status: 404, error: apiText(req, 'runNotFound') };
 
   const db = getServiceRoleClient();
   const { data, error } = await db
@@ -65,10 +66,10 @@ export async function loadOwnedRun(runId: string): Promise<RunAccess> {
   // DB 오류를 404 로 뭉개면 운영자가 엉뚱한 곳을 찾는다 (마이그레이션 누락 등). 원문은 로그에만
   if (error) {
     console.error('[run-access] load failed', { runId, message: error.message });
-    return { ok: false, status: 500, error: '실행 기록을 읽지 못했습니다. 잠시 후 다시 시도해 주세요' };
+    return { ok: false, status: 500, error: apiText(req, 'runReadRetry') };
   }
   if (!data || !auth.botIds.includes(data.bot_id as string)) {
-    return { ok: false, status: 404, error: '실행 기록을 찾을 수 없습니다' };
+    return { ok: false, status: 404, error: apiText(req, 'runNotFound') };
   }
 
   const group = one<{ title?: string }>(data.insight_groups);
@@ -89,7 +90,7 @@ export async function loadOwnedRun(runId: string): Promise<RunAccess> {
       groupId: (data.group_id as string | null) ?? null,
       insightId: (data.insight_id as string | null) ?? null,
       repoUrl: repoUrlOfPr(data.pr_url as string | null) ?? bot?.github_repo_url ?? null,
-      title: group?.title || insight?.summary || '요청하신 내용',
+      title: group?.title || insight?.summary || 'Requested change',
       explanation: parseStoredExplanation(data.explanation),
       filesChanged: Array.isArray(data.files_changed) ? (data.files_changed as OwnedRun['filesChanged']) : [],
     },
@@ -101,18 +102,18 @@ export const ACTION_BODY_MAX = 16 * 1024;
 
 export async function readJsonBounded(req: Request): Promise<{ ok: true; value: unknown } | { ok: false; error: string; status: 400 | 413 }> {
   const declared = Number(req.headers.get('content-length') ?? '0');
-  if (Number.isFinite(declared) && declared > ACTION_BODY_MAX) return { ok: false, error: '요청 본문이 너무 큽니다', status: 413 };
+  if (Number.isFinite(declared) && declared > ACTION_BODY_MAX) return { ok: false, error: apiText(req, 'bodyTooLarge'), status: 413 };
   let raw: string;
   try {
     raw = await req.text();
   } catch {
-    return { ok: false, error: '잘못된 요청 형식입니다', status: 400 };
+    return { ok: false, error: apiText(req, 'badRequest'), status: 400 };
   }
-  if (raw.length > ACTION_BODY_MAX) return { ok: false, error: '요청 본문이 너무 큽니다', status: 413 };
+  if (raw.length > ACTION_BODY_MAX) return { ok: false, error: apiText(req, 'bodyTooLarge'), status: 413 };
   try {
     return { ok: true, value: JSON.parse(raw) };
   } catch {
-    return { ok: false, error: '잘못된 요청 형식입니다', status: 400 };
+    return { ok: false, error: apiText(req, 'badRequest'), status: 400 };
   }
 }
 
@@ -132,7 +133,7 @@ export function crossOriginProblem(req: Request): string | null {
   } catch {
     // 파싱 실패는 아래에서 거절
   }
-  return '다른 사이트에서 온 요청은 받지 않습니다';
+  return apiText(req, 'crossOrigin');
 }
 
 /**
@@ -149,10 +150,10 @@ export function commitTitleFrom(title: string, prNumber: number): string {
  * 「열린 PR」 인가 — 반영·반영하지 않기·확인시키기는 여기서만 뜻이 있다.
  * 아니면 이유를 돌려준다(라우트가 409 로 답한다).
  */
-export function openPrProblem(run: OwnedRun): string | null {
-  if (run.status !== 'completed' || !run.prUrl || !run.prNumber) return '아직 PR 이 없는 실행이에요';
-  if (!run.repoUrl) return '봇에 저장소가 연결돼 있지 않아요';
-  if (run.mergedAt) return '이미 반영된 수정안이에요';
-  if (run.closedAt) return '이미 닫힌 수정안이에요';
+export function openPrProblem(run: OwnedRun, req?: Request): string | null {
+  if (run.status !== 'completed' || !run.prUrl || !run.prNumber) return apiText(req, 'noPrYet');
+  if (!run.repoUrl) return apiText(req, 'noRepo');
+  if (run.mergedAt) return apiText(req, 'blockedMerged');
+  if (run.closedAt) return apiText(req, 'runClosedAlready');
   return null;
 }

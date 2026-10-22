@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { useDemoContext } from '@/lib/demo/DemoProvider';
 import { DemoHint } from '@/components/demo/DemoHint';
@@ -19,6 +20,7 @@ import { SpecDraft } from '@/components/dashboard/SpecDraft';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 import { scopedBody } from '@/lib/scope/scope';
+import { dynamicT } from '@/i18n/dynamic';
 
 export interface GroupSummary {
   id: string;
@@ -49,26 +51,6 @@ interface InsightGroupsProps {
   grouping?: GroupingStatus | null;
 }
 
-export const CATEGORY_LABEL: Record<string, string> = {
-  bug: '버그',
-  ux: 'UX',
-  feature_request: '기능 요청',
-  praise: '칭찬',
-  cs: '문의',
-  other: '기타',
-};
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return '방금';
-  if (mins < 60) return `${mins}분 전`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}시간 전`;
-  const days = Math.floor(hours / 24);
-  return days === 1 ? '어제' : `${days}일 전`;
-}
-
 /**
  * 데모(로그아웃 심사 화면)의 묶기 상태. 자동으로 묶이지는 않으므로 「곧 묶어요」라고 하지 않는다.
  *
@@ -88,11 +70,11 @@ const DEMO_NEW_GROUP_ID = 'demo-group-3';
  * (「401 에러 후 무한 리다이렉트」)를 실제로 묶었을 때 나올 모양이다.
  * 시각은 만들 때 찍는다 — 고정 날짜를 박으면 「방금 묶었다」가 「3일 전」으로 읽힌다.
  */
-function demoNewGroup(): GroupSummary {
+function demoNewGroup(t: (key: string) => string): GroupSummary {
   return {
     id: DEMO_NEW_GROUP_ID,
-    title: '401 에러 뒤 무한 리다이렉트',
-    summary: '세션이 만료된 뒤 로그인 화면과 서비스 화면이 서로를 계속 불러 빠져나오지 못한다는 제보.',
+    title: t('demoGroup.title'),
+    summary: t('demoGroup.summary'),
     category: 'bug',
     status: 'open',
     createdAt: new Date().toISOString(),
@@ -100,7 +82,7 @@ function demoNewGroup(): GroupSummary {
     conversationCount: 2,
     pr: null,
     // 로그인이 막힌 문제라 핵심 흐름이다 — 2명×3 + 2건 + 20.
-    priority: { score: 28, core: true, reason: '세션 만료 뒤 로그인 단계에서 빠져나오지 못함' },
+    priority: { score: 28, core: true, reason: t('demoGroup.reason') },
   };
 }
 
@@ -120,7 +102,20 @@ function demoPrOffset(groupId: string): number {
 // 배지는 잉크·코랄·회색 세 가지로만 — 색이 늘면 배지가 아니라 신호등이 된다.
 const BADGE = 'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-semibold leading-[1.45]';
 
+type Translate = ReturnType<typeof useTranslations<'dashboard.groups'>>;
+
+function timeAgo(dateStr: string, t: Translate): string {
+  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (mins < 1) return t('ago.now');
+  if (mins < 60) return t('ago.minutes', { count: mins });
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return t('ago.hours', { count: hours });
+  const days = Math.floor(hours / 24);
+  return days === 1 ? t('ago.yesterday') : t('ago.days', { count: days });
+}
+
 export function InsightGroups({ groups, demo = false, onChanged, grouping = null }: InsightGroupsProps) {
+  const t = useTranslations('dashboard.groups');
   const [running, setRunning] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +145,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
     // 연습용 화면 — 묶지 않은 제보 하나를 그 자리에서 묶어 보여준다. 서버로는 안 나간다.
     if (demo) {
       if (groups.some((g) => g.id === DEMO_NEW_GROUP_ID)) {
-        setNotice('묶을 수 있는 피드백이 없어요 (문의·칭찬은 묶음 대상이 아닙니다)');
+        setNotice(t('notices.nothing'));
         return;
       }
       setRunning(true);
@@ -161,10 +156,10 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
         patchDemo('dashboard', (prev) => {
           const d = prev as { groups: GroupSummary[] };
           if (d.groups.some((g) => g.id === DEMO_NEW_GROUP_ID)) return prev;
-          return { ...d, groups: [demoNewGroup(), ...d.groups] };
+          return { ...d, groups: [demoNewGroup(dynamicT(t)), ...d.groups] };
         });
         setRunning(false);
-        setNotice('1건을 묶었어요');
+        setNotice(t('notices.one'));
       }, 1200);
       return;
     }
@@ -178,19 +173,19 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
         body: JSON.stringify(scopedBody({}, botId)),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '묶기에 실패했습니다');
+      if (!res.ok) throw new Error(json.error || t('errors.group'));
       // 0건이면 아무 말 없이 스피너만 멎어 「고장났나?」로 읽힌다. 묶기 대상은
       // bug·ux·feature_request 뿐이라, 문의·칭찬만 쌓인 봇은 **항상** 이 상태다.
-      if (json.failures?.length) setError(`묶기 실패 ${json.failures.length}개 봇: ${json.failures.map((f: { reason: string }) => f.reason).join(', ')}`);
+      if (json.failures?.length) setError(t('errors.groupBots', { count: json.failures.length, reasons: json.failures.map((f: { reason: string }) => f.reason).join(', ') }));
       setNotice(
-        json.busy && !json.grouped ? '이미 자동으로 묶는 중이에요. 잠시 뒤 다시 읽어요'
-          : json.deferred ? `처리를 보류했습니다. ${json.pending ?? 0}건이 남았어요` : json.grouped
-          ? `${json.grouped}건을 묶었어요`
-          : '묶을 수 있는 피드백이 없어요 (문의·칭찬은 묶음 대상이 아닙니다)',
+        json.busy && !json.grouped ? t('notices.busy')
+          : json.deferred ? t('notices.deferred', { count: json.pending ?? 0 }) : json.grouped
+          ? t('notices.grouped', { count: json.grouped })
+          : t('notices.nothing'),
       );
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '묶기에 실패했습니다');
+      setError(err instanceof Error ? err.message : t('errors.group'));
     } finally {
       setRunning(false);
     }
@@ -275,11 +270,11 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
         body: JSON.stringify({ groupId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '수정안 만들기를 시작하지 못했습니다');
+      if (!res.ok) throw new Error(json.error || t('errors.pr'));
       // 진행 상황은 수정 PR 화면이 스트림으로 그린다.
       window.location.href = `/monitor?runId=${json.runId}`;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '수정안 만들기를 시작하지 못했습니다');
+      setError(err instanceof Error ? err.message : t('errors.pr'));
       setBusyId(null);
     }
   };
@@ -292,11 +287,11 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
     try {
       const res = await fetch(`/api/groups/${groupId}/spec`, { method: 'POST' });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '스펙 초안을 만들지 못했습니다');
+      if (!res.ok) throw new Error(json.error || t('errors.spec'));
       setOpenSpecId(groupId);
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '스펙 초안을 만들지 못했습니다');
+      setError(err instanceof Error ? err.message : t('errors.spec'));
     } finally {
       setBusyId(null);
     }
@@ -309,7 +304,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
         const d = prev as { groups: GroupSummary[] };
         return { ...d, groups: d.groups.filter((x) => x.id !== groupId) };
       });
-      setNotice('묶음을 닫았어요. 연습용 화면이라 새로고침하면 되돌아와요.');
+      setNotice(t('notices.dismissed'));
       return;
     }
     setBusyId(groupId);
@@ -333,8 +328,8 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
         {/* 제품이 «무엇을 하는가»는 여기서 한 번 말한다. 진행 상태(GroupingStatusLine)는
             「지금 어디쯤인가」만 말하므로 이 설명을 대신하지 못한다 — 빼 놓으면 묶음이 있는 화면
             (= 심사자가 보는 화면)에서 설명이 통째로 사라진다. */}
-        <SectionTitle sub="같은 문제를 말한 사람들을 수정안 하나로 묶습니다. 제보 뒤 1~2분이면 저절로 묶여요.">
-          피드백 묶음
+        <SectionTitle sub={t('sub')}>
+          {t('title')}
         </SectionTitle>
         {/* 묶기는 자동이다(I-10). 이 줄은 «지금 어디쯤인가» + 기다리기 싫을 때의 [지금 묶기]. */}
         <GroupingStatusLine
@@ -342,7 +337,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
           onRunNow={handleRunGrouping}
           running={running}
           // 연습용 화면에서 «다음에 누를 것» 하나만 짚는다. 묶고 나면 PR 쪽으로 넘어간다.
-          hint={demo && !hasDemoGroup && !running ? '먼저 이걸 눌러보세요' : null}
+          hint={demo && !hasDemoGroup && !running ? t('tryThis') : null}
           onRefresh={onChanged}
         />
       </div>
@@ -353,8 +348,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
       {groups.length === 0 ? (
         <div className="card-surface p-5 sm:p-6">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            아직 묶인 피드백이 없습니다. 같은 문제를 말한 사람들을 PR 하나로 모읍니다 — 버그·UX·기능 요청으로 분류된
-            피드백은 제보 뒤 1~2분 안에 저절로 묶여요.
+            {t('empty')}
           </p>
         </div>
       ) : (
@@ -362,7 +356,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
           {/* 순서의 기준을 한 줄로 — 번호만 붙어 있으면 「왜 이게 1번이지?」가 남는다. */}
           {groups.some((g) => g.priority) && (
             <p className="-mb-2 text-[12.5px] leading-[1.45] text-faint">
-              아직 안 고친 것부터 · 말한 사람이 많고 핵심 흐름이 막힌 순
+              {t('order')}
             </p>
           )}
           <ul className="card-surface divide-y divide-border px-5 py-1 sm:px-6 sm:py-2">
@@ -381,10 +375,10 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                       </span>
                     )}
                     <span className={`${BADGE} bg-muted text-foreground`}>
-                      {CATEGORY_LABEL[g.category] ?? g.category}
+                      {dynamicT(t).has(`categories.${g.category}`) ? dynamicT(t)(`categories.${g.category}`) : g.category}
                     </span>
                     {/* 핵심 흐름이 막힌 묶음만 잉크로 채운다 — 잉크·코랄·회색 세 가지 안에서 가장 진한 칸. */}
-                    {g.priority?.core && <span className={`${BADGE} bg-foreground text-background`}>핵심 흐름</span>}
+                    {g.priority?.core && <span className={`${BADGE} bg-foreground text-background`}>{t('core')}</span>}
                     <p className="min-w-0 text-base font-semibold leading-snug tracking-[-0.01em]">{g.title}</p>
                   </div>
                   {g.priority?.reason && (
@@ -398,24 +392,24 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                   {(g.followUpPending || g.status === 'merged') && (
                     <p className="flex items-start gap-1.5 text-[12.5px] leading-[1.45] font-medium text-amber-700">
                       <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-                      <span>후속 확인 대상 · 기존 그룹에 연결했습니다. 배포·해결 확인 전 새 PR은 보류합니다.</span>
+                      <span>{t('followUp')}</span>
                     </p>
                   )}
                   <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{g.summary}</p>
                   <p className="text-[12.5px] leading-[1.45] text-faint tabular-nums">
-                    피드백 <b className="font-semibold text-foreground">{g.insightCount}</b>건
+                    {t.rich('feedbackCount', { count: g.insightCount, b: (c) => <b className="font-semibold text-foreground">{c}</b> })}
                     {g.conversationCount > 0 && (
                       <>
                         <span className="mx-1.5">·</span>
-                        <b className="font-semibold text-foreground">{g.conversationCount}</b>명이 말했어요
+                        {t.rich('people', { count: g.conversationCount, b: (c) => <b className="font-semibold text-foreground">{c}</b> })}
                       </>
                     )}
                     <span className="mx-1.5">·</span>
-                    {timeAgo(g.createdAt)}
+                    {timeAgo(g.createdAt, t)}
                     {g.priority && (
                       <>
                         <span className="mx-1.5">·</span>
-                        점수 {g.priority.score}
+                        {t('score', { score: g.priority.score })}
                       </>
                     )}
                   </p>
@@ -428,11 +422,11 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                       {g.pr.mergedAt ? (
                         <span className={`${BADGE} bg-brand-subtle text-brand-strong`}>
                           <Check className="h-3 w-3" aria-hidden />
-                          반영됨
+                          {t('shipped')}
                         </span>
                       ) : (
                         <span className={`${BADGE} border border-border-strong text-foreground`}>
-                          PR 열림
+                          {t('prOpen')}
                         </span>
                       )}
                       <a
@@ -441,7 +435,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-0.5 text-sm font-semibold text-brand-strong hover:underline"
                       >
-                        PR #{g.pr.number} 보기
+                        {t('viewPr', { number: g.pr.number })}
                         <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                       </a>
                     </>
@@ -451,7 +445,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                         <span className="relative inline-flex">
                           {/* 묶고 난 «그» 묶음 하나만 짚는다 — 행마다 깜빡이면 어디를 보라는지 알 수 없다. */}
                           {demo && g.id === DEMO_NEW_GROUP_ID && !g.pr && busyId !== g.id && (
-                            <DemoHint label="이제 이걸 눌러보세요" />
+                            <DemoHint label={t('tryPr')} />
                           )}
                           <Button
                             variant="outline"
@@ -460,7 +454,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                             disabled={busyId === g.id || g.followUpPending || g.status !== 'open'}
                           >
                             {busyId === g.id ? <Loader2 className="animate-spin" /> : <GitPullRequest />}
-                            수정안 만들기
+                            {t('createPr')}
                           </Button>
                         </span>
                       )}
@@ -474,7 +468,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                           disabled={busyId === g.id || demo}
                         >
                           {busyId === g.id ? <Loader2 className="animate-spin" /> : <FileText />}
-                          {g.specDraft ? '스펙 보기' : '스펙 초안'}
+                          {g.specDraft ? t('viewSpec') : t('draftSpec')}
                         </Button>
                       )}
                       <button
@@ -482,9 +476,9 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                         onClick={() => handleDismiss(g.id)}
                         disabled={busyId === g.id}
                         className="text-[12.5px] font-medium text-faint transition-colors hover:text-foreground disabled:opacity-50"
-                        aria-label="이 묶음 닫기"
+                        aria-label={t('dismissLabel')}
                       >
-                        닫기
+                        {t('dismiss')}
                       </button>
                     </>
                   )}
@@ -493,7 +487,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                 {openSpecId === g.id && g.specDraft && (
                   <div className="rounded-xl bg-muted/60 p-4 sm:col-span-2">
                     <p className="mb-2 text-[12.5px] font-semibold leading-[1.45] text-muted-foreground">
-                      스펙 초안 · 만들지 말지는 사람이 정합니다
+                      {t('specNote')}
                     </p>
                     <SpecDraft text={g.specDraft} />
                   </div>

@@ -1,0 +1,20 @@
+{
+  "items": {
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "classify": "Feedback",
+    "monitor": "Fix PRs",
+    "bots": "Bots"
+  },
+  "scope": {
+    "configuring": "Bot being configured",
+    "viewing": "Bot being viewed",
+    "all": "All bots",
+    "settings": "Settings for this bot",
+    "only": "<b>{name}</b> only · "
+  },
+  "demoBanner": {
+    "short": "Sample data · browse without logging in",
+    "long": "You are browsing sample data. Every menu is open without logging in."
+  }
+}

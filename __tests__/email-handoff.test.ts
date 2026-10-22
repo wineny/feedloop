@@ -79,13 +79,13 @@ describe('emailOwnerHandoff', () => {
     const sentInput = sendEmail.mock.calls[0][0] as Record<string, string>;
     expect(sentInput.to).toBe('owner@example.com');
     expect(sentInput.tag).toBe('handoff-request');
-    expect(sentInput.subject).toBe('[널널투어] 상담원 연결 요청 · 방문자 #f3df');
+    expect(sentInput.subject).toBe('[널널투어] Talk-to-a-person request · Visitor #f3df');
     expect(sentInput.html).toContain('대릉원 근처 카페요');
     expect(sentInput.html).toContain('유아 의자 있나요?');
-    expect(sentInput.html).toContain('AI 요약');
+    expect(sentInput.html).toContain('AI summary');
     expect(sentInput.html).toContain('href="https://trae-kappa.vercel.app/inbox?c=c1"');
     expect(sentInput.html).toContain('v@example.com');
-    expect(sentInput.text).toContain('대화에서 답장하기: https://trae-kappa.vercel.app/inbox?c=c1');
+    expect(sentInput.text).toContain('Reply in the Inbox: https://trae-kappa.vercel.app/inbox?c=c1');
     // 남긴 말이 최근 대화 끝에도 들어 있으면 「남긴 말」 칸에만 — 두 번 보이지 않게
     expect(sentInput.text.split('대릉원 근처 카페요').length - 1).toBe(1);
   });
@@ -94,9 +94,9 @@ describe('emailOwnerHandoff', () => {
     tables.conversations = { contact_name: '누리', contact_email: null, external_user_id: 'abcd' };
     await mod.emailOwnerHandoff({ ...INPUT, requestBody: null });
     const sentInput = sendEmail.mock.calls[0][0] as Record<string, string>;
-    expect(sentInput.subject).toBe('[널널투어] 상담원 연결 요청 · 누리');
-    expect(sentInput.text).toContain('[남긴 말]\n대릉원 근처 카페요');
-    expect(sentInput.text).toContain('이메일: 남기지 않음');
+    expect(sentInput.subject).toBe('[널널투어] Talk-to-a-person request · 누리');
+    expect(sentInput.text).toContain('[Their message]\n대릉원 근처 카페요');
+    expect(sentInput.text).toContain('Email: Not left');
   });
 
   it('같은 대화 1시간 1통 — 클레임에 실패하면 조회도 발송도 안 한다', async () => {
@@ -194,6 +194,7 @@ describe('renderHandoffRequestEmail', () => {
       summary: null,
       pageUrl: 'http://insecure.example',
       inboxUrl: 'http://insecure.example/inbox',
+      locale: 'ko',
     });
     expect(r.html).not.toContain('<img src=x');
     expect(r.html).not.toContain('<script>');

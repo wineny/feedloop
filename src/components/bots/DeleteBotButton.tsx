@@ -10,6 +10,7 @@
 
 import { useReducer } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
@@ -52,6 +53,7 @@ function reducer(state: DeleteState, action: DeleteAction): DeleteState {
 }
 
 export function DeleteBotButton({ botId, serviceName, disabled = false }: DeleteBotButtonProps) {
+  const t = useTranslations('bots');
   const router = useRouter();
   const scope = useBotScope();
   const [state, dispatch] = useReducer(reducer, INITIAL);
@@ -65,18 +67,18 @@ export function DeleteBotButton({ botId, serviceName, disabled = false }: Delete
       const res = await fetch(`/api/bots/${botId}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? '삭제하지 못했습니다');
+        throw new Error(data.error ?? t('delete.error'));
       }
       // 헤더 셀렉터가 지운 봇을 물고 있지 않게 목록부터 새로 읽고, 서버 컴포넌트 목록을 다시 그린다.
       await scope.refresh();
       router.refresh();
     } catch (err) {
-      dispatch({ type: 'fail', error: err instanceof Error ? err.message : '삭제하지 못했습니다' });
+      dispatch({ type: 'fail', error: err instanceof Error ? err.message : t('delete.error') });
     }
   }
 
   if (disabled) {
-    return <span className="text-sm font-semibold text-faint">서비스 삭제</span>;
+    return <span className="text-sm font-semibold text-faint">{t('delete.button')}</span>;
   }
 
   if (!state.open) {
@@ -86,7 +88,7 @@ export function DeleteBotButton({ botId, serviceName, disabled = false }: Delete
         onClick={() => dispatch({ type: 'open' })}
         className="text-sm font-semibold text-destructive hover:underline"
       >
-        서비스 삭제
+        {t('delete.button')}
       </button>
     );
   }
@@ -98,14 +100,13 @@ export function DeleteBotButton({ botId, serviceName, disabled = false }: Delete
       className="flex w-full flex-col gap-3 rounded-2xl border border-destructive/40 bg-destructive/[0.03] p-4 sm:p-5"
     >
       <p id={`${inputId}-title`} className="text-sm font-semibold">
-        「{serviceName}」을(를) 삭제할까요?
+        {t('delete.title', { name: serviceName })}
       </p>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        대화·피드백·묶음·수정안 기록·답변 지식·API 키가 모두 지워지고 되돌릴 수 없어요. GitHub 에 이미 만든
-        PR·브랜치는 그대로 남습니다. 서비스에 붙인 위젯은 더 이상 뜨지 않아요.
+        {t('delete.body')}
       </p>
       <label htmlFor={inputId} className="flex flex-col gap-1.5 text-sm">
-        <span>확인을 위해 서비스 이름을 그대로 입력해 주세요</span>
+        <span>{t('delete.confirmLabel')}</span>
         <Input
           id={inputId}
           value={state.typed}
@@ -117,10 +118,10 @@ export function DeleteBotButton({ botId, serviceName, disabled = false }: Delete
       </label>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="destructive" size="sm" onClick={handleDelete} disabled={!matches || state.busy}>
-          {state.busy ? '삭제하는 중…' : '영구 삭제'}
+          {state.busy ? t('delete.deleting') : t('delete.confirm')}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'cancel' })} disabled={state.busy}>
-          취소
+          {t('delete.cancel')}
         </Button>
       </div>
       {state.error && (

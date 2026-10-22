@@ -70,7 +70,7 @@ window.__feedloopShot = function (opts) {
     .then(encode)
     .then(function (blob) {
       if (!blob) return null;
-      return fetch(opts.api + '/shots?visitorId=' + encodeURIComponent(opts.visitorId), {
+      return fetch(opts.api + '/shots?visitorId=' + encodeURIComponent(opts.visitorId) + (opts.locale ? '&locale=' + encodeURIComponent(opts.locale) : ''), {
         method: 'POST',
         body: blob,
         headers: { 'Content-Type': blob.type },

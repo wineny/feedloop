@@ -1,0 +1,195 @@
+{
+  "ct": {
+    "footnote": "In Channel Talk conversations, Feedloop never speaks to the user first. It triages inquiries and sends one \"Fixed\" message when the fix ships.",
+    "steps": {
+      "waitingNote": "After registering the address in Channel Talk, send any inquiry from a test chat.",
+      "waiting": "Waiting for the first webhook…",
+      "testNote": "Send any inquiry from a test chat and the first webhook arrives. This screen switches on its own when it does.",
+      "testDoneNote": "Webhooks are already arriving. Saving a key brings you back to this screen.",
+      "testDone": "Inquiries are coming in",
+      "testTodo": "Send a test message to the channel",
+      "webhookWait": "Once you save the key, an address for this bot only appears here.",
+      "webhookDoneNote": "Changing the key keeps the same webhook address. You don't need to register it in Channel Talk again.",
+      "webhookDone": "Webhook address registered",
+      "webhookTodo": "Register the webhook address in Channel Talk",
+      "keyDone": "API key verified",
+      "keyTodo": "Get an API key from Channel Talk",
+      "keyConnected": "{slug, select, none {<b>Your channel</b>} other {<b>The {slug} channel</b>}} is connected. Customers see it as “{name}”."
+    },
+    "replaceKey": "Replace key",
+    "settingsSummary": "Connection settings · change key/address",
+    "openDesk": "Open Channel Talk Desk",
+    "viewInbox": "View Inbox",
+    "connected": {
+      "description": "Incoming inquiries pile up in the Inbox and AI triages them. Reply in Channel Talk Desk — Feedloop only sends one \"Fixed\" message when a fix ships.",
+      "title": "{slug, select, none {Inquiries are coming in from Channel Talk} other {Inquiries are coming in from the {slug} channel}}",
+      "line": "{slug, select, none {Connected to your channel} other {Connected to the {slug} channel}}",
+      "notifyName": "Fix notifications go out under the name “{name}”."
+    },
+    "rotateNote": "Creating a new address invalidates the old one immediately. Change the URL registered in Channel Talk too, then enter the new token Channel Talk shows you.",
+    "rotate": "Create a new address",
+    "clearCheck": "Turn off check",
+    "saveToken": "Save token",
+    "tokenLabel": "Channel Talk webhook token",
+    "tokenPlaceholderChange": "Enter to replace with a new token",
+    "tokenPlaceholder": "Paste the token Channel Talk showed you",
+    "optional": "(optional)",
+    "secretNote": "The end of the address holds a secret for this bot only. Keep it hidden when you share screenshots or paste it into documents.",
+    "copied": "Copied",
+    "copy": "Copy",
+    "hide": "Hide",
+    "show": "Show",
+    "loadingAddress": "Loading the address…",
+    "saveNote": "Before saving, we ask Channel Talk once to confirm the key actually works. After saving, it is never shown on any screen again.",
+    "cancel": "Cancel",
+    "verifyAndSave": "Verify and save",
+    "fields": {
+      "channelIdHelp": "If filled in, each incoming webhook is checked once more against this channel.",
+      "channelIdPlaceholder": "Enter it if you know it",
+      "channelId": "Channel ID",
+      "botNameHelp": "Stamped once in the Channel Talk conversation under this name when a fix ships. If empty, the notification isn't delivered.",
+      "botName": "Name shown to customers",
+      "channelSlugHelp": "The single segment after the domain in the Desk address channel.works/… The Desk link in the Inbox goes to this address.",
+      "channelSlugPlaceholder": "Copy from the Desk address",
+      "channelSlug": "Channel address",
+      "accessSecretPlaceholder": "Shown only once when issued",
+      "accessSecret": "Access secret",
+      "accessKeyPlaceholder": "Value copied from Channel Talk",
+      "accessKey": "Access key"
+    },
+    "startWithWidget": "Start with the widget instead",
+    "errors": {
+      "verifySave": "Couldn't save the webhook token",
+      "rotate": "Couldn't create a new address",
+      "save": "Couldn't save"
+    },
+    "status": {
+      "verifyOff": "Token check turned off. Requests are accepted on the secret in the address alone.",
+      "verifyOn": "Only requests carrying this token are accepted now.",
+      "rotated": "New address created. Replace the webhook URL registered in Channel Talk with the new one.",
+      "prModeChanged": "Auto-created fix PRs were switched to approval mode. Channel Talk is a feedback channel that needs no login, so a person reviews code changes before they are opened.",
+      "keySaved": "Key verified and saved. Register the address below in Channel Talk."
+    },
+    "required": "Required",
+    "keyStep": {
+      "s1": "Open Channel Talk Desk and click <kbd>Settings</kbd> at the top.",
+      "s2": "In the left list, go to <kbd>Security & Development</kbd> → <kbd>API</kbd>. The \"Create API key\" screen opens.",
+      "s3": "Click <kbd>Create new key</kbd> and enter a name. Anything recognizable, like <b>Feedloop</b>, will do.",
+      "s4": "You get an <b>access key</b> and an <b>access secret</b>. The secret is shown only this once, so copy it before you close the window.",
+      "callout": "<b>On the free plan, \"Create new key\" can't be clicked.</b> It doesn't even look greyed out, so nothing seems to happen when you click. That isn't a bug: keys can only be issued on paid plans. If you haven't paid yet, starting with the web widget is quicker."
+    },
+    "webhook": {
+      "s1": "In the same <kbd>Settings</kbd> → <kbd>Security & Development</kbd>, open <kbd>Webhook</kbd> this time.",
+      "s2": "Click <kbd>Create webhook</kbd>, then paste the address above into the URL field.",
+      "s3": "Subscribe to <b>user chat conversations</b> and <b>user chat opened</b>. Feedloop reads only these two.",
+      "s4": "After you save, Channel Talk shows a <b>webhook token</b>. Enter it in the field below and only requests carrying that token are accepted."
+    },
+    "verifyActive": "<b>The token is being checked.</b> If you recreated the webhook in Channel Talk, enter the new token.",
+    "botNamePlaceholder": "e.g. {name} team",
+    "defaultServiceName": "our product"
+  },
+  "ww": {
+    "appearance": "Change appearance",
+    "troubleshoot": {
+      "loginOnly": "If you put it in a layout that only logged-in people see, it won't show when logged out.",
+      "cache": "Your browser may be holding an old page. Try a hard refresh (⌘⇧R).",
+      "title": "I pasted it but nothing shows",
+      "notDeployed": "You may have saved but <b>not deployed yet.</b> On Vercel, Netlify and similar, changes apply only after the deploy finishes.",
+      "edited": "If you retyped the snippet by hand, check that the <code>data-feedloop</code> value matches the one above exactly. One wrong character and it never reaches us."
+    },
+    "waitingNote": "Open a page where you pasted the script. This screen changes once the widget loads.",
+    "waiting": "Waiting for the widget to appear for the first time…",
+    "step1Note": "If you are handing this to a developer, send the line above as is. It shows for every visitor whether or not they are logged in, and this screen switches on its own once you open a page that has it.",
+    "step1": "Paste one script line",
+    "showScript": "Show the script again",
+    "viewInbox": "View Inbox",
+    "connected": {
+      "description": "AI answers visitors right where they write, and the remaining feedback collects in the Inbox.",
+      "title": "The widget is live"
+    },
+    "copied": "Copied",
+    "copy": "Copy",
+    "places": {
+      "next": {
+        "where": "Next.js",
+        "how": "Inside {body} in app/layout.tsx, right before the closing tag"
+      },
+      "html": {
+        "where": "Static HTML",
+        "how": "Right before {closeBody} on each page"
+      },
+      "wordpress": {
+        "where": "WordPress",
+        "how": "Appearance → Theme File Editor → footer.php, before {closeBody} (or a header/footer scripts plugin)"
+      },
+      "webflow": {
+        "where": "Webflow · Cafe24",
+        "how": "Project Settings → Custom Code → Footer Code (Cafe24: Design → Common Layout)"
+      }
+    },
+    "appearanceNote": "You can change the widget name, greeting and colors after connecting, under <link>Change appearance</link>."
+  },
+  "overview": {
+    "footnote": "The Connected status stays once anything has come in. Removing the script or removing the webhook doesn't turn it off by itself. When you want to, use “Disconnect” on the card. To delete the bot itself, do it from the “Bots” list.",
+    "settings": "Connection settings",
+    "connected": "Connected",
+    "viewScript": "View script"
+  },
+  "locked": {
+    "cannotAttach": "Can't be attached right now",
+    "goBack": "Go to Connect your bot",
+    "title": "Already receiving through {using}",
+    "body1": "Each bot has only one feedback channel. If the same customer writes in through two channels, the record of where you answered splits, and the two channels offer different features.",
+    "body2": "To move to {want}, first “Disconnect” {using} on the “Connect your bot” screen. The conversations and feedback collected so far aren't deleted.{hint}",
+    "widgetHint": " First delete the widget script line from your site's code.",
+    "sideTitle": "You are using {using}",
+    "sideBody": "Each bot has only one feedback channel. To move to {want}, first click <b>“Disconnect”</b> next to {using}."
+  },
+  "chooser": {
+    "channelCta": "Connect Channel Talk",
+    "channelBody": "Attaches to the chat you already use. Feedloop reads and triages incoming inquiries, and replies stay with your agents as they are now.",
+    "channelTitle": "I already use Channel Talk",
+    "widgetCta": "Add the widget",
+    "widgetNeed": "You just need to add one line of code to your site · step 1",
+    "widgetBody": "Shows a chat bubble on your site. AI answers what visitors write right there, and hands off to the owner when it doesn't know. When a fix ships, that visitor is told right away.",
+    "widgetTitle": "I have no support chat. I want to add a new one",
+    "question": "How do you receive customer inquiries right now?",
+    "channelNeed": "You need a paid Channel Talk plan to issue an API key · step 3",
+    "limitNoLimit": "<b>One feedback channel per bot.</b> If you change your mind later, disconnect the current one and connect the other. AI replies go out <b>on your own API key with no limit</b> either way, and you are billed through that key.",
+    "limitFree": "<b>One feedback channel per bot.</b> If you change your mind later, disconnect the current one and connect the other. AI replies go out either way: <b>up to {limit, number} a day, free</b>, and with your own API key there is no limit.",
+    "limitOverridden": "<b>One feedback channel per bot.</b> If you change your mind later, disconnect the current one and connect the other. AI replies go out either way: <b>up to {limit, number} a day</b>."
+  },
+  "entrance": {
+    "widget": "Feedloop web widget",
+    "channel": "Channel Talk"
+  },
+  "lastFeedback": {
+    "none": "No feedback has come in yet",
+    "invalid": "Couldn't read the last feedback time",
+    "today": "Last feedback today at {time}",
+    "yesterday": "Last feedback yesterday at {time}",
+    "date": "Last feedback on {date}"
+  },
+  "status": {
+    "paused": "Automatic checking is paused",
+    "pausedNote": "Automatic checking stopped after a long wait. Once you finish connecting, click Check again.",
+    "checkAgain": "Check again",
+    "connectedBadge": "Connected"
+  },
+  "disconnect": {
+    "widget": {
+      "title": "Reset the widget's Connected status?",
+      "body": "This only clears the “Connected” status. If the script is still on your site, it becomes “Connected” again the next time a visitor opens the widget. If you are moving to Channel Talk, remove the script from your site first, then reset the status. Conversations and feedback stay as they are.",
+      "confirm": "Reset status"
+    },
+    "channel": {
+      "title": "Disconnect Channel Talk?",
+      "body": "The saved key and webhook address are deleted, so nothing comes in from Channel Talk anymore. Names and contact details in conversations that came through Channel Talk are anonymized; the message text stays. Remove the webhook registration on the Channel Talk side yourself.",
+      "confirm": "Disconnect"
+    },
+    "error": "Couldn't disconnect",
+    "busy": "Working…",
+    "button": "Disconnect",
+    "cancel": "Cancel"
+  }
+}

@@ -408,7 +408,8 @@ describe('위젯 POST — 메시지 저장 실패(I-23)', () => {
 
     expect(res.status).toBe(503);
     // 위젯은 `res.data.error` 를 그대로 띄우고 문장·힌트를 입력창에 복구한다(widget.js send()).
-    expect(body.error).toBe('잠시 후 다시 보내주세요');
+    expect(body.error).toBe('try_again');
+    expect((body as { message?: string }).message).toBe('Try sending again in a moment');
     expect(callLlm).not.toHaveBeenCalled();
     expect(applyInsightWrite).not.toHaveBeenCalled();
     expect(saveConversationResponse).not.toHaveBeenCalled();

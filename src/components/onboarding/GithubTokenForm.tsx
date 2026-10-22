@@ -11,7 +11,9 @@
 //  1. 토큰 원문은 저장 뒤 다시 보여주지 않는다. 마지막 4자만 — 서버도 되돌려주지 않는다
 //  2. 저장 «전»에 GitHub 에 물어본다(읽기만). 레포 접근·push 권한이 없으면 저장하지 않고 이유를 말한다
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useFormatter, useTranslations } from 'next-intl';
+import { validationText } from '@/lib/i18n/message';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,11 +25,8 @@ import { checkGithubTokenFormat } from '@/lib/github/token-format';
 import { githubPatPrefillUrl } from '@/lib/github/pat-link';
 // 응답 계약과 콜백 안내 문구는 «서버가 아닌» 모듈에서 가져온다 — 라우트 파일을 가리키면 다음 사람이
 // 값 하나를 같은 경로에서 import 하는 순간 서버 코드가 클라이언트 번들로 딸려온다(코드 리뷰 MEDIUM).
-import {
-  callbackBanner,
-  type CallbackBanner,
-  type GithubAppState,
-} from '@/lib/github/app-state-types';
+import { callbackBanner, type GithubAppState } from '@/lib/github/app-state-types';
+import { dynamicT } from '@/i18n/dynamic';
 
 interface GithubTokenFormProps {
   botId: string;
@@ -53,6 +52,7 @@ interface TokenState {
 type AppStateWithRecheck = GithubAppState & { recheck?: string; error?: string };
 
 type Status = { kind: 'ok' | 'info' | 'error'; message: string } | null;
+type Translate = ReturnType<typeof useTranslations<'github'>>;
 
 // ── 설치 콜백 결과 ────────────────────────────────────────
 //
@@ -61,22 +61,22 @@ type Status = { kind: 'ok' | 'info' | 'error'; message: string } | null;
 
 
 /** 「설치 확인」 결과. `ok` 말고는 전부 운영자가 GitHub 에서 뭔가를 해야 한다는 뜻이다 */
-function recheckBanner(kind: string | undefined): Status {
+function recheckBanner(kind: string | undefined, t: Translate): Status {
   switch (kind) {
     case 'ok':
-      return { kind: 'ok', message: '설치가 그대로 있어요. 이 저장소에 PR 을 열 수 있어요' };
+      return { kind: 'ok', message: t('recheck.ok') };
     case 'no_repo':
-      return { kind: 'error', message: '고칠 저장소가 없어 확인할 수 없어요. 저장소를 먼저 연결해 주세요' };
+      return { kind: 'error', message: t('recheck.noRepo') };
     case 'not_bound':
-      return { kind: 'error', message: '아직 이 봇과 묶이지 않았어요. 위 버튼으로 설치를 진행해 주세요' };
+      return { kind: 'error', message: t('recheck.notBound') };
     case 'missing':
-      return { kind: 'error', message: '이 저장소에서 Feedloop 앱 설치를 찾지 못했어요. 다시 설치해 주세요' };
+      return { kind: 'error', message: t('recheck.missing') };
     case 'suspended':
-      return { kind: 'error', message: '앱이 일시 정지 상태예요. GitHub 설치 관리에서 정지를 풀어 주세요' };
+      return { kind: 'error', message: t('recheck.suspended') };
     case 'changed':
-      return { kind: 'error', message: '이 저장소에 다른 설치가 있어요. 「다시 설치하기」로 이 봇과 묶어 주세요' };
+      return { kind: 'error', message: t('recheck.changed') };
     default:
-      return { kind: 'error', message: '확인 결과를 알 수 없어요. 잠시 후 다시 시도해 주세요' };
+      return { kind: 'error', message: t('recheck.unknown') };
   }
 }
 
@@ -84,13 +84,16 @@ function recheckBanner(kind: string | undefined): Status {
  * 설치 뒤 되돌아온 결과를 한 번 읽고 주소에서 지운다.
  * `tab=github` 은 남긴다 — 지우면 지금 보고 있는 탭이 「답변 지식」으로 되돌아간다.
  */
-function useInstallCallbackBanner(): CallbackBanner | null {
+function useInstallCallbackBanner(): Status {
+  const t = useTranslations('github');
   const params = useSearchParams();
   const router = useRouter();
   const raw = params.get('app');
   // 마운트 시점에 «한 번» 읽어 들고 있는다. 아래에서 주소의 `app` 을 지워도 이 값은 남아 화면에 뜬다 —
   // 렌더 때마다 다시 읽으면 주소를 지우는 순간 안내가 같이 사라져 아무도 결과를 못 본다.
-  const [banner] = useState<CallbackBanner | null>(() => callbackBanner(raw));
+  // 종류(ok/error/info)는 lib 의 표가 정하고, 문구는 사전(`github.callback.<코드>`)에서 읽는다
+  const [kind] = useState(() => callbackBanner(raw)?.kind ?? null);
+  const banner: Status = kind && raw ? { kind, message: dynamicT(t)(`callback.${raw}`) } : null;
 
   useEffect(() => {
     if (!raw) return;
@@ -109,6 +112,7 @@ function useInstallCallbackBanner(): CallbackBanner | null {
  * 조회가 실패하면 «앱 절만» 숨긴다(null 유지) — 설치형 env 가 없는 배포에서도 토큰 화면은 그대로 떠야 한다.
  */
 function useGithubApp(botId: string) {
+  const t = useTranslations('github');
   const [app, setApp] = useState<GithubAppState | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status>(null);
@@ -138,7 +142,7 @@ function useGithubApp(botId: string) {
         const res = await fetch(`/api/bots/${botId}/github-app`, { method });
         const data = (await res.json().catch(() => null)) as AppStateWithRecheck | null;
         if (!res.ok) {
-          setStatus({ kind: 'error', message: data?.error ?? 'GitHub 에 확인하지 못했어요' });
+          setStatus({ kind: 'error', message: data?.error ?? t('errors.checkFailed') });
           return;
         }
         if (data) {
@@ -146,22 +150,22 @@ function useGithubApp(botId: string) {
           setStatus(onOk(data));
         }
       } catch {
-        setStatus({ kind: 'error', message: '네트워크 오류로 확인하지 못했어요' });
+        setStatus({ kind: 'error', message: t('errors.networkCheck') });
       } finally {
         setBusy(false);
       }
     },
-    [botId],
+    [botId, t],
   );
 
-  const recheck = useCallback(() => call('POST', (data) => recheckBanner(data.recheck)), [call]);
+  const recheck = useCallback(() => call('POST', (data) => recheckBanner(data.recheck, t)), [call, t]);
   const unbind = useCallback(
     () =>
       call('DELETE', () => ({
         kind: 'ok',
-        message: '연결을 풀었어요. GitHub 쪽 설치는 그대로 남아 있어요',
+        message: t('status.unbound'),
       })),
-    [call],
+    [call, t],
   );
 
   return { app, busy, status, recheck, unbind };
@@ -180,14 +184,19 @@ export function GithubTokenForm(props: GithubTokenFormProps) {
 }
 
 function LoadingLine() {
+  const t = useTranslations('github');
   return (
     <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" /> 불러오는 중…
+      <Loader2 className="h-4 w-4 animate-spin" /> {t('loading')}
     </p>
   );
 }
 
 function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
+  const t = useTranslations('github');
+  const format = useFormatter();
+  const tRoot = dynamicT(useTranslations());
+  const b = (chunks: ReactNode) => <b className="font-semibold text-foreground">{chunks}</b>;
   const [state, setState] = useState<TokenState | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -224,7 +233,7 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
   }, [load]);
 
   if (loadError) {
-    return <p className="py-6 text-sm text-destructive">GitHub 연결 설정을 불러오지 못했습니다. 새로고침해 주세요.</p>;
+    return <p className="py-6 text-sm text-destructive">{t('loadError')}</p>;
   }
   if (!state) {
     return <LoadingLine />;
@@ -246,7 +255,7 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
       const res = await fetch(`/api/bots/${botId}/github-token`, init);
       const data = (await res.json().catch(() => null)) as (TokenState & { error?: string }) | null;
       if (!res.ok) {
-        setStatus({ kind: 'error', message: data?.error ?? '저장하지 못했습니다' });
+        setStatus({ kind: 'error', message: data?.error ?? t('errors.save') });
         return;
       }
       if (data) setState(data);
@@ -256,7 +265,7 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
       setEditing(!data?.hasToken);
       setStatus({ kind: 'ok', message: okMessage });
     } catch {
-      setStatus({ kind: 'error', message: '네트워크 오류로 저장하지 못했습니다' });
+      setStatus({ kind: 'error', message: t('errors.networkSave') });
     } finally {
       setBusy(false);
     }
@@ -266,39 +275,22 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
     send(
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) },
       state?.repoUrl
-        ? '토큰을 확인하고 저장했어요. 지금부터 이 계정으로 PR 을 엽니다'
-        : '토큰을 확인하고 저장했어요. 저장소를 연결하면 이 계정으로 PR 을 엽니다',
+        ? t('status.tokenSaved')
+        : t('status.tokenSavedNoRepo'),
     );
-  const removeToken = () => send({ method: 'DELETE' }, '토큰을 제거했어요. 이제 Feedloop 공용 계정으로 시도합니다');
+  const removeToken = () => send({ method: 'DELETE' }, t('status.tokenRemoved'));
 
   return (
     <div className="flex max-w-[660px] flex-col gap-6">
       <p className="text-sm leading-relaxed text-muted-foreground">
-        {state.repoUrl ? (
-          <>
-            수정안은 <b className="font-semibold text-foreground">{repoLabel(state.repoUrl)}</b> 에 열립니다.
-          </>
-        ) : (
-          <>아직 고칠 저장소가 없어요. 저장소를 등록하면 그 저장소에 PR 을 엽니다.</>
-        )}{' '}
-        {appInstalled ? (
-          <>
-            지금은 <b className="font-semibold text-foreground">Feedloop 앱</b>이
-            {app.botLogin ? <b className="font-semibold text-foreground"> {app.botLogin} </b> : ' 봇 '}
-            이름으로 브랜치와 PR 을 만들어요.
-          </>
-        ) : state.hasToken ? (
-          <>
-            지금은 <b className="font-semibold text-foreground">내 GitHub 계정</b>으로 브랜치와 PR 을 만들어요.
-          </>
-        ) : state.platformFallback ? (
-          <>
-            연결이 없으면 <b className="font-semibold text-foreground">Feedloop 공용 계정</b>으로 시도해요 — 그 계정을
-            협업자로 초대한 저장소에서만 됩니다. 아래에서 연결하면 초대 없이 내 저장소에 바로 PR 을 열어요.
-          </>
-        ) : (
-          <>연결이 없으면 PR 을 만들 수 없어요.</>
-        )}
+        {state.repoUrl ? t.rich('summary.repo', { repo: repoLabel(state.repoUrl), b }) : t('summary.noRepo')}{' '}
+        {appInstalled
+          ? t.rich('summary.app', { login: app.botLogin ?? 'none', b })
+          : state.hasToken
+            ? t.rich('summary.token', { b })
+            : state.platformFallback
+              ? t.rich('summary.shared', { b })
+              : t('summary.noConnection')}
       </p>
 
       {installBanner && <Banner status={installBanner} />}
@@ -310,7 +302,7 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
       {appOn && (
         <div className="flex flex-col gap-1.5 border-t border-border pt-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold">직접 토큰으로 연결 (대안)</h2>
+            <h2 className="text-sm font-semibold">{t('alt.title')}</h2>
             {!patPinned && (
               <Button
                 variant="ghost"
@@ -321,15 +313,15 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
                   setPatOpen((v) => !v);
                 }}
               >
-                {patOpen ? '토큰 설정 접기' : '토큰 설정 보기'}
+                {patOpen ? t('alt.collapse') : t('alt.expand')}
               </Button>
             )}
           </div>
           {!patPinned && (
             <p className="text-[13px] leading-relaxed text-muted-foreground">
               {appInstalled
-                ? '앱 설치가 있으면 앱이 우선해요. 토큰은 앱이 닿지 않는 저장소(옛 PR)나, 앱으로 안 될 때만 쓰여요.'
-                : '위의 앱 설치를 권해요. 조직 정책 등으로 앱을 설치할 수 없을 때만 토큰을 넣으세요.'}
+                ? t('alt.hintApp')
+                : t('alt.hintNoApp')}
             </p>
           )}
         </div>
@@ -340,9 +332,9 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
         <div className="flex items-start gap-2.5 border-l-2 border-destructive pl-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
           <div className="space-y-0.5 text-sm">
-            <p className="font-semibold text-destructive">{state.failedReason ?? '마지막 GitHub 호출이 실패했어요'}</p>
+            <p className="font-semibold text-destructive">{state.failedReason ?? t('failedFallback')}</p>
             <p className="text-xs text-muted-foreground">
-              토큰이 만료됐거나 저장소 권한이 바뀌었을 수 있어요. 새 토큰으로 교체하면 표시가 사라집니다.
+              {t('failedNote')}
             </p>
           </div>
         </div>
@@ -354,9 +346,9 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
             <div className="flex items-center gap-3">
               <KeyRound className="h-4 w-4 text-muted-foreground" aria-hidden />
               <span className="text-sm">
-                <b className="font-semibold">GitHub 토큰</b> ····{state.tokenLast4}
+                {t.rich('token.line', { last4: state.tokenLast4 ?? '', b: (chunks) => <b className="font-semibold">{chunks}</b> })}
                 {state.verifiedAt && (
-                  <span className="ml-2 text-xs text-muted-foreground">{formatDate(state.verifiedAt)} 확인</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{t('token.verified', { date: format.dateTime(new Date(state.verifiedAt), { month: 'numeric', day: 'numeric' }) })}</span>
                 )}
               </span>
             </div>
@@ -371,25 +363,25 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
                   setEditing(true);
                 }}
               >
-                토큰 교체
+                {t('token.replace')}
               </Button>
               {confirmRemove ? (
                 <>
                   <span className="text-xs text-muted-foreground">
                     {appInstalled
-                      ? '제거해도 앱 설치는 그대로예요. 앱이 닿지 않는 저장소에서만 PR 을 못 만들게 됩니다.'
-                      : '제거하면 공용 계정으로 돌아가요. 초대되지 않은 저장소면 PR 을 못 만들어요.'}
+                      ? t('token.removeNoteApp')
+                      : t('token.removeNote')}
                   </span>
                   <Button variant="destructive" size="sm" disabled={busy} onClick={removeToken}>
-                    {busy ? <Loader2 className="animate-spin" /> : '정말 제거'}
+                    {busy ? <Loader2 className="animate-spin" /> : t('token.confirmRemove')}
                   </Button>
                   <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmRemove(false)}>
-                    취소
+                    {t('cancel')}
                   </Button>
                 </>
               ) : (
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmRemove(true)}>
-                  토큰 제거
+                  {t('token.remove')}
                 </Button>
               )}
             </div>
@@ -397,43 +389,31 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
         ) : (
           <div className={cn('flex flex-col gap-5', appOn ? 'pt-1' : 'border-t border-border pt-5')}>
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">1. fine-grained 토큰을 발급해요</h3>
+              <h3 className="text-sm font-semibold">{t('steps.issueTitle')}</h3>
               <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-muted-foreground">
                 <li>
-                  <a
-                    href={githubPatPrefillUrl(state.repoUrl, serviceName)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-foreground underline underline-offset-4"
-                  >
-                    GitHub › Settings › Developer settings › Fine-grained tokens
-                  </a>{' '}
-                  에서 「Generate new token」 — 이 링크는 이름·권한·만료가 미리 채워진 채로 열려요
+                  {t.rich('steps.s1', {
+                    link: (chunks) => (
+                      <a
+                        href={githubPatPrefillUrl(state.repoUrl, serviceName)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-foreground underline underline-offset-4"
+                      >
+                        {chunks}
+                      </a>
+                    ),
+                  })}
                 </li>
-                <li>
-                  Repository access 는 <b className="font-semibold text-foreground">Only select repositories</b> 로 두고
-                  {state.repoUrl ? <> {repoLabel(state.repoUrl)} 만</> : <> 고칠 저장소만</>} 고르세요
-                </li>
-                <li>
-                  Permissions › Repository permissions 에서{' '}
-                  <b className="font-semibold text-foreground">Contents</b> 와{' '}
-                  <b className="font-semibold text-foreground">Pull requests</b> 를 각각{' '}
-                  <b className="font-semibold text-foreground">Read and write</b> 로
-                </li>
-                <li>
-                  (선택) <b className="font-semibold text-foreground">Deployments</b> ·{' '}
-                  <b className="font-semibold text-foreground">Commit statuses</b> 를 Read 로 주면 「수정안」 화면에
-                  프리뷰·빌드 상태도 보여요. 없으면 그 칸만 「모름」으로 뜹니다
-                </li>
-                <li>
-                  내가 소유했거나 멤버인 저장소여야 해요. 협업자(collaborator)로만 초대된 저장소는 fine-grained 토큰으로 안
-                  되고 classic 토큰(ghp_)이 필요해요
-                </li>
+                <li>{t.rich('steps.s2', { repo: state.repoUrl ? repoLabel(state.repoUrl) : 'none', b })}</li>
+                <li>{t.rich('steps.s3', { b })}</li>
+                <li>{t.rich('steps.s4', { b })}</li>
+                <li>{t('steps.s5')}</li>
               </ol>
             </section>
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">2. 토큰을 붙여 넣어요</h3>
+              <h3 className="text-sm font-semibold">{t('steps.pasteTitle')}</h3>
               <Input
                 type="password"
                 autoComplete="off"
@@ -442,18 +422,17 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
                 value={token}
                 disabled={busy}
                 onChange={(e) => setToken(e.target.value)}
-                aria-label="GitHub 토큰"
+                aria-label={t('token.label')}
               />
-              {token && !formatCheck.ok && <p className="text-xs text-destructive">{formatCheck.error}</p>}
+              {token && !formatCheck.ok && <p className="text-xs text-destructive">{validationText(tRoot, formatCheck)}</p>}
               <p className="text-xs leading-relaxed text-muted-foreground">
-                저장하기 전에 GitHub 에 {state.repoUrl ? '이 저장소에 접근할 수 있는 토큰인지' : '유효한 토큰인지'}{' '}
-                확인해요. 쓰기 권한은 첫 PR 에서 판정돼요. 토큰은 암호화해 보관하고 화면에는 마지막 4자만 남깁니다.
+                {t('steps.pasteNote', { repo: state.repoUrl ? 'has' : 'none' })}
               </p>
             </section>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
               <Button onClick={saveToken} disabled={busy || !token || !formatCheck.ok}>
-                {busy ? <Loader2 className="animate-spin" /> : '확인하고 저장'}
+                {busy ? <Loader2 className="animate-spin" /> : t('verifyAndSave')}
               </Button>
               {state.hasToken && (
                 <Button
@@ -465,7 +444,7 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
                     setEditing(false);
                   }}
                 >
-                  취소
+                  {t('cancel')}
                 </Button>
               )}
             </div>
@@ -484,25 +463,20 @@ function GithubConnectionForm({ botId, serviceName }: GithubTokenFormProps) {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
           <div className="space-y-0.5 text-sm">
             <p className="font-semibold">
-              이 토큰은 계정 전체 저장소에 접근할 수 있는 종류예요{broadScopes ? ` (${broadScopes})` : ''}
+              {t('broad.title', { scopes: broadScopes ? ` (${broadScopes})` : '' })}
             </p>
             <p className="text-xs text-muted-foreground">
-              동작에는 문제없지만, 유출 시 피해 범위가 넓어요. 이 저장소만 고른 fine-grained
-              토큰(github_pat_…)으로 바꾸는 걸 권해요.
+              {t('broad.note')}
             </p>
           </div>
         </div>
       )}
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        {appInstalled ? (
-          <>
-            {serviceName} 봇이 만든 PR 은 {app.botLogin ?? '앱'} 이름으로 열려요.
-          </>
-        ) : (
-          <>{serviceName} 봇이 만든 PR 은 이 토큰의 계정 이름으로 열려요.</>
-        )}{' '}
-        반영(머지)은 여전히 Feedloop 「수정안」 화면이나 GitHub 에서 사람이 합니다.
+        {appInstalled
+          ? t('footer.app', { service: serviceName, login: app.botLogin ?? t('footer.appDefault') })
+          : t('footer.token', { service: serviceName })}{' '}
+        {t('footer.merge')}
       </p>
     </div>
   );
@@ -523,15 +497,18 @@ interface GithubAppSectionProps {
  * 「설치 확인」은 **이미 묶인 설치를 다시 보는 것**이지 새로 묶지 않는다 — 새로 묶는 길은 설치 버튼 하나뿐이다.
  */
 function GithubAppSection({ app, busy, status, onRecheck, onUnbind }: GithubAppSectionProps) {
+  const t = useTranslations('github');
+  const format = useFormatter();
+  const b = (chunks: ReactNode) => <b className="font-semibold text-foreground">{chunks}</b>;
   const [confirmUnbind, setConfirmUnbind] = useState(false);
   const noRepo = !app.repoUrl;
   const lost = Boolean(app.lostAt);
-  const botLogin = app.botLogin ?? 'Feedloop 봇';
+  const botLogin = app.botLogin ?? t('app.defaultBotLogin');
 
   return (
     <section className="flex flex-col gap-3 border-t border-border pt-5">
       <h2 className="text-sm font-semibold">
-        Feedloop 앱 설치 <span className="ml-1 text-xs font-medium text-brand-strong">권장</span>
+        {t('app.title')} <span className="ml-1 text-xs font-medium text-brand-strong">{t('app.recommended')}</span>
       </h2>
 
       {app.installed ? (
@@ -539,52 +516,47 @@ function GithubAppSection({ app, busy, status, onRecheck, onUnbind }: GithubAppS
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-strong" aria-hidden />
             <span className="text-sm">
-              <b className="font-semibold">Feedloop 앱으로 연결됨</b>
+              <b className="font-semibold">{t('app.connected')}</b>
               {app.installationLogin && <span className="text-muted-foreground"> · @{app.installationLogin}</span>}
               {app.connectedAt && (
-                <span className="ml-2 text-xs text-muted-foreground">{formatDateTime(app.connectedAt)} 연결</span>
+                <span className="ml-2 text-xs text-muted-foreground">{t('app.connectedAt', { date: format.dateTime(new Date(app.connectedAt), { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: 'Asia/Seoul' }) })}</span>
               )}
             </span>
           </div>
           <p className="text-[13px] leading-relaxed text-muted-foreground">
-            PR 은 <b className="font-semibold text-foreground">{botLogin}</b> 이름으로 열려요. 토큰을 만들거나 갱신할 일이
-            없습니다.
-            {app.connectedBy && <> 연결한 사람 @{app.connectedBy}.</>}
+            {t.rich('app.prOpened', { login: botLogin, b })}
+            {app.connectedBy && <> {t('app.connectedBy', { user: app.connectedBy })}</>}
             {/* 우리가 쓰는 건 이 봇의 레포 하나지만, 계정 전체를 내준 상태라면 그 사실은 운영자가 알아야 한다(보안 리뷰 M3) */}
             {app.repositorySelection === 'all' && (
-              <>
-                {' '}
-                이 설치는 <b className="font-semibold text-amber-700">계정의 모든 저장소</b>에 접근할 수 있어요. GitHub 설치
-                관리에서 「Only select repositories」로 좁힐 수 있습니다.
-              </>
+              <> {t.rich('app.allRepos', { b: (chunks) => <b className="font-semibold text-amber-700">{chunks}</b> })}</>
             )}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {app.manageUrl && (
               <Button variant="outline" size="sm" asChild>
                 <a href={app.manageUrl} target="_blank" rel="noopener noreferrer">
-                  GitHub 에서 설치 관리 →
+                  {t('app.manage')}
                 </a>
               </Button>
             )}
             <Button variant="ghost" size="sm" disabled={busy} onClick={onRecheck}>
-              {busy ? <Loader2 className="animate-spin" /> : '설치 확인'}
+              {busy ? <Loader2 className="animate-spin" /> : t('app.recheck')}
             </Button>
             {confirmUnbind ? (
               <>
                 <span className="text-xs text-muted-foreground">
-                  연결을 풀어도 GitHub 쪽 설치는 남아 있어요. 완전히 없애려면 설치 관리 화면에서 제거해 주세요.
+                  {t('app.unbindNote')}
                 </span>
                 <Button variant="destructive" size="sm" disabled={busy} onClick={onUnbind}>
-                  {busy ? <Loader2 className="animate-spin" /> : '정말 풀기'}
+                  {busy ? <Loader2 className="animate-spin" /> : t('app.confirmUnbind')}
                 </Button>
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmUnbind(false)}>
-                  취소
+                  {t('cancel')}
                 </Button>
               </>
             ) : (
               <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmUnbind(true)}>
-                연결 풀기
+                {t('app.unbind')}
               </Button>
             )}
           </div>
@@ -594,25 +566,25 @@ function GithubAppSection({ app, busy, status, onRecheck, onUnbind }: GithubAppS
           <div className="flex items-start gap-2.5 border-l-2 border-amber-500 pl-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
             <div className="space-y-0.5 text-sm">
-              <p className="font-semibold">{app.lostMessage ?? 'GitHub 앱 연결을 확인해 주세요'}</p>
+              <p className="font-semibold">{app.lostMessage ?? t('app.lostFallback')}</p>
               <p className="text-xs text-muted-foreground">
-                다시 설치하면 이어서 씁니다. 그 사이에는 아래 토큰이나 Feedloop 공용 계정으로 시도해요.
+                {t('app.lostNote')}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {app.installUrl && (
               <Button asChild>
-                <a href={app.installUrl}>다시 설치하기 →</a>
+                <a href={app.installUrl}>{t('app.reinstall')}</a>
               </Button>
             )}
             {app.authorizeUrl && (
               <Button variant="outline" size="sm" asChild>
-                <a href={app.authorizeUrl}>GitHub 에서 고쳤어요 · 다시 연결</a>
+                <a href={app.authorizeUrl}>{t('app.reauthorize')}</a>
               </Button>
             )}
             <Button variant="ghost" size="sm" disabled={busy} onClick={onRecheck}>
-              {busy ? <Loader2 className="animate-spin" /> : '설치 확인'}
+              {busy ? <Loader2 className="animate-spin" /> : t('app.recheck')}
             </Button>
           </div>
         </>
@@ -620,29 +592,22 @@ function GithubAppSection({ app, busy, status, onRecheck, onUnbind }: GithubAppS
         <>
           <p className="text-[13px] leading-relaxed text-muted-foreground">
             {noRepo ? (
-              <>고칠 저장소를 먼저 연결하면 설치할 수 있어요. 앱은 그 저장소 하나에만 붙습니다.</>
+              <>{t('app.needRepo')}</>
             ) : (
-              <>
-                설치 버튼을 누르면 GitHub 으로 갔다가 자동으로 돌아와요. 그 화면에서{' '}
-                <b className="font-semibold text-foreground">고칠 저장소 하나</b>만 고르고 Install 을 누르면 끝이고, 토큰을
-                만들어 복사·붙여 넣을 일이 없어요. PR 은{' '}
-                <b className="font-semibold text-foreground">{botLogin}</b> 이름으로 열립니다. 권한은 그 저장소의
-                Contents·Pull requests 읽기/쓰기와 Deployments·Commit statuses 읽기예요. 이 계정에 Feedloop 을 이미
-                설치했다면(다른 서비스에서) 옆의 <b className="font-semibold text-foreground">연결하기</b>를 누르세요.
-              </>
+              <>{t.rich('app.installExplain', { login: botLogin, b })}</>
             )}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {noRepo || !app.installUrl ? (
-              <Button disabled>GitHub 에 Feedloop 설치하기 →</Button>
+              <Button disabled>{t('app.install')}</Button>
             ) : (
               <Button asChild>
-                <a href={app.installUrl}>GitHub 에 Feedloop 설치하기 →</a>
+                <a href={app.installUrl}>{t('app.install')}</a>
               </Button>
             )}
             {app.authorizeUrl && (
               <Button variant="outline" size="sm" asChild>
-                <a href={app.authorizeUrl}>이미 설치했어요 · 연결하기</a>
+                <a href={app.authorizeUrl}>{t('app.alreadyInstalled')}</a>
               </Button>
             )}
           </div>
@@ -677,26 +642,4 @@ function Banner({ status }: { status: NonNullable<Status> }) {
 
 function repoLabel(url: string): string {
   return url.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\/$/, '');
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-/** 연결 시각은 «언제 묶였나»를 사고 때 짚는 값이라 날짜만으론 부족하다 — 분까지, KST 로 */
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return dateTimeFormatter.format(d);
 }

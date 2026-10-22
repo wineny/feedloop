@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { HeroPhone } from './HeroPhone';
 import { PrimaryCta } from './PrimaryCta';
 import { DemoAnchor } from './LiveDemo';
-import { AWARD_LINE, AWARD_RATIO, DEMO_LABEL, PRIMARY_CTA_LABEL } from './constants';
 
 /**
  * 히어로 — 제출용 대표 이미지(`docs/15-제출/cover/hero.html`)의 디자인을 그대로 가져왔다.
@@ -19,7 +20,7 @@ const COVER_FIELD =
   'radial-gradient(71% 103% at 18% 50%, rgba(214,62,50,.55), transparent 70%),' +
   'linear-gradient(120deg, #cf3b2f 0%, #e6524492 46%, #b92e25 100%)';
 
-const STEPS = ['피드백', 'AI 분류', '수정안', '반영 알림'];
+const STEP_KEYS = ['feedback', 'classify', 'fix', 'notify'] as const;
 
 function PlayIcon() {
   return (
@@ -29,7 +30,10 @@ function PlayIcon() {
   );
 }
 
+const em = (chunks: ReactNode) => <em className="hero-outline">{chunks}</em>;
+
 export function HeroSection() {
+  const t = useTranslations('landing');
   return (
     <section
       data-landing-hero /* LandingNav 가 「코랄 지면을 다 지났는가」를 이 높이로 잰다 */
@@ -39,18 +43,8 @@ export function HeroSection() {
       <div /* 위 여백 = 나브 높이 + 원래 여백. 나브는 sticky·h-0 이라 흐름에서 자리를 안 차지한다 */
         className="relative mx-auto grid max-w-[1200px] gap-12 px-6 pb-16 pt-[calc(var(--nav-h)+24px)] lg:grid-cols-[minmax(0,1fr)_540px] lg:items-center lg:gap-10 lg:pb-[104px] lg:pt-[calc(var(--nav-h)+32px)]">
         <div>
-          {/* 수상 알약 — 예전 알약과 같은 흰 반투명 결에, 테두리·바탕만 한 단계 진하게 해 첫눈에 걸리게 했다 */}
-          <div
-            className="inline-flex h-8 items-center gap-2 whitespace-nowrap rounded-full border border-white/45 bg-white/15 px-3.5 text-[13px] font-semibold text-white lg:h-9 lg:px-4 lg:text-[14px]"
-            style={fadeUp(0)}
-          >
-            <span aria-hidden="true">🏆</span>
-            {AWARD_LINE}
-            <span className="hidden font-medium text-white/75 sm:inline">· {AWARD_RATIO}</span>
-          </div>
-
           <h1
-            className="mt-6 font-extrabold"
+            className="font-extrabold"
             style={{
               fontSize: 'clamp(34px, 6.4vw, 82px)',
               lineHeight: 1.12,
@@ -58,11 +52,11 @@ export function HeroSection() {
               ...fadeUp(0.15),
             }}
           >
-            고객의 말이
+            {t('hero.line1')}
             <br />
-            <em className="hero-outline">코드</em>가 되어
+            {t.rich('hero.line2', { em })}
             <br />
-            돌아옵니다
+            {t('hero.line3')}
           </h1>
 
           {/* 제품이 무엇인지 히어로에서 말하는 유일한 줄이다 (ny 결정 2026-09-18).
@@ -80,7 +74,7 @@ export function HeroSection() {
               ...fadeUp(0.22),
             }}
           >
-            내 서비스에 챗봇 한 줄을 붙이면, 고객이 남긴 말을 AI가 분류하고 수정안까지 올립니다.
+            {t('hero.sub')}
           </p>
 
           <div className="mt-6 h-1.5 w-[110px] rounded-full bg-white/85 lg:mt-7" style={fadeUp(0.3)} />
@@ -88,10 +82,10 @@ export function HeroSection() {
             className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-semibold text-white/92 lg:mt-5 lg:gap-x-4"
             style={{ fontSize: 'clamp(15px, 1.5vw, 21px)', ...fadeUp(0.3) }}
           >
-            {STEPS.map((step, i) => (
-              <span key={step} className="flex items-center gap-x-3 lg:gap-x-4">
+            {STEP_KEYS.map((key, i) => (
+              <span key={key} className="flex items-center gap-x-3 lg:gap-x-4">
                 {i > 0 && <i className="not-italic text-[#ffd9cf]">→</i>}
-                {step}
+                {t(`steps.${key}.title`)}
               </span>
             ))}
           </div>
@@ -100,16 +94,16 @@ export function HeroSection() {
             <PrimaryCta
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-[16px] font-bold text-[#b92e25]"
             >
-              {PRIMARY_CTA_LABEL}
+              {t('cta.primary')}
             </PrimaryCta>
             {/* 팝업을 열지 않고 페이지 안 실물 임베드(`#try`)로 내려간다 — ny 결정 9/18 */}
             <DemoAnchor className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/45 px-6 text-[16px] font-semibold text-white">
               <PlayIcon />
-              {DEMO_LABEL} 보기
+              {t('hero.watchDemo')}
             </DemoAnchor>
           </div>
           <p className="mt-4 text-[14px] text-white/72 lg:text-[15px]" style={fadeUp(0.6)}>
-            스크립트 한 줄 · 설치 5분
+            {t('hero.setupNote')}
           </p>
         </div>
 
@@ -139,7 +133,7 @@ export function HeroSection() {
             />
           </div>
 
-          <p className="mt-6 text-[13px] text-white/70 lg:mt-3">화면은 실제 제품 · 데이터는 예시</p>
+          <p className="mt-6 text-[13px] text-white/70 lg:mt-3">{t('hero.screensNote')}</p>
         </div>
       </div>
     </section>

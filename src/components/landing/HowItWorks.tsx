@@ -17,38 +17,37 @@
  *    (`lib/channel/labels.ts` 의 `SOURCE_LABEL.web` = 「웹 위젯」)은 «그대로 둔다» —
  *    내부 화면 34곳이 그 말을 쓰고 있어 제출 직전에 흔들 값이 아니다.
  */
+import { useTranslations } from 'next-intl';
 import { SectionHead } from './SectionHead';
+import { dynamicT } from '@/i18n/dynamic';
 
 const steps = [
   {
-    title: '피드백',
-    desc: '서비스에 붙인 피드루프 챗봇에 남습니다. AI가 바로 답하고, 모르면 담당자에게 넘깁니다.',
+    key: 'feedback',
     emoji: '/emoji/speech_balloon_3d.png',
   },
   {
-    title: 'AI 분류',
-    desc: '버그·불편·요청·문의로 나눕니다. 같은 문제는 버튼 하나로 묶습니다.',
+    key: 'classify',
     emoji: '/emoji/card_index_dividers_3d.png',
   },
   {
-    title: '수정안',
-    desc: '저장소를 읽고 수정안을 코드로 써서 PR을 올립니다. 반영은 사람이 승인합니다.',
+    key: 'fix',
     emoji: '/emoji/hammer_and_wrench_3d.png',
   },
   {
-    title: '반영 알림',
-    desc: '보낸 사람에게 "반영됐어요"가 갑니다. 이메일을 남겼다면 메일로도요.',
+    key: 'notify',
     emoji: '/emoji/bell_3d.png',
   },
 ];
 
 export function HowItWorks() {
+  const t = useTranslations('landing');
   return (
     <section id="how" className="mx-auto max-w-[1200px] px-6" style={{ paddingTop: 'var(--space-section)' }}>
       <SectionHead
-        kicker="그래서 이렇게 합니다"
-        title="한마디가 반영까지 가는 길"
-        lead="네 단계가 하나의 루프로 이어집니다."
+        kicker={t('how.kicker')}
+        title={t('how.title')}
+        lead={t('how.lead')}
       />
 
       <div className="relative mt-10 lg:mt-12">
@@ -73,7 +72,7 @@ export function HowItWorks() {
 
         <div className="relative flex flex-col gap-12 lg:grid lg:grid-cols-4 lg:gap-8">
           {steps.map((step) => (
-            <div key={step.title}>
+            <div key={step.key}>
               {/* 모바일: 이모지+제목 한 줄 / 데스크톱: 이모지가 선 위에, 제목은 아래 */}
               <div className="flex items-center gap-3.5 lg:block">
                 <span className="inline-flex bg-[var(--bg)] lg:pr-3">
@@ -84,11 +83,11 @@ export function HowItWorks() {
                   className="font-bold lg:mt-5"
                   style={{ fontSize: 'var(--fs-h3)', letterSpacing: '-0.01em' }}
                 >
-                  {step.title}
+                  {dynamicT(t)(`steps.${step.key}.title`)}
                 </h3>
               </div>
               <p className="mt-3 text-[var(--l-muted)]" style={{ fontSize: 'var(--fs-body)', lineHeight: 1.7, textWrap: 'pretty' }}>
-                {step.desc}
+                {dynamicT(t)(`steps.${step.key}.desc`)}
               </p>
             </div>
           ))}

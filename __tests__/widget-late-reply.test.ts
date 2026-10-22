@@ -104,7 +104,7 @@ const SLOW_NOTICE = '말씀 잘 받았어요! 확인하고 바로 답 드릴게�
 const VISITOR_WAIT_MS = 10_000;
 
 function post(text = '어떤 경우에 답변이 생성 안 되나요?') {
-  const request = new NextRequest('http://localhost/api/widget/b1/messages', {
+  const request = new NextRequest('http://localhost/api/widget/b1/messages?locale=ko', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ visitorId: VISITOR_ID, text }),

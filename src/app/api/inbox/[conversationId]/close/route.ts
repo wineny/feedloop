@@ -5,19 +5,20 @@
 // 운영자가 직접 닫을 수 있는 길을 둔다. 채널톡 전용은 아니다 — 어느 채널이든 닫을 수 있다.
 
 import { NextResponse } from 'next/server';
-import { OWNER_ONLY_ERROR, resolveAccessibleBots } from '@/lib/auth/ownership';
+import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { getConversationOwner } from '@/lib/bot/conversations';
 import { getServiceRoleClient } from '@/lib/supabase';
+import { apiText } from '@/lib/http/api-text';
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ conversationId: string }> },
 ) {
   const { conversationId } = await params;
 
   const conversation = await getConversationOwner(conversationId);
   if (!conversation) {
-    return NextResponse.json({ error: '대화를 찾을 수 없습니다' }, { status: 404 });
+    return NextResponse.json({ error: apiText(req, 'conversationNotFound') }, { status: 404 });
   }
 
   const auth = await resolveAccessibleBots(conversation.bot_id);
@@ -26,7 +27,7 @@ export async function POST(
   }
   // 닫기는 되돌릴 수 없다. 승인자는 환불만 결정한다(3단계 6/6).
   if (auth.role !== 'owner') {
-    return NextResponse.json({ error: OWNER_ONLY_ERROR }, { status: 403 });
+    return NextResponse.json({ error: apiText(req, 'ownerOnly') }, { status: 403 });
   }
 
   const { error } = await getServiceRoleClient()
@@ -36,7 +37,7 @@ export async function POST(
 
   if (error) {
     console.error('[inbox] close error:', error.message);
-    return NextResponse.json({ error: '대화를 닫지 못했습니다' }, { status: 500 });
+    return NextResponse.json({ error: apiText(req, 'conversationCloseFailed') }, { status: 500 });
   }
 
   return NextResponse.json({ id: conversationId, status: 'closed' });

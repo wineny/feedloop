@@ -23,7 +23,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html lang="ko">
+    <html lang="en">
       <body
         style={{
           margin: 0,
@@ -40,31 +40,31 @@ export default function GlobalError({
         <div style={{ maxWidth: 420, padding: 24, textAlign: 'center' }}>
           {recovering ? (
             <p style={{ margin: 0, fontSize: 14, color: '#6b625d' }}>
-              새 버전으로 다시 불러오는 중입니다…
+              Loading the new version…
             </p>
           ) : (
             <>
               <h1 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>
-                화면을 불러오지 못했습니다
+                This page could not be loaded
               </h1>
               <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.7, color: '#6b625d' }}>
-                잠깐 어긋난 것일 수 있습니다. 새로고침하면 대부분 바로 풀립니다.
+                This may be a brief glitch. Reloading usually fixes it.
               </p>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                 <button type="button" onClick={reset} style={primaryButton}>
-                  다시 시도
+                  Try again
                 </button>
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
                   style={outlineButton}
                 >
-                  새로고침
+                  Reload
                 </button>
               </div>
               {error.digest && (
                 <p style={{ margin: '16px 0 0', fontSize: 12, color: '#9a918c' }}>
-                  오류 번호 {error.digest}
+                  Error ID {error.digest}
                 </p>
               )}
             </>

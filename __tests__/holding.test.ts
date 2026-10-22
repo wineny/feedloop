@@ -3,11 +3,15 @@ import {
   ESCALATED_SUMMARY_CHARS,
   GROUNDING_REMINDER,
   HOLDING_MESSAGE,
+  HOLDING_MESSAGE_EN,
   HOLDING_NOTICE,
   applyHoldingPolicy,
   ensureEscalationInsight,
+  holdingMessage,
   isHoldingResponse,
+  visitorTextLocale,
 } from '@/lib/bot/holding';
+import { extractResult } from '@/lib/bot/handler';
 
 // 모델이 「자신 없다」(escalate) 고 표시한 «사실 답변»의 텍스트는 방문자에게 나가면 안 된다.
 // 프롬프트가 시키는 것과 별개로 서버가 한 겹 더 막는다 — 프롬프트는 저가 모델이 놓칠 수 있고,
@@ -68,6 +72,68 @@ describe('applyHoldingPolicy', () => {
   });
 });
 
+// 5단계 — 모델은 대기 문장을 쓰지 않고 `hold` 플래그만 켠다. 문장은 서버가 방문자 언어로 고른다.
+describe('hold 플래그 — 서버가 방문자 언어의 대기 문구를 넣는다', () => {
+  it('extractResult 가 hold 를 읽고, hold 면 escalate 도 켠다 (모델이 escalate 를 빠뜨려도 배지·흔적이 켜진다)', () => {
+    const r = extractResult('{"response":null,"insight":{"category":"cs","summary":"Parking question","sentiment":"neutral"},"hold":true}');
+    expect(r.parsed).toBe(true);
+    expect(r.hold).toBe(true);
+    expect(r.escalate).toBe(true);
+  });
+
+  it('hold 가 불리언 true 가 아니면 false 로 본다', () => {
+    expect(extractResult('{"response":"Hi","insight":null,"hold":"yes"}').hold).toBe(false);
+    expect(extractResult('{"response":"Hi","insight":null}').hold).toBe(false);
+  });
+
+  it('hold 면 response 를 방문자 언어의 대기 문구로 채운다 — en/ko', () => {
+    const en = applyHoldingPolicy({ response: null, insight: { category: 'cs' }, escalate: true, hold: true }, 'bot-1', 'en');
+    expect(en.response).toBe(HOLDING_MESSAGE_EN);
+    const ko = applyHoldingPolicy({ response: null, insight: { category: 'cs' }, escalate: true, hold: true }, 'bot-1', 'ko');
+    expect(ko.response).toBe(HOLDING_MESSAGE);
+  });
+
+  it('hold 면 모델이 쓴 답 텍스트도 버린다 — 근거 없다고 스스로 표시한 답에 숫자가 섞여 나가지 않게', () => {
+    const r = applyHoldingPolicy({ response: 'You can get up to 3 coupons a day!', insight: null, escalate: false, hold: true }, undefined, 'en');
+    expect(r.response).toBe(HOLDING_MESSAGE_EN);
+    expect(r.escalate).toBe(true);
+  });
+
+  it('hold 가 아니면 종전 정책 그대로다 — 버그 제보의 공감 문장은 살린다', () => {
+    const body = 'Sorry about that! What screen were you on?';
+    const r = applyHoldingPolicy({ response: body, insight: { category: 'bug' }, escalate: true, hold: false }, undefined, 'en');
+    expect(r.response).toBe(body);
+  });
+
+  it('cs+escalate 대체도 방문자 언어를 따른다', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = applyHoldingPolicy({ response: 'Up to 3 per day.', insight: { category: 'cs' }, escalate: true }, 'bot-1', 'en');
+    expect(r.response).toBe(HOLDING_MESSAGE_EN);
+    warn.mockRestore();
+  });
+
+  it('옛 습관대로 한국어 대기 문장을 써도 경고 없이 방문자 언어로 맞춘다', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = applyHoldingPolicy({ response: HOLDING_MESSAGE, insight: { category: 'cs' }, escalate: true }, 'bot-1', 'en');
+    expect(r.response).toBe(HOLDING_MESSAGE_EN);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('holdingMessage — 언어별 문장', () => {
+    expect(holdingMessage('en')).toBe(HOLDING_MESSAGE_EN);
+    expect(holdingMessage('ko')).toBe(HOLDING_MESSAGE);
+  });
+
+  it('visitorTextLocale — 한글이 있으면 ko, 라틴 문자만 있으면 en, 둘 다 없으면 기본값', () => {
+    expect(visitorTextLocale('주차 되나요?')).toBe('ko');
+    expect(visitorTextLocale('Is parking available?')).toBe('en');
+    expect(visitorTextLocale('PC 크롬이요')).toBe('ko');
+    expect(visitorTextLocale('👍👍', 'ko')).toBe('ko');
+    expect(visitorTextLocale('123', 'en')).toBe('en');
+  });
+});
+
 describe('isHoldingResponse', () => {
   it('대기 문구를 품고 있으면 참', () => {
     expect(isHoldingResponse(HOLDING_MESSAGE)).toBe(true);
@@ -83,11 +149,14 @@ describe('isHoldingResponse', () => {
   });
 });
 
-// 유저 턴에 얹는 상기가 프롬프트와 다른 문장을 시키면, 모델은 둘 중 하나를 고르게 된다.
+// 유저 턴에 얹는 상기가 프롬프트와 다른 것을 시키면, 모델은 둘 중 하나를 고르게 된다.
+// 대기 문장은 모델이 쓰지 않는다 — 상기도 시스템 프롬프트처럼 hold 플래그를 시켜야 한다.
 describe('GROUNDING_REMINDER', () => {
-  it('프롬프트가 시키는 것과 같은 문장을 인용한다', () => {
-    expect(GROUNDING_REMINDER).toContain(HOLDING_MESSAGE);
+  it('프롬프트와 같은 플래그(hold·escalate)를 시키고 대기 문장을 직접 쓰게 하지 않는다', () => {
+    expect(GROUNDING_REMINDER).toContain('"hold" to true');
     expect(GROUNDING_REMINDER).toContain('escalate');
+    expect(GROUNDING_REMINDER).not.toContain(HOLDING_MESSAGE);
+    expect(GROUNDING_REMINDER).not.toContain(HOLDING_MESSAGE_EN);
   });
 });
 

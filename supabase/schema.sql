@@ -2,7 +2,7 @@
 -- Stands up a fresh Supabase project in one go. Apply with:
 --   psql "$POSTGRES_URL_NON_POOLING" -v ON_ERROR_STOP=1 -f supabase/schema.sql
 -- Requires Supabase (auth.uid(), roles anon/authenticated/service_role, pgrst).
--- Files in apply order (55):
+-- Files in apply order (58):
 --   init_schema.sql
 --   add_auto_dev.sql
 --   add_kakao_support.sql
@@ -58,6 +58,9 @@
 --   20261021_01_refund_guardrail_v2.sql
 --   20261021_02_refund_attention.sql
 --   20261021_03_payment_announcements.sql
+--   20261021_10_i18n_codes_schema.sql
+--   20261021_11_i18n_codes_data.sql
+--   20261021_12_conversation_locale.sql
 
 
 -- ═══════════════════════════ init_schema.sql ═══════════════════════════
@@ -3235,3 +3238,144 @@ NOTIFY pgrst, 'reload schema';
 -- DROP FUNCTION IF EXISTS payment_action_announce(uuid, text, text);
 -- DROP TABLE IF EXISTS payment_announcements;
 -- NOTIFY pgrst, 'reload schema';
+
+
+-- ═══════════════════════════ 20261021_10_i18n_codes_schema.sql ═══════════════════════════
+
+-- 2026-10-21 i18n 1.5/8 — part A (schema). Apply order:  A + 20261021_12_conversation_locale.sql  ->  deploy the new code  ->  B (20261021_11_i18n_codes_data.sql)
+--
+-- This file only loosens constraints; it does not touch any row, so the code that is
+-- running now (7ba9636) keeps working: it never sees a NULL it did not already handle.
+--   messages.author_name  DROP NOT NULL   (the new code writes NULL when no name is known)
+--   bots.status_text      DEFAULT NULL    (the new code shows the default in messages/<locale>/bots.json defaults.statusText)
+--
+-- Why this order:
+--   * Running B before the deploy: 7ba9636 RecentFeedback.tsx:88 calls f.userName.slice on a value that is
+--     now NULL and crashes, and the llm-key screen prints the raw code ('key_rejected') as the reason.
+--   * Deploying the new code before A: it writes author_name = NULL, which NOT NULL rejects, so
+--     message saving fails.
+--
+-- ROLLBACK of A (run only after the old code is serving again, and after rolling back B):
+--   UPDATE messages SET author_name = CASE source WHEN 'kakao' THEN '카카오 사용자' WHEN 'channel' THEN '고객' ELSE '방문자' END
+--     WHERE author_name IS NULL;                      -- NOT NULL cannot be restored while NULLs exist
+--   ALTER TABLE messages ALTER COLUMN author_name SET NOT NULL;
+--   ALTER TABLE bots ALTER COLUMN status_text SET DEFAULT '보통 몇 분 안에 답해요';
+--   (Not recoverable: rows that were anonymized to '채널톡 이용자' come back as '고객', because NULL
+--    cannot tell them apart.)
+
+ALTER TABLE messages ALTER COLUMN author_name DROP NOT NULL;
+
+ALTER TABLE bots ALTER COLUMN status_text SET DEFAULT NULL;
+
+
+-- ═══════════════════════════ 20261021_11_i18n_codes_data.sql ═══════════════════════════
+
+-- 2026-10-21 i18n 1.5/8 — part B (data). Apply order:  A (20261021_10_i18n_codes_schema.sql) + 20261021_12_conversation_locale.sql  ->  deploy the new code  ->  B
+--
+-- Run this ONLY after the new code is serving. Running it earlier breaks the code that is live:
+--   * 7ba9636 RecentFeedback.tsx:88 calls f.userName.slice on author_name, which is NULL after step 1 -> crash.
+--   * The llm-key and github-token screens of 7ba9636 print the stored code ('key_rejected', 'token_rejected') instead of a sentence.
+-- Requires part A (author_name must already accept NULL).
+--
+-- Display text is chosen by the screen (per locale), so the database keeps only codes or NULL:
+--   messages.author_name         '고객' / '방문자' / '카카오 사용자' / '채널톡 이용자' -> NULL
+--                                (the screen shows the per-source fallback: personLabel(source))
+--   bots.status_text             stored default text -> NULL (readers fall back to messages/<locale>/bots.json defaults.statusText)
+--   bots.llm_key_failed_reason   Korean sentence -> LlmFailureKind code
+--                                (key_rejected | model_invalid | quota | connection)
+--   bots.github_token_failed_reason  Korean sentence -> GithubFailureKind code
+--                                (token_rejected | no_push | connection | unreadable)
+--
+-- ROLLBACK of B (lossy; run it before rolling back A, and with the old code serving):
+--   UPDATE messages SET author_name = CASE source WHEN 'kakao' THEN '카카오 사용자' WHEN 'channel' THEN '고객' ELSE '방문자' END
+--     WHERE author_name IS NULL;
+--   UPDATE bots SET status_text = '보통 몇 분 안에 답해요' WHERE status_text IS NULL;
+--   UPDATE bots SET llm_key_failed_reason = CASE llm_key_failed_reason
+--       WHEN 'key_rejected' THEN '키가 거부됐어요' WHEN 'model_invalid' THEN '모델 이름을 확인해 주세요'
+--       WHEN 'quota' THEN 'provider 한도에 걸렸어요' WHEN 'connection' THEN '연결에 실패했어요'
+--       ELSE llm_key_failed_reason END;
+--   UPDATE bots SET github_token_failed_reason = CASE github_token_failed_reason
+--       WHEN 'token_rejected' THEN '토큰이 거부됐거나 이 저장소에 접근할 수 없어요'
+--       WHEN 'no_push' THEN '이 저장소에 쓸(push) 수 없어요. 토큰의 Contents·Pull requests 가 Read and write 인지 확인해 주세요 — 브랜치 보호나 조직 정책일 수도 있어요'
+--       WHEN 'connection' THEN 'GitHub 에 연결하지 못했어요'
+--       WHEN 'unreadable' THEN '저장된 토큰을 읽지 못했어요. 토큰을 다시 등록해 주세요'
+--       ELSE github_token_failed_reason END;
+--   Cannot be restored exactly:
+--     * Channel Talk rows: both the regular '고객' rows and the anonymized '채널톡 이용자' rows are NULL now,
+--       so the rollback writes '고객' for all of them.
+--     * model_invalid: the old text ended with ': <model id>' for some rows; that suffix is not recoverable.
+--     * status_text: owners who deliberately cleared it were NULL before this migration too; the rollback
+--       above fills them with the default text (a visible change for them).
+
+UPDATE messages
+   SET author_name = NULL
+ WHERE author_name IN ('고객', '방문자', '카카오 사용자', '채널톡 이용자');
+
+UPDATE bots
+   SET status_text = NULL
+ WHERE status_text = '보통 몇 분 안에 답해요';
+
+UPDATE bots
+   SET llm_key_failed_reason = CASE
+     WHEN llm_key_failed_reason = '키가 거부됐어요' THEN 'key_rejected'
+     WHEN llm_key_failed_reason LIKE '모델 이름을 확인해 주세요%' THEN 'model_invalid'
+     WHEN llm_key_failed_reason = 'provider 한도에 걸렸어요' THEN 'quota'
+     WHEN llm_key_failed_reason = '연결에 실패했어요' THEN 'connection'
+   END
+ WHERE llm_key_failed_reason IN ('키가 거부됐어요', 'provider 한도에 걸렸어요', '연결에 실패했어요')
+    OR llm_key_failed_reason LIKE '모델 이름을 확인해 주세요%';
+
+UPDATE bots
+   SET github_token_failed_reason = CASE github_token_failed_reason
+     WHEN '토큰이 거부됐거나 이 저장소에 접근할 수 없어요' THEN 'token_rejected'
+     WHEN '이 저장소에 쓸(push) 수 없어요. 토큰의 Contents·Pull requests 가 Read and write 인지 확인해 주세요 — 브랜치 보호나 조직 정책일 수도 있어요' THEN 'no_push'
+     WHEN 'GitHub 에 연결하지 못했어요' THEN 'connection'
+     WHEN '저장된 토큰을 읽지 못했어요. 토큰을 다시 등록해 주세요' THEN 'unreadable'
+   END
+ WHERE github_token_failed_reason IN (
+   '토큰이 거부됐거나 이 저장소에 접근할 수 없어요',
+   '이 저장소에 쓸(push) 수 없어요. 토큰의 Contents·Pull requests 가 Read and write 인지 확인해 주세요 — 브랜치 보호나 조직 정책일 수도 있어요',
+   'GitHub 에 연결하지 못했어요',
+   '저장된 토큰을 읽지 못했어요. 토큰을 다시 등록해 주세요'
+ );
+
+
+-- ═══════════════════════════ 20261021_12_conversation_locale.sql ═══════════════════════════
+
+-- 2026-10-21 i18n 4/8 — conversations.locale: the language the visitor used in the widget ('en' | 'ko').
+--
+-- Why: the "your problem is fixed" mail and chat card go to the visitor in the language they
+-- wrote in (src/lib/auto-dev/loop-closed.ts), and a group of several conversations can mix languages.
+-- Before this column the language was guessed from the Korean letters in the group title.
+--
+-- Safe to apply at any time, including while the old code is serving: the column is nullable,
+-- has no default, and no existing code reads or writes it. NULL means "unknown" (every row that
+-- exists today, and Kakao / Channel Talk conversations): the new code then falls back to the
+-- old guess (Korean letters in the title).
+--
+-- Apply order:  this file (together with 20261021_10, i.e. BEFORE the new code is deployed)
+--   ->  deploy  ->  20261021_11 (data).
+-- It must come before the deploy, not after: the new widget routes write `locale` in the same upsert
+-- as the conversation row, and PostgREST rejects an unknown column.
+--
+-- The widget routes (messages / contact / escalate) overwrite the value whenever the request carries an
+-- explicit ?locale (every current widget.js request does), so it follows the visitor's latest language (a visitor who switches the page language gets the
+-- notification in the new language). Kakao / Channel Talk upserts do not send the field and leave it alone.
+--
+-- ROLLBACK (old code never uses it, so this is only needed to clean up):
+--   ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversations_locale_check;
+--   ALTER TABLE conversations DROP COLUMN IF EXISTS locale;
+
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS locale text;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'conversations_locale_check'
+  ) THEN
+    ALTER TABLE conversations
+      ADD CONSTRAINT conversations_locale_check CHECK (locale IS NULL OR locale IN ('en', 'ko'));
+  END IF;
+END $$;
+
+NOTIFY pgrst, 'reload schema';

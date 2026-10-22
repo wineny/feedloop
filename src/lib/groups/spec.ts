@@ -9,6 +9,7 @@
 import { getServiceRoleClient } from '@/lib/supabase';
 import { callClaude } from '@/lib/auto-dev/ai-engine';
 import { appendSupplements, loadSupplementBodies } from '@/lib/insights/supplements';
+import { OWNER_CONTENT_LANGUAGE } from '@/i18n/owner-locale';
 
 const EVIDENCE_LIMIT = 8;
 const EVIDENCE_CHARS = 300;
@@ -21,38 +22,39 @@ export function buildSpecPrompt(
   group: { title: string; summary: string },
   voices: string[],
 ): string {
-  return `당신은 제품 매니저입니다. 아래는 한 서비스의 사용자들이 **같은 요청**을 말한 것들입니다.
-이것을 팀이 읽고 "만들지 말지" 를 판단할 수 있는 **스펙 초안**으로 정리하세요.
+  return `You are a product manager. Below is what users of one service said when they asked for **the same thing**.
+Turn it into a **draft spec** the team can read to decide "build it or not".
 
-## 묶음
-- 제목: ${group.title}
-- 요약: ${group.summary}
+## Group
+- Title: ${group.title}
+- Summary: ${group.summary}
 
-## 사용자들이 실제로 한 말 (${voices.length}건)
+## What users actually said (${voices.length})
 ${voices.map((v) => `- "${v}"`).join('\n')}
 
-## 출력 형식
-마크다운으로만 쓰세요. JSON 아닙니다. 아래 소제목을 그대로 쓰세요.
+## Output format
+Write markdown only, not JSON. Write it in ${OWNER_CONTENT_LANGUAGE}, even when the users wrote in another language.
+Use the subheadings below exactly as written.
 
-### 사용자가 원하는 것
-(요청의 핵심을 2~3줄. 사용자의 말에 없는 내용을 지어내지 마세요.)
+### What users want
+(The core of the request in 2–3 lines. Do not invent anything the users did not say.)
 
-### 왜 필요한가
-(사용자들이 밝힌 이유·불편. 근거가 되는 표현을 인용하세요.)
+### Why it is needed
+(The reasons and pain points users gave. Quote the words that support them.)
 
-### 만든다면 이런 모습
-(구체적인 동작 3~5개를 불릿으로. 화면이 있다면 어디에 무엇이 생기는지.)
+### What it could look like
+(3–5 concrete behaviors as bullets. If there is a screen, what appears where.)
 
-### 정해야 할 것
-(사람이 결정해야 하는 갈림길 2~4개. 예: 범위·기본값·기존 기능과의 관계)
+### Open decisions
+(2–4 forks a person has to decide. For example: scope, defaults, relation to existing features)
 
-### 안 만들어도 되는 이유
-(반대편 근거를 솔직하게. 요청이 소수 의견이거나 우회로가 이미 있다면 그렇게 쓰세요.)
+### Reasons not to build it
+(The case against, honestly. If the request is a minority view or a workaround already exists, say so.)
 
-## 규칙
-- **사용자가 말하지 않은 요구를 지어내지 마세요.** 추측이 필요하면 "정해야 할 것" 에 질문으로 남기세요.
-- 코드나 파일 경로를 쓰지 마세요. 이건 구현 지시가 아니라 판단 재료입니다.
-- 분량은 전체 400자~900자.`;
+## Rules
+- **Do not invent requirements the users did not state.** If you need to guess, leave it as a question under "Open decisions".
+- Do not write code or file paths. This is material for a decision, not implementation instructions.
+- Keep the whole draft to about 150–350 words.`;
 }
 
 export interface SpecResult {
@@ -68,7 +70,7 @@ export async function generateGroupSpec(groupId: string): Promise<SpecResult> {
     .eq('id', groupId)
     .maybeSingle();
 
-  if (!group) throw new Error('묶음을 찾을 수 없습니다');
+  if (!group) throw new Error('Group not found');
 
   const { data: insights } = await db()
     .from('insights')
@@ -97,7 +99,7 @@ export async function generateGroupSpec(groupId: string): Promise<SpecResult> {
     )
   ).filter((v): v is string => v !== null);
 
-  if (voices.length === 0) throw new Error('이 묶음에는 정리할 피드백 원문이 없습니다');
+  if (voices.length === 0) throw new Error('This group has no feedback text to summarize');
 
   const spec = (
     await callClaude(
@@ -106,7 +108,7 @@ export async function generateGroupSpec(groupId: string): Promise<SpecResult> {
         voices,
       ),
       2048,
-      '스펙 초안 작성 중',
+      'Writing spec draft',
     )
   ).trim();
 
@@ -115,7 +117,7 @@ export async function generateGroupSpec(groupId: string): Promise<SpecResult> {
     .update({ spec_draft: spec, spec_drafted_at: new Date().toISOString() })
     .eq('id', groupId);
 
-  if (error) throw new Error(`스펙을 저장하지 못했습니다: ${error.message}`);
+  if (error) throw new Error(`Could not save the spec: ${error.message}`);
 
   return { spec, evidenceCount: voices.length };
 }

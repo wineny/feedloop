@@ -52,13 +52,13 @@ describe('verifyUnverifiedItem', () => {
     fetchFileAtRef.mockResolvedValue('x'.repeat(VERIFY_FILE_BYTES + 100));
     await verifyUnverifiedItem(input);
     const prompt = callClaude.mock.calls[0][0] as string;
-    expect(prompt).toContain('이하 생략');
+    expect(prompt).toContain('rest omitted');
     expect(prompt.length).toBeLessThan(VERIFY_FILE_BYTES + 5000);
   });
 
   it('모델이 형식을 어기면 throw — 라우트가 502 로 답한다', async () => {
     callClaude.mockResolvedValue('{"status":"maybe","text":"?"}');
-    await expect(verifyUnverifiedItem(input)).rejects.toThrow(/판정값/);
+    await expect(verifyUnverifiedItem(input)).rejects.toThrow(/verdict status/);
     callClaude.mockResolvedValue('그냥 문장');
     await expect(verifyUnverifiedItem(input)).rejects.toThrow(/JSON/);
   });
@@ -79,8 +79,9 @@ describe('buildVerifyPrompt', () => {
 describe('buildVerdictComment', () => {
   it('GitHub 쪽에서 보는 사람도 같은 결론을 본다', () => {
     const c = buildVerdictComment(item, { status: 'fix_does_not_hold', text: '경로 없음', checkedAt: 'now', files: ['a.ts'] });
-    expect(c).toContain('AI 의견 · 수정 근거에 문제가 있어요')
-    expect(c).toContain('실제 실행 검증 결과가 아닙니다');
+    // GitHub 에 남는 글은 영어 고정 — 화면 라벨(VERDICT_LABEL)이 아니라 영어 머리말
+    expect(c).toContain('the fix has a problem');
+    expect(c).toContain('This is not the result of actually running the code');
     expect(c).toContain('파일을 못 봤다');
     expect(c).toContain('`a.ts`');
     expect(c).toContain('경로 없음');
@@ -93,8 +94,8 @@ describe('buildDiffBlock — diff 합계 예산', () => {
     const files = Array.from({ length: 200 }, (_, i) => ({ path: `src/f${i}.ts`, patch: 'x'.repeat(1000) }));
     const out = buildDiffBlock(files, ['src/f150.ts']);
     expect(out.length).toBeLessThan(VERIFY_DIFF_BUDGET + 2000);
-    expect(out).toContain('diff 를 싣지 않은 파일');
-    expect(out).toContain('「diff 에 없다」를 근거로 판정하지 마세요');
+    expect(out).toContain('left out of the diff for size');
+    expect(out).toContain('do not base a verdict on "it is not in the diff"');
     // 항목과 겹치는 파일이 먼저 실린다
     expect(out.indexOf('### src/f150.ts')).toBeGreaterThan(-1);
     expect(out.indexOf('### src/f150.ts')).toBeLessThan(out.indexOf('### src/f0.ts'));

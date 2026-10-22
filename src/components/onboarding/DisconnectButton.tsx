@@ -8,6 +8,7 @@
 
 import { useReducer } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 
 interface DisconnectButtonProps {
@@ -38,27 +39,13 @@ function reducer(state: DisconnectState, action: DisconnectAction): DisconnectSt
   }
 }
 
-const COPY = {
-  widget: {
-    path: 'widget',
-    title: '위젯 연결 표시를 내릴까요?',
-    body:
-      '「연결됨」 표시만 지웁니다. 서비스에 스크립트가 남아 있으면 다음 방문자가 위젯을 열 때 다시 「연결됨」이 돼요 — 채널톡으로 옮기실 거면 서비스에서 스크립트를 먼저 지우고 내려 주세요. 대화·피드백은 그대로입니다.',
-    confirm: '표시 내리기',
-  },
-  channel: {
-    path: 'channel',
-    title: '채널톡 연결을 끊을까요?',
-    body:
-      '저장된 키와 웹훅 주소가 지워져 채널톡에서 더 이상 들어오지 않아요. 채널톡으로 들어온 대화의 이름·연락처는 익명화되고 본문은 남습니다. 채널톡 쪽 웹훅 등록은 직접 지워 주세요.',
-    confirm: '연결 끊기',
-  },
-} as const;
+const PATHS = { widget: 'widget', channel: 'channel' } as const;
 
 export function DisconnectButton({ botId, kind }: DisconnectButtonProps) {
   const router = useRouter();
+  const t = useTranslations('connect.disconnect');
   const [state, dispatch] = useReducer(reducer, INITIAL);
-  const copy = COPY[kind];
+  const copy = { path: PATHS[kind], title: t(`${kind}.title`), body: t(`${kind}.body`), confirm: t(`${kind}.confirm`) };
 
   async function handleDisconnect() {
     if (state.busy) return;
@@ -67,19 +54,19 @@ export function DisconnectButton({ botId, kind }: DisconnectButtonProps) {
       const res = await fetch(`/api/bots/${botId}/${copy.path}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? '해제하지 못했습니다');
+        throw new Error(data.error ?? t('error'));
       }
       // 서버 컴포넌트(현황판)가 새 상태를 다시 그린다 — 둘 다 꺼졌으면 갈림길로 돌아간다.
       router.refresh();
     } catch (err) {
-      dispatch({ type: 'fail', error: err instanceof Error ? err.message : '해제하지 못했습니다' });
+      dispatch({ type: 'fail', error: err instanceof Error ? err.message : t('error') });
     }
   }
 
   if (!state.open) {
     return (
       <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'open' })} className="text-destructive hover:text-destructive">
-        연결 해제
+        {t('button')}
       </Button>
     );
   }
@@ -90,10 +77,10 @@ export function DisconnectButton({ botId, kind }: DisconnectButtonProps) {
       <p className="text-[12.5px] leading-relaxed text-muted-foreground">{copy.body}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={state.busy}>
-          {state.busy ? '처리 중…' : copy.confirm}
+          {state.busy ? t('busy') : copy.confirm}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'cancel' })} disabled={state.busy}>
-          취소
+          {t('cancel')}
         </Button>
       </div>
       {state.error && (

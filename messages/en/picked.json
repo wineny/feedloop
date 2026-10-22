@@ -1,0 +1,19 @@
+{
+  "dialogLabel": "Screen picked by the visitor",
+  "newTab": "(new tab)",
+  "newTabPath": "(new tab, {path})",
+  "pickedLabel": "Picked on screen · {label}",
+  "marksOff": "Hide outline",
+  "marksOn": "Show outline",
+  "closeEsc": "Close (Esc)",
+  "viewLarge": "View the picked screen larger — {label}",
+  "pageLinkLabel": "Reported page",
+  "pageLinkNote": "The page opens in its current state, so it may differ from what the visitor saw.",
+  "pageLinkNoteSentence": "The \"Reported page\" link opens the page in its current state, so it may differ from what the visitor saw.",
+  "footnote": "Redrawn in the visitor's browser, so images, maps, and fixed headers may be missing.",
+  "missing": {
+    "noShot": "This report has no screen · only the position is shown",
+    "expired": "The screen was deleted after the retention period · only the position is shown",
+    "failed": "Couldn't load the screen · only the position is shown"
+  }
+}

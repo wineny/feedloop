@@ -19,7 +19,7 @@ describe('personLabel — 그 입구의 사람 호칭', () => {
   it('카카오·채널톡은 전용 호칭, 웹은 방문자', () => {
     expect(personLabel('kakao')).toBe('카카오 사용자');
     // 이분법이던 시절 채널톡 이용자가 「방문자」로 불렸다.
-    expect(personLabel('channel')).toBe('채널톡 이용자');
+    expect(personLabel('channel')).toBe('고객');
     expect(personLabel('web')).toBe('방문자');
   });
 

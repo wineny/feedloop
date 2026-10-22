@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import { SectionHead } from './SectionHead';
 
 /**
@@ -29,7 +30,6 @@ import { SectionHead } from './SectionHead';
  * (`<script src="{baseUrl}/widget.js" data-feedloop="{botId}" async></script>`).
  * 랜딩에선 주소와 봇 ID 를 아직 모르니 그 자리만 줄인다 — 없는 도메인을 지어내지 않는다.
  */
-const SNIPPET = '<script src="…/widget.js" data-feedloop="봇 ID" async></script>';
 
 /**
  * 도입 세 단계. 실제 온보딩 순서 그대로다 — 봇 등록(`/bots/new`) → 스니펫 심기
@@ -40,32 +40,20 @@ const SNIPPET = '<script src="…/widget.js" data-feedloop="봇 ID" async></scri
  * ⚠️ 코드 여기저기의 「애플 3D 이모지」라는 옛 표현은 오기다. 받아 보면 Fluent 쪽이다.
  */
 const steps = [
-  {
-    title: '챗봇 연동',
-    desc: '서비스 이름과 주소만 적으면 내 챗봇이 만들어집니다.',
-    emoji: '/emoji/robot_3d.png',
-  },
-  {
-    title: '스크립트를 내 서비스에 심기',
-    desc: '붙이면 내 서비스에 피드루프 챗봇이 뜹니다.',
-    emoji: '/emoji/electric_plug_3d.png',
-    snippet: SNIPPET,
-  },
-  {
-    title: 'GitHub 연결',
-    desc: 'App 설치 · 내 토큰 · 공용 계정 중 하나를 고릅니다. 필요한 권한은 Contents와 Pull requests 둘뿐입니다.',
-    emoji: '/emoji/link_3d.png',
-  },
-];
+  { key: 'bot', emoji: '/emoji/robot_3d.png' },
+  { key: 'script', emoji: '/emoji/electric_plug_3d.png', snippet: true },
+  { key: 'github', emoji: '/emoji/link_3d.png' },
+] as const;
 
 export function PlansSection() {
+  const t = useTranslations('landing');
   return (
     <section id="scale" className="mx-auto max-w-[1200px] px-6" style={{ paddingTop: 'var(--space-section)' }}>
-      <SectionHead kicker="붙이는 법" title="피드루프 도입하기" lead="세 단계면 끝납니다." />
+      <SectionHead kicker={t('plans.kicker')} title={t('plans.title')} lead={t('plans.lead')} />
 
       <div className="mt-10 grid gap-4 lg:mt-12 lg:grid-cols-3 lg:gap-6">
         {steps.map((step, i) => (
-          <div key={step.title} className="flex flex-col rounded-[16px] border border-[var(--line)] p-6 lg:p-7">
+          <div key={step.key} className="flex flex-col rounded-[16px] border border-[var(--line)] p-6 lg:p-7">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={step.emoji} alt="" loading="lazy" className="h-12 w-12 lg:h-14 lg:w-14" />
             <div className="mt-4 text-sm font-semibold text-[var(--coral)]">{String(i + 1).padStart(2, '0')}</div>
@@ -73,21 +61,21 @@ export function PlansSection() {
               className="mt-1.5 text-[22px] font-extrabold leading-[1.25] tracking-[-0.02em] lg:text-[26px]"
               style={{ textWrap: 'pretty', wordBreak: 'keep-all' }}
             >
-              {step.title}
+              {t(`plans.steps.${step.key}.title`)}
             </div>
-            {step.snippet && (
+            {step.key === 'script' && (
               <code
                 className="mt-4 block overflow-x-auto rounded-[10px] bg-[var(--chip)] px-3.5 py-3 text-[var(--l-muted)]"
                 style={{ fontSize: 12, lineHeight: 1.6, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
               >
-                {step.snippet}
+                {`<script src="…/widget.js" data-feedloop="${t('plans.botId')}" async></script>`}
               </code>
             )}
             <p
               className="mt-3.5 text-[var(--l-muted)]"
               style={{ fontSize: 'var(--fs-body)', lineHeight: 1.7, textWrap: 'pretty', wordBreak: 'keep-all' }}
             >
-              {step.desc}
+              {t(`plans.steps.${step.key}.desc`)}
             </p>
           </div>
         ))}

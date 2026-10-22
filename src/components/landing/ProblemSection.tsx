@@ -33,6 +33,7 @@
  *   ③ 알려주는 사람이 없음   → 「수정 PR · 반영 알림」  ③ 의 「개선을 해도」가 수정 부담까지 받는다
  * 줄을 고치면 이 대응이 깨지는지 먼저 본다.
  */
+import { useTranslations } from 'next-intl';
 import { SectionHead } from './SectionHead';
 
 /**
@@ -40,61 +41,49 @@ import { SectionHead } from './SectionHead';
  * 2026-09-18 목록 맨 위에서 «왼쪽 리드 아래»로 옮겼다(ny 지시) — 진단(왼쪽)이
  * 한자리에 모이고, 오른쪽은 증상 셋만 남아 목록이 깔끔해진다.
  */
-const SETUP = '고객은 이미 말해주고 있습니다. 문제는 그 다음입니다.';
 
 interface Pain {
-  /** 한 줄로 뜻이 서는 단문. 이 줄이 주인공이라 28px 로 조판한다. */
-  line: string;
-  /** 어떻게 그러는지를 받는 한두 문장. */
-  desc: string;
+  /** 사전 키(`landing.problem.pains.<key>`) — line 은 한 줄로 뜻이 서는 단문이고 이 줄이 주인공이라 28px 로 조판한다. desc 는 어떻게 그러는지를 받는 한두 문장. */
+  key: 'buried' | 'unsorted' | 'unaware';
   /** 마지막 한 줄만 «손실»이다. 앞 둘은 번거로움이라 회색, 이 줄만 본문색으로 무게를 준다. */
   cost?: boolean;
 }
 
 const pains: Pain[] = [
-  {
-    line: '개선 피드백은 CS에 묻힙니다',
-    desc: '급한 문의부터 쳐내면 하루가 끝납니다.',
-  },
-  {
-    line: '비슷한 피드백이 쌓이기만 하고, 분류가 안 됩니다',
-    desc: '뒤죽박죽 섞인 채 불어나서, 나중엔 어디부터 손댈지도 모릅니다.',
-  },
-  {
-    line: '개선을 해도, 제보해준 고객은 모릅니다',
-    desc: '아무도 개선 사실을 알려주지 않습니다.',
-    cost: true,
-  },
+  { key: 'buried' },
+  { key: 'unsorted' },
+  { key: 'unaware', cost: true },
 ];
 
 export function ProblemSection() {
+  const t = useTranslations('landing');
   return (
     <section
       className="mx-auto max-w-[1200px] px-6 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-x-20"
       style={{ paddingTop: 'var(--space-section)' }}
     >
       <SectionHead
-        kicker="지금 벌어지는 일"
+        kicker={t('problem.kicker')}
         title={
           <>
-            피드백은 쌓이는데,
+            {t('problem.title1')}
             <br />
-            개선은 안 됩니다
+            {t('problem.title2')}
           </>
         }
         lead={
           <>
-            안 고치는 게 아니라, 못 고치는 겁니다.
+            {t('problem.lead1')}
             <br />
-            {SETUP}
+            {t('problem.lead2')}
           </>
         }
       />
 
       <div className="mt-9 lg:mt-0">
-        {pains.map((t, i) => (
+        {pains.map((pain, i) => (
           <div
-            key={t.line}
+            key={pain.key}
             className={`grid grid-cols-[38px_minmax(0,1fr)] gap-x-4 lg:grid-cols-[56px_minmax(0,1fr)] lg:gap-x-6 ${
               i === 0 ? 'pb-5 lg:pb-6' : 'py-5 lg:py-6'
             } ${i < pains.length - 1 ? 'border-b border-[var(--line)]' : ''}`}
@@ -115,15 +104,15 @@ export function ProblemSection() {
                   textWrap: 'balance',
                 }}
               >
-                {t.line}
+                {t(`problem.pains.${pain.key}.line`)}
               </p>
               <p
                 className={`mt-2 max-w-[54ch] lg:mt-2.5 ${
-                  t.cost ? 'font-medium text-[var(--ink)]' : 'text-[var(--l-muted)]'
+                  pain.cost ? 'font-medium text-[var(--ink)]' : 'text-[var(--l-muted)]'
                 }`}
                 style={{ fontSize: 'var(--fs-body)', lineHeight: 1.7, textWrap: 'pretty' }}
               >
-                {t.desc}
+                {t(`problem.pains.${pain.key}.desc`)}
               </p>
             </div>
           </div>

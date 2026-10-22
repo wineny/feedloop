@@ -1,10 +1,12 @@
 // 운영자 GitHub 토큰의 실호출 검증과 실패 사유 분류 (서버 전용).
 //
 // 이 모듈이 지키는 것 하나: **토큰 원문은 반환값에도 로그에도 절대 안 들어간다.**
-// GitHub 에러 본문도 싣지 않는다. 밖으로 나가는 건 우리가 고른 3가지 사유와 한국어 문구뿐이다.
+// GitHub 에러 본문도 싣지 않는다. 밖으로 나가는 건 우리가 고른 사유 분류와 그에 대응하는 문구(요청 언어)뿐이다.
 //
 // 검증은 «저장 전»에 한다 — 반쯤 저장된 토큰은 첫 「PR 만들기」에서 죽고, 운영자는 원인을 모른다.
 
+import { serverT } from '@/i18n/server-messages';
+import type { Locale } from '@/i18n/routing';
 import { parseRepoInfo } from './repo-url';
 
 export { checkGithubTokenFormat, githubTokenLast4, type TokenFormatResult } from './token-format';
@@ -28,18 +30,20 @@ export function classifyGithubFailure(status: number | null): GithubFailureKind 
   return 'connection';
 }
 
-/** `bots.github_token_failed_reason` 과 운영자 화면에 그대로 쓰는 문구. 원문 에러는 안 들어간다. */
-export function githubFailureMessage(kind: GithubFailureKind): string {
-  switch (kind) {
-    case 'token_rejected':
-      return '토큰이 거부됐거나 이 저장소에 접근할 수 없어요';
-    case 'no_push':
-      return '이 저장소에 쓸(push) 수 없어요. 토큰의 Contents·Pull requests 가 Read and write 인지 확인해 주세요 — 브랜치 보호나 조직 정책일 수도 있어요';
-    case 'connection':
-      return 'GitHub 에 연결하지 못했어요';
-    case 'unreadable':
-      return '저장된 토큰을 읽지 못했어요. 토큰을 다시 등록해 주세요';
-  }
+/** 운영자 화면에 쓰는 문구(요청 언어). 원문 에러는 안 들어간다. */
+export function githubFailureMessage(kind: GithubFailureKind, locale: Locale = 'en'): string {
+  return serverT(locale, 'errors.githubFailure')(kind);
+}
+
+const GITHUB_FAILURE_KINDS: readonly string[] = ['token_rejected', 'no_push', 'connection', 'unreadable'];
+
+/**
+ * `bots.github_token_failed_reason` 에는 코드값(`GithubFailureKind`)을 저장한다. 화면에 낼 때 문장으로 바꾼다.
+ * 코드가 아닌 값(코드 전환 전에 저장된 한국어 문장)은 그대로 돌려준다.
+ */
+export function githubFailureReasonText(stored: string | null, locale: Locale = 'en'): string | null {
+  if (!stored) return null;
+  return GITHUB_FAILURE_KINDS.includes(stored) ? githubFailureMessage(stored as GithubFailureKind, locale) : stored;
 }
 
 // ── 실호출 검증 ─────────────────────────────────────
@@ -108,7 +112,7 @@ async function get(
  * 레포 URL 이 없는 봇은 토큰 유효성(`/user`)만 본다 — 권한은 레포가 생길 때 다시 판정된다.
  * 잘못된 레포 URL(앵커 실패)은 여기서 throw 하지 않고 token_rejected 로 답한다 — 운영자 입장에선 같은 조치다.
  */
-export async function verifyGithubToken(token: string, repoUrl: string | null): Promise<TokenVerifyResult> {
+export async function verifyGithubToken(token: string, repoUrl: string | null, locale: Locale = 'en'): Promise<TokenVerifyResult> {
   if (!repoUrl) {
     const { status, json, oauthScopes } = await get(token, '/user');
     if (status === 200) {
@@ -119,7 +123,7 @@ export async function verifyGithubToken(token: string, repoUrl: string | null): 
     // 레포가 없어 어차피 권한은 레포가 생길 때 다시 판정하므로 login 없이 통과시킨다. 401 만 확실한 거부다
     if (status === 403) return { ok: true, login: null, repoAccess: 'skipped', broadScopes: oauthScopes };
     const kind = classifyGithubFailure(status);
-    return { ok: false, kind, error: githubFailureMessage(kind) };
+    return { ok: false, kind, error: githubFailureMessage(kind, locale) };
   }
 
   let owner: string;
@@ -127,13 +131,13 @@ export async function verifyGithubToken(token: string, repoUrl: string | null): 
   try {
     ({ owner, repo } = parseRepoInfo(repoUrl));
   } catch {
-    return { ok: false, kind: 'token_rejected', error: githubFailureMessage('token_rejected') };
+    return { ok: false, kind: 'token_rejected', error: githubFailureMessage('token_rejected', locale) };
   }
 
   const { status, json, oauthScopes } = await get(token, `/repos/${owner}/${repo}`);
   if (status !== 200) {
     const kind = classifyGithubFailure(status);
-    return { ok: false, kind, error: githubFailureMessage(kind) };
+    return { ok: false, kind, error: githubFailureMessage(kind, locale) };
   }
 
   // `permissions` 는 fine-grained 토큰에서 «토큰에 준 권한»이 아니라 «그 사람의 레포 역할»로 보인다 —
@@ -141,7 +145,7 @@ export async function verifyGithubToken(token: string, repoUrl: string | null): 
   //   false → 확실히 못 쓴다(막는다) / true·없음 → 증명이 아니다(통과시키고, 실제 쓰기 403 을 no_push 로 읽는다 — github-auth.ts)
   const permissions = (json as { permissions?: { push?: unknown } })?.permissions;
   if (permissions?.push === false) {
-    return { ok: false, kind: 'no_push', error: githubFailureMessage('no_push') };
+    return { ok: false, kind: 'no_push', error: githubFailureMessage('no_push', locale) };
   }
 
   // 레포 응답엔 토큰 주인이 없다. 로그인은 표시용이라 실패해도 저장을 막지 않는다

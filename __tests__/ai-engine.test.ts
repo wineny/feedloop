@@ -153,13 +153,13 @@ describe('callAutoDev', () => {
   it('should throw on non-ok API response', async () => {
     mockGitHubAPIs();
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401, text: async () => 'Unauthorized' });
-    await expect(callAutoDev(baseOptions)).rejects.toThrow('Anthropic API 오류 (401)');
+    await expect(callAutoDev(baseOptions)).rejects.toThrow('Anthropic API error (401)');
   });
 
   it('should throw if response body is null', async () => {
     mockGitHubAPIs();
     mockFetch.mockResolvedValueOnce({ ok: true, body: null });
-    await expect(callAutoDev(baseOptions)).rejects.toThrow('응답 스트림이 없습니다');
+    await expect(callAutoDev(baseOptions)).rejects.toThrow('The response has no stream');
   });
 
   it('should throw if GITHUB_TOKEN is not set', async () => {
@@ -189,9 +189,9 @@ describe('callAutoDev', () => {
     await callAutoDev({ ...baseOptions, onProgress });
 
     const msgs = onProgress.mock.calls.map((c) => c[0]);
-    expect(msgs).toContain('피드백 분석 시작...');
-    expect(msgs).toContain('저장소 파일 트리 조회 중...');
-    expect(msgs.some((m: string) => m.includes('수정 대상 선정'))).toBe(true);
+    expect(msgs).toContain('Starting feedback analysis…');
+    expect(msgs).toContain('Reading the repository file tree…');
+    expect(msgs.some((m: string) => m.includes('Files to fix'))).toBe(true);
     expect(mockOctokit.pulls.create).not.toHaveBeenCalled();
   });
 
@@ -214,7 +214,7 @@ describe('callAutoDev', () => {
     mockGitHubAPIs();
 
     await expect(callAutoDev(baseOptions)).rejects.toThrow(
-      /저장소에 없는 경로를 수정 대상으로 지목/,
+      /path that is not in the repository/,
     );
 
     // 검증이 브랜치 생성보다 앞이므로 쓰레기 브랜치도 PR 도 남지 않는다
@@ -231,7 +231,7 @@ describe('callAutoDev', () => {
     mockGitHubAPIs();
 
     await expect(callAutoDev(baseOptions)).rejects.toThrow(
-      /저장소에 실제로 존재하는 수정 대상 파일을 찾지 못했습니다/,
+      /did not name any file that exists in the repository/,
     );
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
   });
@@ -304,7 +304,7 @@ describe('callAutoDev', () => {
       const onProgress = vi.fn();
       await fresh.prepareCodeFix({ ...baseOptions, botId: 'bot-1', onProgress });
       expect(octokitAuths).toEqual([BOT_TOKEN]);
-      expect(onProgress.mock.calls.map((c) => c[0])).toContain('봇에 등록된 GitHub 토큰으로 연결');
+      expect(onProgress.mock.calls.map((c) => c[0])).toContain("Connected with the bot's GitHub token");
     } finally {
       botTokenRow.current = null;
     }
@@ -321,7 +321,7 @@ describe('callAutoDev', () => {
       mockOctokit.repos.get.mockRejectedValueOnce(Object.assign(new Error('Forbidden'), { status: 403 }));
       await expect(fresh.prepareCodeFix({ ...baseOptions, botId: 'bot-1' })).rejects.toThrow('Forbidden');
       expect(failureRecords).toHaveLength(1);
-      expect(failureRecords[0]).toMatchObject({ github_token_failed_reason: expect.stringContaining('거부') });
+      expect(failureRecords[0]).toMatchObject({ github_token_failed_reason: 'token_rejected' });
     } finally {
       botTokenRow.current = null;
     }
@@ -451,13 +451,13 @@ export default function Page() { return null; }
 
     // 2-pass 프롬프트에 참고용 섹션으로 들어갔다 — 수정 대상 섹션이 아니라
     const patchPrompt: string = JSON.parse(mockFetch.mock.calls[1][1].body).messages[0].content;
-    expect(patchPrompt).toContain('참고용 원본');
+    expect(patchPrompt).toContain('Reference sources');
     expect(patchPrompt).toContain(SESSION_SOURCE.trim());
-    const targetSection = patchPrompt.split('## 참고용 원본')[0];
+    const targetSection = patchPrompt.split('## Reference sources')[0];
     expect(targetSection).toContain('app/app/coupons/page.tsx');
     expect(targetSection).not.toContain('app/lib/coupon-session.ts');
     // 참고용에 「고치지 말라」는 규칙이 붙어 있다
-    expect(patchPrompt).toContain('참고용 원본" 섹션의 파일은 files 에 넣지 마세요');
+    expect(patchPrompt).toContain('Do not put files from the "Reference sources" section in files');
 
     // PR 은 안 만들어졌다
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
@@ -493,7 +493,7 @@ export default function Page() { return null; }
     const result = await callAutoDev(options);
     const {composePrBody}=await import('@/lib/auto-dev/ai-engine');
     const body=composePrBody(result.fix,options.insight,result.fix.files,result.evidence,result.neighbors);
-    expect(body).toContain('## 함께 읽은 파일');
+    expect(body).toContain('## Files read for context');
     expect(body).toContain('`app/lib/coupon-session.ts`');
   });
 
@@ -513,11 +513,11 @@ export default function Page() { return null; }
     }));
     mockDemoRepo();
 
-    await expect(callAutoDev(options)).rejects.toThrow(/참고용 파일을 수정 대상으로 지목/);
+    await expect(callAutoDev(options)).rejects.toThrow(/context-only file as the file to change/);
     expect(mockFetch).toHaveBeenCalledTimes(3);
     // 재시도 프롬프트에서 coupon-session 은 «수정 대상» 섹션으로 올라갔다
     const retryPrompt: string = JSON.parse(mockFetch.mock.calls[2][1].body).messages[0].content;
-    expect(retryPrompt.split('## 참고용 원본')[0]).toContain('app/lib/coupon-session.ts');
+    expect(retryPrompt.split('## Reference sources')[0]).toContain('app/lib/coupon-session.ts');
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
   });
 
@@ -540,7 +540,7 @@ export default function Page() { return null; }
     });
 
     const patchPrompt: string = JSON.parse(mockFetch.mock.calls[1][1].body).messages[0].content;
-    expect(patchPrompt).toContain('레포에서 확인 안 됨');
+    expect(patchPrompt).toContain('⚠️ not found in the repo');
   });
 
   it('빈 본문으로 오는 이웃(1MB 초과)은 「실제 원본」으로 싣지 않는다', async () => {
@@ -573,7 +573,7 @@ export default function Page() { return null; }
       const onProgress = vi.fn();
       const prepared = await prepareCodeFix({ ...options, onProgress });
       expect(prepared.neighbors.map((n) => n.path)).not.toContain('app/lib/coupon-session.ts');
-      expect(onProgress.mock.calls.some((c) => String(c[0]).includes('건너뜀'))).toBe(true);
+      expect(onProgress.mock.calls.some((c) => String(c[0]).includes('Skipped'))).toBe(true);
     } finally {
       CONTENTS['app/lib/coupon-session.ts'] = SESSION_SOURCE;
     }
@@ -688,7 +688,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
   }
 
   const patchPromptAt = (i: number): string => JSON.parse(mockFetch.mock.calls[i][1].body).messages[0].content;
-  const targetSectionAt = (i: number): string => patchPromptAt(i).split('## 참고용 원본')[0];
+  const targetSectionAt = (i: number): string => patchPromptAt(i).split('## Reference sources')[0];
   const readPaths = () => mockOctokit.repos.getContent.mock.calls.map((c) => c[0].path as string);
 
   beforeEach(async () => {
@@ -720,7 +720,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     expect(prepared.fix.files.map((f) => f.path)).toEqual(['app/lib/board.ts']);
     // 화면(stream)에 왜 두 번 도는지 보인다
     const msgs = onProgress.mock.calls.map((c) => String(c[0]));
-    expect(msgs.some((m) => m.includes('추가 탐색 1/1') && m.includes('app/lib/board.ts'))).toBe(true);
+    expect(msgs.some((m) => m.includes('extra pass 1/1') && m.includes('app/lib/board.ts'))).toBe(true);
     // 3-pass 여부가 timings 에 따로 남는다
     expect(typeof prepared.timings.patch_retry).toBe('number');
     expect(typeof prepared.timings.patch).toBe('number');
@@ -737,11 +737,11 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     await prepareCodeFix(options);
 
     const first = patchPromptAt(1);
-    expect(first).toContain('## 레포 파일 목록 (requested_context 전용)');
+    expect(first).toContain('## Repository file list (for requested_context only)');
     // 1-pass 가 안 고른 정답 파일도 목록에 있어 모델이 경로를 지어내지 않아도 된다
-    expect(first.split('## 레포 파일 목록')[1]).toContain('app/lib/board.ts');
+    expect(first.split('## Repository file list')[1]).toContain('app/lib/board.ts');
     expect(first).toContain('"requested_context"');
-    expect(patchPromptAt(2)).not.toContain('## 레포 파일 목록');
+    expect(patchPromptAt(2)).not.toContain('## Repository file list');
   });
 
   it('requested_context 가 트리에 없는 경로뿐이면 root_cause_unknown 으로 멈춘다 (2-pass 재시도 없음)', async () => {
@@ -829,7 +829,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
 
     await expect(prepareCodeFix({ ...options, onProgress })).rejects.toThrow('root_cause_unknown');
     const msgs = onProgress.mock.calls.map((c) => String(c[0]));
-    expect(msgs.some((m) => m.includes('app/lib/nope.ts') && m.includes('더 열 수 없습니다'))).toBe(true);
+    expect(msgs.some((m) => m.includes('app/lib/nope.ts') && m.includes('cannot be opened'))).toBe(true);
   });
 
   it('analysis 에 경로가 없고 requested_context 도 없으면 종전처럼 「수정할 파일이 없습니다」 로 멈춘다', async () => {
@@ -837,7 +837,9 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     mockStream(emptyWithRequest(undefined, '이미 방어 코드가 있어 고칠 것이 없다'));
     mockRepo();
 
-    await expect(prepareCodeFix(options)).rejects.toThrow(/수정할 파일이 없습니다 — 이미 방어 코드가/);
+    const rejected = expect(prepareCodeFix(options)).rejects;
+    await rejected.toThrow(/no file to change/);
+    await rejected.toMatchObject({ code: 'no_files' });
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -857,7 +859,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     mockStream(emptyWithRequest(undefined, 'tsconfig.json 의 paths 와 package.json 의존성, README.md 를 봐도 고칠 지점이 없다'));
     mockRepo();
 
-    await expect(prepareCodeFix(options)).rejects.toThrow(/수정할 파일이 없습니다/);
+    await expect(prepareCodeFix(options)).rejects.toThrow(/no file to change/);
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(readPaths()).not.toContain('app/tsconfig.json');
   });
@@ -878,7 +880,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     const prepared = await prepareCodeFix({ ...options, onProgress });
     expect(prepared.fix.files.map((f) => f.path)).toEqual(['app/lib/spots.ts']);
     expect(targetSectionAt(2)).toContain(SPOTS_SOURCE);
-    expect(onProgress.mock.calls.some((c) => String(c[0]).includes('이미 읽은 내용으로 진행'))).toBe(true);
+    expect(onProgress.mock.calls.some((c) => String(c[0]).includes('continuing with what was already read'))).toBe(true);
   });
 
   it('시간 가드에 걸려 멈출 때도 AI 가 지목한 파일과 분석문을 남긴다', async () => {
@@ -894,7 +896,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
         () => prepareCodeFix({ ...options, onProgress }),
       ),
     ).rejects.toThrow('budget_exhausted');
-    const msg = onProgress.mock.calls.map((c) => String(c[0])).find((m) => m.includes('남은 시간'))!;
+    const msg = onProgress.mock.calls.map((c) => String(c[0])).find((m) => m.includes('left'))!;
     expect(msg).toContain('app/lib/board.ts');
     expect(msg).toContain('rankById');
   });
@@ -914,7 +916,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     expect(prepared.fix.files.map((f) => f.path)).toEqual(['app/lib/spots.ts']);
     expect(prepared.neighbors.map((n) => n.path)).not.toContain('app/lib/spots.ts');
     const msgs = onProgress.mock.calls.map((c) => String(c[0]));
-    expect(msgs.some((m) => m.includes('추가 탐색 1/1') && m.includes('app/lib/spots.ts'))).toBe(true);
+    expect(msgs.some((m) => m.includes('extra pass 1/1') && m.includes('app/lib/spots.ts'))).toBe(true);
     expect(typeof prepared.timings.patch_retry).toBe('number');
   });
 
@@ -931,7 +933,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     expect(readPaths()).toContain('app/lib/board.ts');
     expect(targetSectionAt(2)).toContain(BOARD_SOURCE.trim());
     expect(prepared.fix.files[0]).toMatchObject({ path: 'app/lib/board.ts', content: 'fixed-after-reading' });
-    expect(onProgress.mock.calls.some((c) => String(c[0]).includes('원본을 읽지 않은 파일') && String(c[0]).includes('추가 탐색 1/1'))).toBe(true);
+    expect(onProgress.mock.calls.some((c) => String(c[0]).includes('has not read') && String(c[0]).includes('extra pass 1/1'))).toBe(true);
   });
 
   it('트리엔 있지만 소스 필터 밖인 파일(package-lock.json·run_dev.sh)을 고치겠다고 하면 재시도 없이 바로 멈춘다', async () => {
@@ -946,7 +948,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     }));
     mockRepo();
 
-    await expect(prepareCodeFix(options)).rejects.toThrow(/원본을 읽지 않은 파일을 수정 대상으로 지목.*package-lock\.json.*run_dev\.sh/);
+    await expect(prepareCodeFix(options)).rejects.toThrow(/file it never read as the file to change.*package-lock\.json.*run_dev\.sh/);
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(readPaths()).not.toContain('app/package-lock.json');
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
@@ -958,7 +960,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     mockStream(fixFor('app/lib/util.ts'));
     mockRepo();
 
-    await expect(prepareCodeFix(options)).rejects.toThrow(/원본을 읽지 않은 파일을 수정 대상으로 지목/);
+    await expect(prepareCodeFix(options)).rejects.toThrow(/file it never read as the file to change/);
     expect(mockFetch).toHaveBeenCalledTimes(3);
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
   });
@@ -969,7 +971,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     mockStream(fixFor('app/lib/spots.ts'));
     mockRepo();
 
-    await expect(prepareCodeFix(options)).rejects.toThrow(/참고용 파일을 수정 대상으로 지목/);
+    await expect(prepareCodeFix(options)).rejects.toThrow(/context-only file as the file to change/);
     expect(mockFetch).toHaveBeenCalledTimes(3);
     expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
   });
@@ -989,7 +991,7 @@ export function isPick(id: string) { return rankById.get(id) === 1; }
     ).rejects.toThrow('budget_exhausted');
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(readPaths()).not.toContain('app/lib/board.ts');
-    expect(onProgress.mock.calls.some((c) => String(c[0]).includes('남은 시간'))).toBe(true);
+    expect(onProgress.mock.calls.some((c) => String(c[0]).includes('left'))).toBe(true);
   });
 
   it('남은 시간이 넉넉하면 예산 안에서도 재시도한다', async () => {
@@ -1112,17 +1114,17 @@ export default function RegionSelector() {
     const shas = mockOctokit.git.getBlob.mock.calls.map((c) => c[0].file_sha);
     expect(shas[0]).toBe('sha-region');
     expect(shas.length).toBeLessThanOrEqual(8);
-    expect(progress.some((m) => m.startsWith('짚은 요소를 저장소 원본과 대조: 2개 파일에서 확인'))).toBe(true);
+    expect(progress.some((m) => m.startsWith('Checked picked elements against the source: confirmed in 2 files'))).toBe(true);
 
     const selectionPrompt: string = JSON.parse(mockFetch.mock.calls[0][1].body).messages[0].content;
-    expect(selectionPrompt).toContain('레포 원본에서 확인됨, 이 파일이 그린다: app/components/RegionSelector.tsx, app/components/RegionSelector.module.css');
+    expect(selectionPrompt).toContain('confirmed in the repo source, rendered by: app/components/RegionSelector.tsx, app/components/RegionSelector.module.css');
     expect(selectionPrompt).toContain("data-testid 'region-jongno'");
-    expect(selectionPrompt).toContain('그 파일을 첫 후보로');
+    expect(selectionPrompt).toContain('put **that file first** among the candidates');
     expect(selectionPrompt).not.toContain('확인 못 함, 대조 불가):'); // 규칙 문장에도 같은 말이 있으니 판정 라벨(콜론)로 본다
 
     const body = composePrBody(prepared.fix, insight, [{ path: 'app/components/RegionSelector.tsx', action: 'modified' }], prepared.evidence);
-    expect(body).toContain('- 짚은 요소: 「서울 종로」 버튼 → `app/components/RegionSelector.tsx`');
-    expect(body).not.toContain('짚은 요소를 레포 원본에서 확인하지 못했습니다');
+    expect(body).toContain('- Picked element: "서울 종로" button → `app/components/RegionSelector.tsx`');
+    expect(body).not.toContain('was not found in the repository source');
     expect(body).not.toContain('html:');
     expect(prepared.evidence?.hasUnverifiedTargets).toBe(false);
   });
@@ -1140,13 +1142,13 @@ export default function RegionSelector() {
     const prepared = await prepareCodeFix({ ...options, onProgress: (m) => progress.push(m) });
 
     expect(mockOctokit.git.getBlob).toHaveBeenCalled(); // 읽긴 읽었다 — 안 읽어서 unknown 인 게 아니다
-    expect(progress.some((m) => /후보 \d+개를 읽었으나 확인 못 함/.test(m))).toBe(true);
+    expect(progress.some((m) => /read \d+ candidates, found nothing/.test(m))).toBe(true);
     const selectionPrompt: string = JSON.parse(mockFetch.mock.calls[0][1].body).messages[0].content;
-    expect(selectionPrompt).not.toContain('이 파일이 그린다: '); // 규칙 문장엔 같은 말이 있으니 판정 라벨(콜론)로 본다
-    expect(selectionPrompt).toContain('레포 원본에서 확인 못 함, 대조 불가');
+    expect(selectionPrompt).not.toContain('rendered by: '); // 규칙 문장엔 같은 말이 있으니 판정 라벨(콜론)로 본다
+    expect(selectionPrompt).toContain('not found in the repo source, cannot be matched');
     const body = composePrBody(prepared.fix, insight, [], prepared.evidence);
-    expect(body).toContain('짚은 요소를 레포 원본에서 확인하지 못했습니다');
-    expect(body).toContain('«짚은 요소» (검증되지 않은 입력');
+    expect(body).toContain('was not found in the repository source');
+    expect(body).toContain("Picked elements sent by the reporter's browser (unverified input");
     expect(prepared.evidence?.hasUnverifiedTargets).toBe(true);
   });
 
@@ -1159,8 +1161,8 @@ export default function RegionSelector() {
     const prepared = await prepareCodeFix({ ...options, onProgress: (m) => progress.push(m) });
 
     // 「후보 없음」이 아니라 「못 읽음」이라고 말해야 한다 — 권한 문제가 휴리스틱 실패로 읽히면 안 된다
-    expect(progress.some((m) => /후보 파일 \d+개를 하나도 읽지 못했습니다/.test(m))).toBe(true);
-    expect(progress.some((m) => m.includes('후보 파일이 없습니다'))).toBe(false);
+    expect(progress.some((m) => /Could not read any of the \d+ candidate files/.test(m))).toBe(true);
+    expect(progress.some((m) => m.includes('No candidate files'))).toBe(false);
     expect(prepared.fix.files[0].path).toBe('app/components/RegionSelector.tsx');
     expect(prepared.evidence?.hasUnverifiedTargets).toBe(true);
   });

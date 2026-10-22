@@ -20,6 +20,8 @@ interface WidgetHintSpec {
   hint: string;
   /** 프롬프트에 「시작 지점」으로 들어가는 이름. 칩이면 칩에 쓰인 문구 그대로다. */
   label: string;
+  /** 영어 위젯에 뜨는 칩 문구(messages/en/bots.json `chips.<hint>` 와 같다 — 테스트 대조). 칩이 아니면 없다. */
+  labelEn?: string;
   /** insights.category 후보 */
   category: string;
   /** 첫 화면 「의견 남기기」 줄에 칩으로 뜨는가 */
@@ -27,8 +29,8 @@ interface WidgetHintSpec {
 }
 
 export const WIDGET_HINTS = [
-  { hint: 'bug', label: '불편한 점이 있어요', category: 'bug', chip: true },
-  { hint: 'feature', label: '기능 제안이 있어요', category: 'feature_request', chip: true },
+  { hint: 'bug', label: '불편한 점이 있어요', labelEn: 'I have a problem', category: 'bug', chip: true },
+  { hint: 'feature', label: '기능 제안이 있어요', labelEn: 'I have a suggestion', category: 'feature_request', chip: true },
   // 시작 질문 칩이 쓰는 힌트. 칩 목록에는 없지만 서버가 받아들이는 유효한 값이다.
   // 예전의 「문의할 게 있어요」 칩을 대신한다 — 이제는 방문자가 막연한 문의 대신
   // 실제 질문 문장을 눌러 시작한다.
@@ -60,15 +62,13 @@ export function isWidgetHint(value: unknown): value is WidgetHint {
 
 /**
  * 힌트를 LLM 유저 메시지 뒤에 붙일 한 줄로 바꾼다. 힌트가 없으면 빈 문자열.
- *
- * 「시작 지점 = 」 꼴로 쓰는 이유는 조사 때문이다. 라벨을 문장에 그대로 끼우면
- * (`"자주 묻는 질문" 을 골라`) 받침에 따라 조사가 틀린다.
+ * 지시문이라 영어로 쓰고 칩 이름도 영어판(labelEn)을 싣는다 — 방문자가 한국어 칩을 눌렀어도 뜻은 같다.
  */
 export function hintLine(hint: WidgetHint | null | undefined): string {
   if (!hint) return '';
   const spec = WIDGET_HINTS.find((h) => h.hint === hint);
   if (!spec) return '';
-  return `\n\n(참고: 방문자의 시작 지점 = 「${spec.label}」. insight.category 는 "${spec.category}" 를 우선 고려하되, 내용이 다르면 내용을 따르세요.)`;
+  return `\n\n(Note: the visitor started from "${'labelEn' in spec ? spec.labelEn : 'a starter question'}". Prefer insight.category "${spec.category}", but follow the content if it says otherwise.)`;
 }
 
 // ── 칩 문장만 누른 첫 턴 ─────────────────────────────
@@ -89,7 +89,7 @@ export function hintLine(hint: WidgetHint | null | undefined): string {
  * [분류] 버튼이 다시 주워 새 인사이트로 만들면 같은 문제가 뒷문으로 재발하고,
  * pending 에 세면 「분류할 게 남았다」가 영원히 0 이 되지 않는다.
  */
-export const CHIP_ONLY_LABELS: readonly string[] = WIDGET_CHIPS.map((c) => c.label);
+export const CHIP_ONLY_LABELS: readonly string[] = WIDGET_CHIPS.flatMap((c) => [c.label, c.labelEn]);
 
 /**
  * 이 문장이 칩 라벨 «그대로» 인가.
@@ -115,9 +115,9 @@ export function isChipOnlyText(text: string): boolean {
  */
 export function chipOnlyLine(hint: WidgetHint | null | undefined): string {
   const spec = hint ? WIDGET_HINTS.find((h) => h.hint === hint) : undefined;
-  const label = spec?.chip ? `「${spec.label}」 ` : '';
+  const label = spec?.chip ? `"${spec.labelEn}" ` : '';
   return (
-    `\n\n(참고: 방문자가 ${label}칩만 눌렀고 아직 내용이 없다. ` +
-    `insight 는 null 로 두고, 어떤 점이 그랬는지 한 가지만 물어라.)`
+    `\n\n(Note: the visitor only tapped the ${label}chip and has not said anything yet. ` +
+    `Set insight to null and ask one question about what happened.)`
   );
 }

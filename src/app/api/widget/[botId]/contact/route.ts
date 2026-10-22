@@ -2,6 +2,7 @@
 // 로그인을 강제하지 않는 대신, 답장 받을 곳을 방문자가 직접 남긴다.
 
 import { NextRequest } from 'next/server';
+import { explicitWidgetLocale } from '@/i18n/server-locale';
 import { upsertConversation, saveContact, touchConversation } from '@/lib/bot/conversations';
 import { collapseWhitespace } from '@/lib/text';
 import {
@@ -26,7 +27,7 @@ export async function POST(
   const { botId } = await params;
 
   const bot = await resolveWidgetBot(botId);
-  if (!bot) return widgetError('봇을 찾을 수 없습니다', 404);
+  if (!bot) return widgetError(req, 'bot_not_found', 404);
 
   const body = await readJsonBody<{
     visitorId?: unknown;
@@ -38,7 +39,7 @@ export async function POST(
   const payload = body.value;
 
   const { visitorId } = payload;
-  if (!isUuid(visitorId)) return widgetError('visitorId 형식이 올바르지 않습니다', 400);
+  if (!isUuid(visitorId)) return widgetError(req, 'invalid_visitor', 400);
 
   // ⚠️ `.trim()` 만으로는 부족하다 — 앞뒤 공백만 없애고 **내부 개행은 남긴다**.
   // 이 값(`name`)은 `messages.author_name` 으로 저장돼 분류 프롬프트에 실리는데,
@@ -55,8 +56,8 @@ export async function POST(
   const email = field(payload.email);
   const phone = field(payload.phone);
 
-  if (!name && !email && !phone) return widgetError('입력된 연락처가 없습니다', 400);
-  if (email && !EMAIL_RE.test(email)) return widgetError('이메일 형식을 확인해주세요', 400);
+  if (!name && !email && !phone) return widgetError(req, 'contact_empty', 400);
+  if (email && !EMAIL_RE.test(email)) return widgetError(req, 'email_invalid', 400);
 
   const limited = await checkWriteRate(req, botId, visitorId);
   if (limited) return limited;
@@ -65,11 +66,12 @@ export async function POST(
     botId,
     source: 'web',
     externalUserId: visitorId,
+    locale: explicitWidgetLocale(req),
   });
-  if (!conversation) return widgetError('대화를 열지 못했습니다', 500);
+  if (!conversation) return widgetError(req, 'conversation_failed', 500);
 
   const saved = await saveContact(conversation.id, { name, email, phone });
-  if (!saved) return widgetError('연락처를 저장하지 못했습니다', 500);
+  if (!saved) return widgetError(req, 'contact_save_failed', 500);
   // 연락처가 «실제로 남은 뒤» 시각을 찍는다 — 운영자가 볼 리드가 생겼으니 미읽음·상단으로(2026-09-17 ny).
   // upsert 만 성공하고 여기서 실패한 행은 시각이 없어 목록 맨 뒤·미읽음 꺼짐으로 남는다.
   await touchConversation(conversation.id);

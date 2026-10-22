@@ -6,6 +6,7 @@ vi.mock('react', async importOriginal => ({
   useState: (value: unknown) => [value, vi.fn()],
   useEffect: (effect: () => void | (() => void)) => hooks.effects.push(effect),
 }));
+vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 import { TerminalLog } from '@/components/monitor/TerminalLog';
 import { runState } from '@/components/monitor/RunBadge';
 afterEach(() => { hooks.effects.length = 0; vi.unstubAllGlobals(); });

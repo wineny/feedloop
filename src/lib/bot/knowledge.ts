@@ -26,7 +26,7 @@ export type KnowledgeValues = {
 
 export type KnowledgeResult =
   | { ok: true; values: KnowledgeValues }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code: string; vars?: Record<string, string | number> };
 
 /**
  * PATCH body 를 답변 지식 값으로 정규화한다.
@@ -40,7 +40,7 @@ export type KnowledgeResult =
  */
 export function validateKnowledgeInput(body: unknown): KnowledgeResult {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return { ok: false, error: '잘못된 요청 형식입니다' };
+    return { ok: false, error: '잘못된 요청 형식입니다', code: 'badRequest' };
   }
 
   const input = body as Record<string, unknown>;
@@ -51,7 +51,7 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
     if (raw === null || raw === undefined) {
       values.knowledge_text = null;
     } else if (typeof raw !== 'string') {
-      return { ok: false, error: '답변 지식은 문자열이어야 합니다' };
+      return { ok: false, error: '답변 지식은 문자열이어야 합니다', code: 'knowledge.textNotString' };
     } else {
       const trimmed = raw.trim();
       if (!trimmed) {
@@ -60,6 +60,8 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
         return {
           ok: false,
           error: `답변 지식은 ${KNOWLEDGE_LIMITS.text.toLocaleString('en-US')}자까지 입력할 수 있습니다 (지금 ${trimmed.length.toLocaleString('en-US')}자)`,
+          code: 'knowledge.textTooLong',
+          vars: { max: KNOWLEDGE_LIMITS.text, count: trimmed.length },
         };
       } else {
         values.knowledge_text = trimmed;
@@ -72,13 +74,13 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
     if (raw === null || raw === undefined) {
       values.knowledge_faq = [];
     } else if (!Array.isArray(raw)) {
-      return { ok: false, error: 'FAQ 는 목록이어야 합니다' };
+      return { ok: false, error: 'FAQ 는 목록이어야 합니다', code: 'knowledge.faqNotList' };
     } else {
       const items: FaqItem[] = [];
 
       for (const entry of raw) {
         if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-          return { ok: false, error: 'FAQ 항목은 질문과 답변을 가진 객체여야 합니다' };
+          return { ok: false, error: 'FAQ 항목은 질문과 답변을 가진 객체여야 합니다', code: 'knowledge.faqItemShape' };
         }
         const { q, a } = entry as Record<string, unknown>;
 
@@ -86,7 +88,7 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
         if (q === null || q === undefined) continue;
         if (a === null || a === undefined) continue;
         if (typeof q !== 'string' || typeof a !== 'string') {
-          return { ok: false, error: 'FAQ 의 질문과 답변은 문자열이어야 합니다' };
+          return { ok: false, error: 'FAQ 의 질문과 답변은 문자열이어야 합니다', code: 'knowledge.faqNotString' };
         }
 
         const question = q.trim();
@@ -94,10 +96,15 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
         if (!question || !answer) continue;
 
         if (question.length > KNOWLEDGE_LIMITS.faqQuestion) {
-          return { ok: false, error: `FAQ 질문은 ${KNOWLEDGE_LIMITS.faqQuestion}자까지 입력할 수 있습니다` };
+          return { ok: false, error: `FAQ 질문은 ${KNOWLEDGE_LIMITS.faqQuestion}자까지 입력할 수 있습니다`, code: 'knowledge.faqQuestionTooLong', vars: { max: KNOWLEDGE_LIMITS.faqQuestion } };
         }
         if (answer.length > KNOWLEDGE_LIMITS.faqAnswer) {
-          return { ok: false, error: `FAQ 답변은 ${KNOWLEDGE_LIMITS.faqAnswer.toLocaleString('en-US')}자까지 입력할 수 있습니다` };
+          return {
+            ok: false,
+            error: `FAQ 답변은 ${KNOWLEDGE_LIMITS.faqAnswer.toLocaleString('en-US')}자까지 입력할 수 있습니다`,
+            code: 'knowledge.faqAnswerTooLong',
+            vars: { max: KNOWLEDGE_LIMITS.faqAnswer },
+          };
         }
 
         items.push({ q: question, a: answer });
@@ -108,6 +115,8 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
         return {
           ok: false,
           error: `FAQ 는 ${KNOWLEDGE_LIMITS.faqItems}개까지 넣을 수 있습니다 (지금 ${items.length}개)`,
+          code: 'knowledge.faqTooMany',
+          vars: { max: KNOWLEDGE_LIMITS.faqItems, count: items.length },
         };
       }
 
@@ -116,7 +125,7 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
   }
 
   if (Object.keys(values).length === 0) {
-    return { ok: false, error: '변경할 항목이 없습니다' };
+    return { ok: false, error: '변경할 항목이 없습니다', code: 'nothingToChange' };
   }
 
   return { ok: true, values };
@@ -125,7 +134,7 @@ export function validateKnowledgeInput(body: unknown): KnowledgeResult {
 /**
  * 프롬프트에 실을 문자열로 직렬화한다.
  *
- * 빈 값이면 «빈 문자열»을 준다. 호출부(prompts.ts)가 그걸 보고 「## 답변 지식」
+ * 빈 값이면 «빈 문자열»을 준다. 호출부(prompts.ts)가 그걸 보고 「## Answer knowledge」
  * 섹션과 규칙을 통째로 지운다 — 빈 섹션을 남기면 모델이 그 공백을 채우려 들고,
  * 지식이 아직 0인 봇에게 "지식에 있는 것만 답해라"를 걸면 아무 말도 못 하게 된다.
  */
@@ -138,7 +147,7 @@ export function renderKnowledge(text: string | null | undefined, faq: FaqItem[] 
   const items = (faq ?? []).filter((f) => f && f.q?.trim() && f.a?.trim());
   if (items.length > 0) {
     const rendered = items.map((f) => `Q: ${f.q.trim()}\nA: ${f.a.trim()}`).join('\n\n');
-    parts.push(`### 자주 묻는 질문\n${rendered}`);
+    parts.push(`### FAQ\n${rendered}`);
   }
 
   return parts.join('\n\n');

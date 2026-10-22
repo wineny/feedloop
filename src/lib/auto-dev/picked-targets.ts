@@ -24,8 +24,10 @@ const MAX_TARGETS = 3;
 const MAX_LABEL = 80;
 /** `- 짚은 요소: 「서울 종로」 버튼 → \`a\`, \`b\` 이(가) 그린다 (원본에서 확인: …)` */
 const CONFIRMED_LINE = /^- 짚은 요소: (.+?) → (.+?) 이\(가\) 그린다(?: \(원본에서 확인: (.*)\))?\s*$/;
-/** 미확인 절 머리. 1차 「DOM 값이라 레포와 대조 불가」·3차 「레포 원본에서 확인하지 못함」 둘 다 */
-const UNVERIFIED_HEAD = /^제보자 브라우저가 보낸 «짚은 요소»/;
+/** 영어판(i18n 4d 이후 PR 본문): `- Picked element: "Join" button → \`a\`, \`b\` renders it (verified in the source: …)` */
+const CONFIRMED_LINE_EN = /^- Picked element: (.+?) → (.+?) renders it(?: \(verified in the source: (.*)\))?\s*$/;
+/** 미확인 절 머리. 1차 「DOM 값이라 레포와 대조 불가」·3차 「레포 원본에서 확인하지 못함」 둘 다, 영어판도 */
+const UNVERIFIED_HEAD = /^(?:제보자 브라우저가 보낸 «짚은 요소»|Picked elements sent by the reporter's browser)/;
 /** 미확인 절의 요소 첫 줄 `· 「x」 버튼 <button> — 페이지 … (2건)` */
 const UNVERIFIED_ITEM = /^· (.+?) <[a-z0-9-]+>/i;
 
@@ -47,7 +49,7 @@ export function extractPickedTargets(prBody: string | null | undefined): PickedT
   for (const raw of lines) {
     const line = raw.replace(/\r$/, '');
     if (out.length >= MAX_TARGETS) break;
-    const c = line.match(CONFIRMED_LINE);
+    const c = line.match(CONFIRMED_LINE) ?? line.match(CONFIRMED_LINE_EN);
     if (c) {
       const files = Array.from(c[2].matchAll(/`([^`]+)`/g), (m) => m[1].trim()).filter(Boolean).slice(0, 3);
       if (files.length === 0) continue;

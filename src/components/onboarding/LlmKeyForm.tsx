@@ -14,6 +14,8 @@
 //     — 잘못된 이름은 저장은 되고 «첫 답변에서» 실패로 드러난다
 
 import { useCallback, useEffect, useState } from 'react';
+import { useFormatter, useTranslations } from 'next-intl';
+import { validationText } from '@/lib/i18n/message';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertTriangle, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,12 +24,12 @@ import { MODELS, PROVIDER_LABELS, modelLabel, validateModelId, type LlmProvider 
 // 클라이언트 번들에 실을 이유가 없다 — 그래서 의존성 0 인 key-format.ts 로 나눠 뒀다.
 import { checkKeyFormat } from '@/lib/llm/key-format';
 import { DEFAULT_LIMITS, PLATFORM_MODEL_LABEL, limitAfterKeyRemoval } from '@/lib/llm/limits';
-import { HOLDING_MESSAGE } from '@/lib/bot/holding';
 // 3단계 입력 마크업은 등록 화면(`/bots/new`)과 한 벌을 쓴다.
 import { LlmKeyFields, ModelPicker } from '@/components/onboarding/LlmKeyFields';
 // 「자동」·「직접 입력」을 접는 규칙은 의존성 0 인 원본에서 직접 가져온다 —
 // 컴포넌트 파일을 경유해 재수출하면 값이 어디서 오는지가 한 겹 흐려진다.
 import { CUSTOM_MODEL, draftModelValue } from '@/lib/llm/model-choice';
+import { dynamicT } from '@/i18n/dynamic';
 
 interface LlmKeyFormProps {
   botId: string;
@@ -53,6 +55,10 @@ type Mode = 'view' | 'key' | 'model';
 type Status = { kind: 'ok' | 'error'; message: string } | null;
 
 export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
+  const t = useTranslations('llm');
+  const tc = useTranslations('common');
+  const tInbox = useTranslations('inbox');
+  const tRoot = dynamicT(useTranslations());
   const [state, setState] = useState<KeyState | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [mode, setMode] = useState<Mode>('view');
@@ -107,14 +113,14 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
   if (loadError) {
     return (
       <p className="py-6 text-sm text-destructive">
-        키 설정을 불러오지 못했습니다. 새로고침해 주세요.
+        {t('form.loadError')}
       </p>
     );
   }
   if (!state) {
     return (
       <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> 불러오는 중…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t('form.loading')}
       </p>
     );
   }
@@ -133,7 +139,7 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
       const res = await fetch(`/api/bots/${botId}/llm-key`, init);
       const data = (await res.json().catch(() => null)) as (KeyState & { error?: string }) | null;
       if (!res.ok) {
-        setStatus({ kind: 'error', message: data?.error ?? '저장하지 못했습니다' });
+        setStatus({ kind: 'error', message: data?.error ?? t('form.errors.save') });
         return;
       }
       if (data) {
@@ -145,7 +151,7 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
       setMode(data?.hasKey ? 'view' : 'key');
       setStatus({ kind: 'ok', message: okMessage });
     } catch {
-      setStatus({ kind: 'error', message: '네트워크 오류로 저장하지 못했습니다' });
+      setStatus({ kind: 'error', message: t('form.errors.network') });
     } finally {
       setBusy(false);
     }
@@ -158,7 +164,7 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, key, model: draftModel }),
       },
-      '키를 확인하고 저장했어요. 지금부터 이 키로 답합니다',
+      t('form.status.keySaved'),
     );
 
   const saveModel = () =>
@@ -168,11 +174,11 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: draftModel }),
       },
-      '모델을 바꿨어요. 키는 그대로입니다',
+      t('form.status.modelChanged'),
     );
 
   const removeKey = () =>
-    send({ method: 'DELETE' }, '키를 제거했어요. 이제 기본 설정으로 답합니다');
+    send({ method: 'DELETE' }, t('form.status.keyRemoved'));
 
   return (
     <div className="flex max-w-[660px] flex-col gap-6">
@@ -183,10 +189,10 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
           <div className="space-y-0.5 text-sm">
             <p className="font-semibold text-destructive">
-              {state.failedReason ?? '마지막 호출이 실패했어요'}
+              {state.failedReason ?? t('form.lastCallFailed')}
             </p>
             <p className="text-xs text-muted-foreground">
-              그 사이 들어온 피드백은 저장돼 있고 「대화」에서 볼 수 있어요. 잃은 건 자동 답변뿐입니다.
+              {t('form.failedNote')}
             </p>
           </div>
         </div>
@@ -227,7 +233,7 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
           ) : (
             /* 키가 이미 있는 봇에서 모델만 바꾸는 모드 — 키를 다시 묻지 않는다(§B-3). */
             <section className="space-y-2">
-              <h2 className="text-sm font-semibold">모델 바꾸기</h2>
+              <h2 className="text-sm font-semibold">{t('form.changeModelTitle')}</h2>
               <ModelPicker
                 provider={provider}
                 choice={modelChoice}
@@ -236,18 +242,18 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
                 onChoice={setModelChoice}
                 onCustom={setCustomModel}
               />
-              {!modelCheck.ok && <p className="text-xs text-destructive">{modelCheck.error}</p>}
+              {!modelCheck.ok && <p className="text-xs text-destructive">{validationText(tRoot, modelCheck)}</p>}
             </section>
           )}
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
             {mode === 'key' ? (
               <Button onClick={saveKey} disabled={busy || !key || !keyCheck.ok || !modelCheck.ok}>
-                {busy ? <Loader2 className="animate-spin" /> : '확인하고 저장'}
+                {busy ? <Loader2 className="animate-spin" /> : t('form.verifyAndSave')}
               </Button>
             ) : (
               <Button onClick={saveModel} disabled={busy || !modelCheck.ok}>
-                {busy ? <Loader2 className="animate-spin" /> : '모델 저장'}
+                {busy ? <Loader2 className="animate-spin" /> : t('form.saveModel')}
               </Button>
             )}
             {state.hasKey && (
@@ -261,7 +267,7 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
                   setMode('view');
                 }}
               >
-                취소
+                {t('form.cancel')}
               </Button>
             )}
           </div>
@@ -282,11 +288,13 @@ export function LlmKeyForm({ botId, serviceName }: LlmKeyFormProps) {
       {/* 상한 예외(daily_reply_limit)가 걸린 봇에는 첫 문장이 거짓이 된다 — 예외가 이기므로 숨긴다 */}
       {!state.dailyLimitOverridden && !state.hasKey && (
         <p className="text-xs leading-relaxed text-muted-foreground">
-          키를 넣지 않으면 {serviceName} 봇은 하루 {DEFAULT_LIMITS.noKey.toLocaleString('ko-KR')}건까지
-          무료로 답해요(기본 모델 {PLATFORM_MODEL_LABEL}). 답변 지식에 없는 사실 질문은 지어내지 않고
-          &ldquo;{HOLDING_MESSAGE}&rdquo;로 넘겨 「대화」에 &ldquo;담당자 확인 필요&rdquo;로
-          표시됩니다. 내 API 키를 넣으면 모델을 직접 고르고 한도 없이 답해요. 요금은 내 키로
-          청구됩니다.
+          {t('form.freeNote', {
+            name: serviceName,
+            limit: DEFAULT_LIMITS.noKey,
+            model: PLATFORM_MODEL_LABEL,
+            holding: tc('holdingMessage'),
+            badge: tInbox('needsReply'),
+          })}
         </p>
       )}
     </div>
@@ -316,28 +324,22 @@ function BudgetNotice({
   draftProvider: LlmProvider;
   editing: boolean;
 }) {
+  const t = useTranslations('llm.form.budget');
   const showUpgrade = editing && !state.hasKey && !state.dailyLimitOverridden;
+  const b = (chunks: React.ReactNode) => <b className="font-semibold text-foreground">{chunks}</b>;
 
   if (state.dailyLimit === null) {
-    return (
-      <p className="text-sm leading-relaxed text-muted-foreground">
-        내 키로 <b className="font-semibold text-foreground">한도 없이</b> 답해요. 요금은 그 키로 청구됩니다.
-      </p>
-    );
+    return <p className="text-sm leading-relaxed text-muted-foreground">{t.rich('noLimit', { b })}</p>;
   }
+
+  const free = !state.hasKey && !state.dailyLimitOverridden;
+  const bNum = (chunks: React.ReactNode) => <b className="font-semibold tabular-nums text-foreground">{chunks}</b>;
 
   return (
     <p className="text-sm leading-relaxed text-muted-foreground">
-      지금은 하루 <b className="font-semibold tabular-nums text-foreground">{state.dailyLimit.toLocaleString('ko-KR')}건</b>
-      까지 {!state.hasKey && !state.dailyLimitOverridden ? '무료로' : '자동으로'} 답해요.
-      {!state.hasKey && !state.dailyLimitOverridden && ` 기본 모델은 ${PLATFORM_MODEL_LABEL} 입니다.`}
-      {showUpgrade && (
-        <>
-          {' '}
-          {PROVIDER_LABELS[draftProvider]} 키를 넣으면 <b className="font-semibold text-foreground">한도 없이</b> 답하고,
-          요금은 그 키로 청구됩니다.
-        </>
-      )}
+      {t.rich(free ? 'freeLimit' : 'autoLimit', { limit: state.dailyLimit, b: bNum })}
+      {free && ` ${t('defaultModel', { model: PLATFORM_MODEL_LABEL })}`}
+      {showUpgrade && <> {t.rich('upgrade', { provider: PROVIDER_LABELS[draftProvider], b })}</>}
     </p>
   );
 }
@@ -361,34 +363,36 @@ function SavedKeyCard({
   onCancelRemove: () => void;
   onRemove: () => void;
 }) {
+  const t = useTranslations('llm');
+  const format = useFormatter();
   const provider = state.provider;
   return (
     <div className="flex flex-col gap-5 border-t border-border pt-5">
       <div className="flex items-start gap-2.5">
         <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <dl className="grid flex-1 gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]">
-          <dt className="text-muted-foreground">제공사</dt>
-          <dd className="font-medium">{provider ? PROVIDER_LABELS[provider] : '알 수 없음'}</dd>
+          <dt className="text-muted-foreground">{t('form.saved.provider')}</dt>
+          <dd className="font-medium">{provider ? PROVIDER_LABELS[provider] : t('form.saved.unknown')}</dd>
 
-          <dt className="text-muted-foreground">모델</dt>
+          <dt className="text-muted-foreground">{t('form.saved.model')}</dt>
           <dd className="font-medium">
             {state.model
               ? provider
                 ? modelLabel(provider, state.model)
                 : state.model
-              : `(기본) ${state.effectiveModel ?? '-'}`}
+              : t('form.saved.defaultModel', { model: state.effectiveModel ?? '-' })}
           </dd>
 
-          <dt className="text-muted-foreground">키</dt>
+          <dt className="text-muted-foreground">{t('form.saved.key')}</dt>
           <dd className="font-medium tabular-nums">
-            {state.keyLast4 ? `…${state.keyLast4}` : '저장됨'}
+            {state.keyLast4 ? `…${state.keyLast4}` : t('form.saved.stored')}
           </dd>
 
           {state.verifiedAt && (
             <>
-              <dt className="text-muted-foreground">확인한 날</dt>
+              <dt className="text-muted-foreground">{t('form.saved.verifiedOn')}</dt>
               <dd className="tabular-nums text-muted-foreground">
-                {new Date(state.verifiedAt).toLocaleDateString('ko-KR')}
+                {format.dateTime(new Date(state.verifiedAt), { dateStyle: 'medium' })}
               </dd>
             </>
           )}
@@ -398,27 +402,27 @@ function SavedKeyCard({
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
         {/* 모델만 바꿀 때는 키를 다시 묻지 않는다 */}
         <Button variant="outline" size="sm" disabled={busy} onClick={onChangeModel}>
-          모델 변경
+          {t('form.saved.changeModel')}
         </Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={onReplaceKey}>
-          키 교체
+          {t('form.saved.replaceKey')}
         </Button>
         {confirmRemove ? (
           <>
             <Button variant="destructive" size="sm" disabled={busy} onClick={onRemove}>
-              {busy ? <Loader2 className="animate-spin" /> : '정말 제거'}
+              {busy ? <Loader2 className="animate-spin" /> : t('form.saved.confirmRemove')}
             </Button>
             <Button variant="ghost" size="sm" disabled={busy} onClick={onCancelRemove}>
-              취소
+              {t('form.cancel')}
             </Button>
             <span className="text-xs text-muted-foreground">
               {/* 숫자를 박지 않는다 — 상한 예외 봇은 예외 값으로 돌아간다(I-26) */}
-              제거하면 기본 설정(무료 하루 {limitAfterKeyRemoval(state).toLocaleString('ko-KR')}건)으로 돌아가요.
+              {t('form.saved.removeNote', { limit: limitAfterKeyRemoval(state) })}
             </span>
           </>
         ) : (
           <Button variant="ghost" size="sm" disabled={busy} onClick={onAskRemove}>
-            키 제거
+            {t('form.saved.remove')}
           </Button>
         )}
       </div>

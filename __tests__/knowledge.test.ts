@@ -126,7 +126,7 @@ describe('renderKnowledge', () => {
   it('FAQ 만 있고 텍스트가 없어도 정상 직렬화한다', () => {
     const rendered = renderKnowledge(null, [{ q: '환불되나요?', a: '7일 안에 가능해요' }]);
 
-    expect(rendered).toContain('자주 묻는 질문');
+    expect(rendered).toContain('### FAQ');
     expect(rendered).toContain('Q: 환불되나요?');
     expect(rendered).toContain('A: 7일 안에 가능해요');
   });
@@ -172,40 +172,42 @@ describe('getSystemPrompt — 지식 유무에 따라 다른 답변 규칙이 �
     knowledge: '',
   };
 
-  it('지식이 비면 「지식 없음」 규칙이 대신 들어간다 — 대기 문구와 서비스 이름을 담고, 지식 섹션은 없다', () => {
+  it('지식이 비면 「지식 없음」 규칙이 대신 들어간다 — hold 지시와 서비스 이름을 담고, 지식 섹션은 없다', () => {
     const prompt = getSystemPrompt(baseProfile);
 
-    expect(prompt).toContain('## 답변 규칙 (지식 없음)');
+    expect(prompt).toContain('## Answer rules (no knowledge)');
 
     // 섹션 «안»만 본다. 서비스 이름도 「피드백」도 프롬프트 다른 곳에 이미 있어서,
     // 전체 문자열로 재면 이 섹션이 통째로 비어 있어도 초록이 된다.
-    const section = sectionOf(prompt, '## 답변 규칙 (지식 없음)');
-    expect(section).toContain(HOLDING_MESSAGE);
+    const section = sectionOf(prompt, '## Answer rules (no knowledge)');
+    // 대기 문장은 모델이 쓰지 않는다 — 플래그를 켜라고 시키고, 문장은 서버가 방문자 언어로 넣는다(holding.ts)
+    expect(section).toContain('"hold" to true');
+    expect(section).not.toContain(HOLDING_MESSAGE);
     // 「너는 널널투어 의 정책·수량…을 모른다」 — 서비스 이름이 그 문장 «안에» 들어간다.
     // 자리표시자를 썼다면 단일 패스 fillTemplate 때문에 리터럴로 남는다.
     expect(section).toContain('널널투어');
     expect(section).not.toContain('{{service_name}}');
     // 피드백까지 대기 문구로 넘기면 「모든 질문에 팀 확인」 회귀다 — 가르는 문장이 있어야 한다
-    expect(section).toContain('피드백');
+    expect(section).toContain('Feedback');
 
-    expect(prompt).not.toContain('## 답변 지식');
+    expect(prompt).not.toContain('## Answer knowledge');
     expect(prompt).not.toContain('{{knowledge}}');
   });
 
-  it('지식이 있으면 본문과 규칙 3줄이 함께 들어간다 — 대기 문구는 그대로 인용된다', () => {
+  it('지식이 있으면 본문과 규칙 3줄이 함께 들어간다 — 근거가 없으면 hold 를 켜라고 시킨다', () => {
     const prompt = getSystemPrompt({
       ...baseProfile,
       knowledge: renderKnowledge('쿠폰은 결제 화면에서 적용됩니다.', [{ q: '환불?', a: '7일 안에' }]),
     });
 
-    expect(prompt).toContain('## 답변 지식');
+    expect(prompt).toContain('## Answer knowledge');
     expect(prompt).toContain('쿠폰은 결제 화면에서 적용됩니다.');
     expect(prompt).toContain('Q: 환불?');
-    expect(prompt).toContain('지어내지');
+    expect(prompt).toContain('never make it up');
     expect(prompt).toContain('escalate');
-    expect(prompt).toContain(HOLDING_MESSAGE);
+    expect(sectionOf(prompt, '## Answer rules (knowledge)')).toContain('"hold" to true');
     // 두 규칙이 동시에 들어가면 모델이 상반된 지시를 받는다
-    expect(prompt).not.toContain('(지식 없음)');
+    expect(prompt).not.toContain('(no knowledge)');
   });
 });
 
@@ -308,8 +310,8 @@ describe('CS 답변 프롬프트는 시스템이 이미 실은 것을 다시 싣
     const cs = getCsAnswerPrompt(profile, '환불 되나요?');
 
     expect(cs).not.toContain('## FAQ');
-    expect(cs).not.toContain('## 서비스 정보');
-    expect(getSystemPrompt(profile)).toContain('## 서비스 맥락');
+    expect(cs).not.toContain('## Service context');
+    expect(getSystemPrompt(profile)).toContain('## Service context');
   });
 
   // 지식이 0 인 봇의 기존 동작을 깨지 않는 것이 이 변경의 조건이다. CS 프롬프트가
@@ -320,9 +322,10 @@ describe('CS 답변 프롬프트는 시스템이 이미 실은 것을 다시 싣
 
     expect(cs).toContain('환불 되나요?');
     expect(cs).toContain('널널투어');
-    expect(cs).not.toContain('답변 지식에 있는 내용만');
-    // 근거에 없을 때 쓰라고 시키는 문장은 holding.ts 것 하나뿐이다
-    expect(cs).toContain(HOLDING_MESSAGE);
+    expect(cs).not.toContain('Answer only from');
+    // 근거에 없으면 문장 대신 플래그 — 대기 문장은 서버가 방문자 언어로 넣는다(holding.ts)
+    expect(cs).toContain('"hold": true');
+    expect(cs).not.toContain(HOLDING_MESSAGE);
     // 치환되지 않고 남은 자리표시자가 없다
     expect(cs).not.toContain('{{');
   });

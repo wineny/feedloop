@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { DemoHint } from '@/components/demo/DemoHint';
 
@@ -22,29 +23,33 @@ interface GroupingStatusLineProps {
   refreshMs?: number;
 }
 
-/** 순수 함수 — 테스트한다. 상태를 한 문장으로. */
-export function describeGroupingStatus(status: GroupingStatus, now = Date.now()): { text: string; waiting: boolean } {
-  if (status.pending === 0) return { text: '안 묶인 피드백이 없어요', waiting: false };
-  if (status.running) return { text: `${status.pending}건을 지금 묶는 중이에요`, waiting: true };
+/**
+ * 상태를 사전 키(`dashboard.grouping.<key>`)와 인자로 돌려준다. 순수 함수 — 테스트한다.
+ * due 가 지났는데 아직 클레임 전이면 대기하던 함수가 막 깨어나는 찰나다(클레임이 due 를 비운다).
+ * 30초 안이면 「곧」으로 두고 계속 다시 읽는다. 그 뒤에도 남아 있으면 그 함수는 죽은 것이다.
+ */
+export function groupingStatusMessage(
+  status: GroupingStatus,
+  now = Date.now(),
+): { key: 'none' | 'running' | 'due' | 'soon' | 'idle'; vars: { count: number; secs?: number }; waiting: boolean } {
+  const count = status.pending;
+  if (count === 0) return { key: 'none', vars: { count }, waiting: false };
+  if (status.running) return { key: 'running', vars: { count }, waiting: true };
   const dueMs = status.dueAt ? new Date(status.dueAt).getTime() - now : NaN;
   if (Number.isFinite(dueMs) && dueMs > 0) {
-    const secs = Math.max(5, Math.round(dueMs / 5000) * 5);
-    return { text: `${status.pending}건 · 약 ${secs}초 뒤 자동으로 묶어요 (보충 제보를 기다리는 중)`, waiting: true };
+    return { key: 'due', vars: { count, secs: Math.max(5, Math.round(dueMs / 5000) * 5) }, waiting: true };
   }
-  // due 는 지났는데 아직 클레임 전 — 대기하던 함수가 막 깨어나는 찰나다(클레임이 due 를 비운다).
-  // 30초 안이면 「곧」으로 두고 계속 다시 읽는다. 그 뒤에도 남아 있으면 그 함수는 죽은 것이다.
-  if (Number.isFinite(dueMs) && dueMs > -30_000) {
-    return { text: `${status.pending}건을 곧 묶어요`, waiting: true };
-  }
-  // 예정도 진행도 없는데 안 묶였다 — 화면을 연 것이 catch-up 을 걸었으니 곧 잡히고, 버튼으로 바로도 된다.
-  return { text: `${status.pending}건이 아직 안 묶였어요`, waiting: false };
+  if (Number.isFinite(dueMs) && dueMs > -30_000) return { key: 'soon', vars: { count }, waiting: true };
+  return { key: 'idle', vars: { count }, waiting: false };
 }
 
 export function GroupingStatusLine({ status, onRunNow, running, hint = null, onRefresh, refreshMs = 10_000 }: GroupingStatusLineProps) {
+  const t = useTranslations('dashboard.grouping');
   const [now, setNow] = useState(() => Date.now());
 
   // 상태를 못 읽었으면(마이그레이션이 늦은 배포 등) 문장은 없지만 [지금 묶기]는 살아 있어야 한다.
-  const described = status ? describeGroupingStatus(status, now) : { text: '묶기 상태를 읽지 못했어요', waiting: false };
+  const msg = status ? groupingStatusMessage(status, now) : null;
+  const described = { text: msg ? t(msg.key, msg.vars) : t('unreadable'), waiting: msg?.waiting ?? false };
   const waiting = described.waiting;
 
   // 「약 N초 뒤」가 멈춘 숫자로 보이지 않게 5초마다 다시 센다 — 기다리는 동안만.
@@ -91,7 +96,7 @@ export function GroupingStatusLine({ status, onRunNow, running, hint = null, onR
             className="inline-flex items-center gap-1 text-sm font-semibold text-brand-strong disabled:opacity-50"
           >
             {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Layers className="h-3.5 w-3.5" aria-hidden />}
-            지금 묶기
+            {t('runNow')}
           </button>
         </span>
       )}

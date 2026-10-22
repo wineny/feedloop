@@ -200,7 +200,7 @@ export function safeExternalUrl(url: string | null | undefined): string | null {
 export function truncatePatch(patch: string | null | undefined): { patch: string | null; truncated: boolean } {
   if (typeof patch !== 'string') return { patch: null, truncated: false };
   if (patch.length <= PATCH_CHARS_MAX) return { patch, truncated: false };
-  return { patch: `${patch.slice(0, PATCH_CHARS_MAX)}\n… (이하 생략)`, truncated: true };
+  return { patch: `${patch.slice(0, PATCH_CHARS_MAX)}\n… (rest omitted)`, truncated: true };
 }
 
 /**
@@ -224,8 +224,6 @@ export function mergeBlockedBy(review: Pick<PrReview, 'build' | 'state' | 'merge
   if (review.mergeable === false) return 'conflict';
   return null;
 }
-
-export { MERGE_BLOCK_MESSAGE } from './review-labels';
 
 // ─── GitHub 호출 ───────────────────────────────────────────────────────────────
 
@@ -364,7 +362,7 @@ export async function mergePr(
       commit_title: opts.title,
       commit_message: opts.message,
     });
-    if (data.merged !== true) throw new MergeError('GitHub이 머지 성공을 확인하지 않았습니다', 409);
+    if (data.merged !== true) throw new MergeError('unconfirmed', 409);
     sha = data.sha;
   } catch (err) {
     // 405 는 「squash 금지」라는 레포 설정이지 토큰 문제가 아니다 — 그건 merge 로 다시 시도한다(아래).
@@ -382,7 +380,7 @@ export async function mergePr(
         commit_title: opts.title,
         commit_message: opts.message,
       });
-      if (data.merged !== true) throw new MergeError('GitHub이 머지 성공을 확인하지 않았습니다', 409);
+      if (data.merged !== true) throw new MergeError('unconfirmed', 409);
       sha = data.sha;
     } catch (err2) {
       await noteGithubError(client.botId, client.source, err2, { write: true });
@@ -478,19 +476,22 @@ function statusOf(err: unknown): number | null {
   return typeof s === 'number' ? s : null;
 }
 
-/** GitHub 의 머지 실패 사유를 담당자 말로. 상태코드는 남겨 라우트가 그대로 돌려준다. */
+/** GitHub 의 머지 실패 사유를 코드로. 상태코드는 남겨 라우트가 그대로 돌려준다. */
+export type MergeErrorCode = 'unconfirmed' | 'blocked' | 'conflict' | 'not_found' | 'forbidden' | 'failed';
+
+/** `code` 는 라우트가 요청 언어 문구(errors.api `merge_<code>`)로 바꾼다. `detail` 은 GitHub 원문(failed 일 때만). */
 export class MergeError extends Error {
-  constructor(message: string, public readonly status: number) {
-    super(message);
+  constructor(public readonly code: MergeErrorCode, public readonly status: number, public readonly detail?: string) {
+    super(detail ? `${code}: ${detail}` : code);
   }
 }
 
 function describeMergeError(err: unknown): Error {
   const status = statusOf(err);
   const raw = err instanceof Error ? err.message : String(err);
-  if (status === 405) return new MergeError('GitHub 가 이 PR 의 머지를 막았어요 (브랜치 보호 규칙이나 필수 검사)', 409);
-  if (status === 409) return new MergeError('원본 코드가 그사이 바뀌어 충돌해요. GitHub 에서 충돌을 풀어야 반영할 수 있어요', 409);
-  if (status === 404) return new MergeError('PR 을 찾을 수 없어요. 이미 지워졌을 수 있어요', 404);
-  if (status === 403) return new MergeError('GitHub 토큰에 이 저장소를 머지할 권한이 없어요', 403);
-  return new MergeError(`GitHub 머지에 실패했어요: ${raw}`, 502);
+  if (status === 405) return new MergeError('blocked', 409);
+  if (status === 409) return new MergeError('conflict', 409);
+  if (status === 404) return new MergeError('not_found', 404);
+  if (status === 403) return new MergeError('forbidden', 403);
+  return new MergeError('failed', 502, raw);
 }

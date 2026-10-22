@@ -1,8 +1,10 @@
 'use client';
 
 import type { CSSProperties, MouseEvent, ReactNode } from 'react';
+import Link from 'next/link';
 import { signIn, useSession } from 'next-auth/react';
-import { PRIMARY_CTA_HREF, PRIMARY_CTA_LABEL } from './constants';
+import { useTranslations } from 'next-intl';
+import { PRIMARY_CTA_HREF } from './constants';
 
 const CALLBACK_URL = PRIMARY_CTA_HREF;
 
@@ -25,6 +27,7 @@ interface PrimaryCtaProps {
  * 진짜 `<a href>` 라 JS 가 없어도 `/bots/new` 에 닿는다(그 화면이 로그인을 안내한다).
  */
 export function PrimaryCta({ className, style, children }: PrimaryCtaProps) {
+  const t = useTranslations('landing');
   const { status } = useSession();
 
   function onClick(e: MouseEvent<HTMLAnchorElement>) {
@@ -38,7 +41,7 @@ export function PrimaryCta({ className, style, children }: PrimaryCtaProps) {
     <a href={PRIMARY_CTA_HREF} onClick={onClick} className={className} style={style}>
       {children ?? (
         <>
-          {PRIMARY_CTA_LABEL}
+          {t('cta.primary')}
           <ArrowIcon />
         </>
       )}
@@ -48,6 +51,7 @@ export function PrimaryCta({ className, style, children }: PrimaryCtaProps) {
 
 /** nav 의 「로그인」 — 로그인돼 있으면 대시보드 링크로 바뀐다 */
 export function LoginLink({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
+  const t = useTranslations('landing');
   const { data: session, status } = useSession();
 
   if (status === 'loading') {
@@ -55,9 +59,9 @@ export function LoginLink({ className, onNavigate }: { className?: string; onNav
   }
   if (session?.user) {
     return (
-      <a href="/dashboard" className={className} onClick={onNavigate}>
-        내 대시보드
-      </a>
+      <Link href="/dashboard" className={className} onClick={onNavigate}>
+        {t('nav.myDashboard')}
+      </Link>
     );
   }
   return (
@@ -69,7 +73,7 @@ export function LoginLink({ className, onNavigate }: { className?: string; onNav
         void signIn('google', { callbackUrl: '/dashboard' });
       }}
     >
-      로그인
+      {t('nav.login')}
     </button>
   );
 }

@@ -15,8 +15,8 @@
 // 캡션에 "예시"라고 밝힌다.
 
 import { useState } from 'react';
-import { ASK_HUMAN_LABEL } from '@/lib/bot/holding';
-import { PICK_LABEL } from '@/lib/widget/pick';
+import { useTranslations } from 'next-intl';
+import { i18nMessage, validationMessage } from '@/lib/i18n/message';
 import { useForm, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -35,13 +35,10 @@ import {
 import {
   ACCENT_TINT_RATIO,
   DEFAULT_ACCENT_COLOR,
-  DEFAULT_STATUS_TEXT,
   DEFAULT_VISITOR_BUBBLE_COLOR,
   MAX_STARTER_QUESTIONS,
   MAX_STARTER_QUESTION_CHARS,
   accentTint,
-  defaultGreeting,
-  defaultOperatorName,
   normalizeHexColor,
   readableAccent,
   readableTextOn,
@@ -99,7 +96,7 @@ function textToQuestions(value: string): string[] {
 
 // 빈 문자열 = "기본색을 쓰겠다". 그 외에는 #RRGGBB 만.
 const hexField = z.string().refine((v) => v.trim() === '' || normalizeHexColor(v) !== null, {
-  message: '#RRGGBB 형식의 색상 코드를 넣어주세요',
+  message: i18nMessage('common.validation.form.hex'),
 });
 
 /**
@@ -146,17 +143,17 @@ function toFormValues(row: Record<string, unknown>): FormValues {
 // 서버(validateAppearanceInput)와 같은 상한. 저장 버튼을 누르기 전에 알려주려는 것뿐이고,
 // 진짜 방어선은 서버다.
 const schema = z.object({
-  display_name: z.string().max(40, { message: '표시 이름은 40자까지 입력할 수 있습니다' }),
-  status_text: z.string().max(60, { message: '상태 문구는 60자까지 입력할 수 있습니다' }),
-  greeting: z.string().max(300, { message: '첫 인사말은 300자까지 입력할 수 있습니다' }),
+  display_name: z.string().max(40, { message: i18nMessage('common.validation.form.displayNameMax') }),
+  status_text: z.string().max(60, { message: i18nMessage('common.validation.form.statusTextMax') }),
+  greeting: z.string().max(300, { message: i18nMessage('common.validation.form.greetingMax') }),
   operator_display_name: z
     .string()
-    .max(40, { message: '운영자 답장 이름은 40자까지 입력할 수 있습니다' }),
+    .max(40, { message: i18nMessage('common.validation.form.operatorNameMax') }),
   profile_image_url: z
     .string()
-    .max(500, { message: '프로필 이미지 URL 은 500자까지 입력할 수 있습니다' })
+    .max(500, { message: i18nMessage('common.validation.form.imageUrlMax') })
     .refine((v) => v.trim() === '' || isHttpsUrl(v.trim()), {
-      message: 'https:// 로 시작하는 주소만 넣을 수 있습니다',
+      message: i18nMessage('common.validation.form.httpsOnly'),
     }),
   accent_color: hexField,
   visitor_bubble_color: hexField,
@@ -164,7 +161,7 @@ const schema = z.object({
   // 여기서 막는 건 편의고, 진짜 방어선은 서버다.
   starter_questions: z.string().superRefine((value, ctx) => {
     const result = validateStarterQuestions(textToQuestions(value));
-    if (!result.ok) ctx.addIssue({ code: 'custom', message: result.error });
+    if (!result.ok) ctx.addIssue({ code: 'custom', message: validationMessage(result) });
   }),
   starter_faq_fallback: z.boolean(),
 });
@@ -185,6 +182,7 @@ export function WidgetAppearanceForm({
   initial,
   faqQuestions,
 }: WidgetAppearanceFormProps) {
+  const t = useTranslations('bots');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -226,7 +224,7 @@ export function WidgetAppearanceForm({
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setError((data && data.error) || '저장하지 못했습니다');
+        setError((data && data.error) || t('appearance.errors.save'));
         return;
       }
       // 서버가 정규화한 값(#ABC → #aabbcc, 기본색 → null)을 폼에 되돌려 놓는다.
@@ -237,9 +235,9 @@ export function WidgetAppearanceForm({
       // config 응답이 CDN 에 `s-maxage=60, stale-while-revalidate=300` 으로 얹혀 있다.
       // 즉 최악의 경우 옛 응답이 몇 분 더 나갈 수 있다 — 「1~2분」이라고 못 박으면
       // 시작 질문을 «내리려고» 끈 운영자가 그 뒤에도 보이는 걸 보고 안 꺼졌다고 오해한다.
-      setNotice('저장했어요. 방문자 위젯에는 몇 분 안에 반영돼요');
+      setNotice(t('appearance.saved'));
     } catch {
-      setError('네트워크 오류로 저장하지 못했습니다');
+      setError(t('appearance.errors.network'));
     } finally {
       setSaving(false);
     }
@@ -255,12 +253,12 @@ export function WidgetAppearanceForm({
               name="display_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-semibold">표시 이름</FormLabel>
+                  <FormLabel className="text-sm font-semibold">{t('appearance.displayName')}</FormLabel>
                   <FormControl>
                     <Input placeholder={serviceName} {...field} />
                   </FormControl>
                   <FormDescription className="text-[13px] leading-relaxed">
-                    위젯 헤더와 플로팅 버튼에 쓰입니다. 비워두면 서비스 이름을 씁니다.
+                    {t('appearance.displayNameHelp')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -272,12 +270,12 @@ export function WidgetAppearanceForm({
               name="status_text"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-semibold">상태 문구</FormLabel>
+                  <FormLabel className="text-sm font-semibold">{t('appearance.statusText')}</FormLabel>
                   <FormControl>
-                    <Input placeholder={DEFAULT_STATUS_TEXT} {...field} />
+                    <Input placeholder={t('defaults.statusText')} {...field} />
                   </FormControl>
                   <FormDescription className="text-[13px] leading-relaxed">
-                    표시 이름 아래 한 줄. 답장이 언제쯤 가는지 미리 알려주는 자리입니다.
+                    {t('appearance.statusTextHelp')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -289,17 +287,17 @@ export function WidgetAppearanceForm({
               name="greeting"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-semibold">첫 인사말</FormLabel>
+                  <FormLabel className="text-sm font-semibold">{t('appearance.greeting')}</FormLabel>
                   <FormControl>
                     <Textarea
                       rows={4}
                       className="resize-none"
-                      placeholder={defaultGreeting(values.display_name.trim() || serviceName)}
+                      placeholder={t('defaults.greeting', { name: values.display_name.trim() || serviceName })}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription className="text-[13px] leading-relaxed">
-                    위젯을 열면 가장 먼저 보이는 말풍선입니다.
+                    {t('appearance.greetingHelp')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -311,7 +309,7 @@ export function WidgetAppearanceForm({
               name="starter_questions"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-semibold">시작 질문</FormLabel>
+                  <FormLabel className="text-sm font-semibold">{t('appearance.starters')}</FormLabel>
                   <FormControl>
                     <Textarea
                       rows={4}
@@ -321,14 +319,13 @@ export function WidgetAppearanceForm({
                       placeholder={
                         values.starter_faq_fallback && faqQuestions.length > 0
                           ? faqQuestions.join('\n')
-                          : '쿠폰은 하루 몇 장까지 받나요?\n혼잡도가 실시간인가요?'
+                          : [t('appearance.starterExample1'), t('appearance.starterExample2')].join('\n')
                       }
                       {...field}
                     />
                   </FormControl>
                   <FormDescription className="text-[13px] leading-relaxed">
-                    {`한 줄에 하나씩, ${MAX_STARTER_QUESTIONS}개까지 (각 ${MAX_STARTER_QUESTION_CHARS}자).`} 인사말
-                    아래에 뜨고, 방문자가 누르면 바로 전송돼 그 자리에서 답을 받습니다.
+                    {t('appearance.startersHelp', { max: MAX_STARTER_QUESTIONS, chars: MAX_STARTER_QUESTION_CHARS })}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -345,7 +342,7 @@ export function WidgetAppearanceForm({
                       라벨에 id 를 주고 그룹이 그걸 가리켜, 이름이 «한 벌»만 있게 한다.
                       카드 모양은 `/bots/new` 의 PR 모드 라디오와 같다. */}
                   <FormLabel id={FALLBACK_LABEL_ID} className="text-sm font-semibold">
-                    시작 질문을 비워뒀을 때
+                    {t('appearance.fallbackTitle')}
                   </FormLabel>
                   <div
                     role="radiogroup"
@@ -374,7 +371,7 @@ export function WidgetAppearanceForm({
                           className="h-4 w-4 accent-foreground"
                         />
                         <span id={`${FALLBACK_LABEL_ID}-on-title`} className="font-semibold">
-                          답변 지식에서 채우기
+                          {t('appearance.fallbackOn')}
                         </span>
                       </div>
                       <p
@@ -382,8 +379,8 @@ export function WidgetAppearanceForm({
                         className="text-[13px] leading-relaxed text-muted-foreground"
                       >
                         {faqQuestions.length > 0
-                          ? `FAQ 앞쪽 질문이 그대로 방문자에게 보입니다. 지금이라면 「${faqQuestions[0]}」 부터 ${faqQuestions.length}개입니다.`
-                          : '답변 지식에 FAQ 를 넣으면 그 앞쪽 질문이 방문자에게 보입니다. 지금은 FAQ 가 없어 아무것도 뜨지 않습니다.'}
+                          ? t('appearance.fallbackOnNote', { first: faqQuestions[0], count: faqQuestions.length })
+                          : t('appearance.fallbackOnEmpty')}
                       </p>
                     </label>
 
@@ -405,21 +402,19 @@ export function WidgetAppearanceForm({
                           className="h-4 w-4 accent-foreground"
                         />
                         <span id={`${FALLBACK_LABEL_ID}-off-title`} className="font-semibold">
-                          띄우지 않기
+                          {t('appearance.fallbackOff')}
                         </span>
                       </div>
                       <p
                         id={`${FALLBACK_LABEL_ID}-off-desc`}
                         className="text-[13px] leading-relaxed text-muted-foreground"
                       >
-                        첫 화면에 인사말과 의견 남기기만 보입니다. 답변 지식은 그대로 쓰이고,
-                        방문자가 직접 물어보면 답합니다.
+                        {t('appearance.fallbackOffNote')}
                       </p>
                     </label>
                   </div>
                   <FormDescription className="text-[13px] leading-relaxed">
-                    위 칸에 질문을 직접 쓰면 언제나 그게 우선입니다. 이 선택은 칸이 비었을 때만
-                    쓰입니다.
+                    {t('appearance.fallbackNote')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -431,12 +426,12 @@ export function WidgetAppearanceForm({
               name="operator_display_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-semibold">운영자 답장 이름</FormLabel>
+                  <FormLabel className="text-sm font-semibold">{t('appearance.operatorName')}</FormLabel>
                   <FormControl>
-                    <Input placeholder={defaultOperatorName(values.display_name.trim() || serviceName)} {...field} />
+                    <Input placeholder={t('defaults.operatorName', { name: values.display_name.trim() || serviceName })} {...field} />
                   </FormControl>
                   <FormDescription className="text-[13px] leading-relaxed">
-                    대화 탭에서 보낸 답장에 붙는 이름입니다.
+                    {t('appearance.operatorNameHelp')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -448,13 +443,12 @@ export function WidgetAppearanceForm({
               name="profile_image_url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-semibold">프로필 이미지 URL</FormLabel>
+                  <FormLabel className="text-sm font-semibold">{t('appearance.imageUrl')}</FormLabel>
                   <FormControl>
                     <Input placeholder="https://…/logo.png" {...field} />
                   </FormControl>
                   <FormDescription className="text-[13px] leading-relaxed">
-                    512×512 정사각 PNG/JPG 권장. 파일 업로드는 준비 중이라 지금은 공개 URL 을
-                    넣어주세요.
+                    {t('appearance.imageUrlHelp')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -462,26 +456,25 @@ export function WidgetAppearanceForm({
             />
 
             <div className="border-t border-border pt-6">
-              <h2 className="text-sm font-semibold">색상</h2>
+              <h2 className="text-sm font-semibold">{t('appearance.colors')}</h2>
               <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-                비워두면 Feedloop 기본색을 씁니다. 서비스 브랜드색을 넣으면 위젯이 우리 사이트의
-                일부처럼 보입니다.
+                {t('appearance.colorsHelp')}
               </p>
 
               <div className="mt-5 flex flex-col gap-6">
                 <ColorField
                   control={form.control}
                   name="accent_color"
-                  label="강조색"
+                  label={t('appearance.accent')}
                   fallback={DEFAULT_ACCENT_COLOR}
-                  description="플로팅 버튼·미읽음 배지·프로필 이니셜·보내기 버튼·링크·반영 알림 카드에 쓰입니다. 그 위의 글자색은 밝기에 따라 흰색·검정 중 읽히는 쪽이 자동으로 선택되고, 밝은 색을 고르면 링크·테두리는 조금 어둡게 조정됩니다."
+                  description={t('appearance.accentHelp')}
                 />
                 <ColorField
                   control={form.control}
                   name="visitor_bubble_color"
-                  label="내 말풍선색"
+                  label={t('appearance.bubble')}
                   fallback={DEFAULT_VISITOR_BUBBLE_COLOR}
-                  description="방문자가 보낸 말풍선의 배경색입니다. 글자색은 밝기에 따라 흰색·검정 중 읽히는 쪽이 자동으로 선택됩니다."
+                  description={t('appearance.bubbleHelp')}
                 />
               </div>
             </div>
@@ -490,7 +483,7 @@ export function WidgetAppearanceForm({
               {notice && <p className="mr-auto text-sm text-muted-foreground">{notice}</p>}
               {error && <p className="mr-auto text-sm text-destructive">{error}</p>}
               <Button type="submit" disabled={saving}>
-                {saving ? '저장 중…' : '저장'}
+                {saving ? t('appearance.saving') : t('appearance.save')}
               </Button>
             </div>
           </form>
@@ -499,7 +492,7 @@ export function WidgetAppearanceForm({
 
       <div className="lg:sticky lg:top-6 lg:self-start">
         <p className="mb-3 text-xs font-semibold text-muted-foreground">
-          방문자에게 보이는 모습 (첫 화면 + 말풍선 예시)
+          {t('appearance.previewTitle')}
         </p>
         <WidgetPreview serviceName={serviceName} values={values} faqQuestions={faqQuestions} />
       </div>
@@ -532,6 +525,7 @@ function ColorField({
   fallback: string;
   description: string;
 }) {
+  const t = useTranslations('bots');
   return (
     <FormField
       control={control}
@@ -549,7 +543,7 @@ function ColorField({
                   라벨을 누르면 색 선택기가 열려버리기 때문이다. 라벨은 hex 칸을 잡는다. */}
               <input
                 type="color"
-                aria-label={`${label} 견본`}
+                aria-label={t('appearance.colorSwatch', { label })}
                 value={swatch}
                 onChange={(e) => field.onChange(e.target.value.toLowerCase())}
                 className="h-10 w-12 shrink-0 cursor-pointer rounded-[10px] border border-border-strong bg-transparent p-1"
@@ -567,14 +561,14 @@ function ColorField({
                 />
               </FormControl>
               {isDefault ? (
-                <span className="text-[13px] text-muted-foreground">기본값</span>
+                <span className="text-[13px] text-muted-foreground">{t('appearance.default')}</span>
               ) : (
                 <button
                   type="button"
                   onClick={() => field.onChange('')}
                   className="text-[13px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                 >
-                  기본값으로
+                  {t('appearance.resetDefault')}
                 </button>
               )}
             </div>
@@ -598,12 +592,13 @@ function WidgetPreview({
   values: FormValues;
   faqQuestions: string[];
 }) {
+  const t = useTranslations('bots');
   const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
 
   // config 라우트와 같은 폴백. 비워둔 칸이 실제 위젯에서 무엇으로 채워지는지 그대로 보여준다.
   const displayName = values.display_name.trim() || serviceName;
-  const statusText = values.status_text.trim() || DEFAULT_STATUS_TEXT;
-  const greeting = values.greeting.trim() || defaultGreeting(displayName);
+  const statusText = values.status_text.trim() || t('defaults.statusText');
+  const greeting = values.greeting.trim() || t('defaults.greeting', { name: displayName });
   const profileUrl = values.profile_image_url.trim();
   const showImage = profileUrl !== '' && profileUrl !== brokenUrl;
 
@@ -625,7 +620,7 @@ function WidgetPreview({
   return (
     <div
       className="w-full max-w-[360px] overflow-hidden rounded-[14px] bg-white text-[#191d1b] shadow-[0_24px_64px_rgba(25,29,27,.2),0_4px_16px_rgba(25,29,27,.08)]"
-      aria-label="위젯 미리보기"
+      aria-label={t('appearance.previewLabel')}
     >
       <div className="flex items-center gap-2.5 border-b border-[#eeeae9] px-3.5 pt-3.5 pb-3">
         <Avatar
@@ -670,7 +665,7 @@ function WidgetPreview({
           {starterQuestions.length > 0 && (
             <>
               <p className="mb-[7px] ml-0.5 text-[11px] font-bold tracking-[0.02em] text-[#a39d9b]">
-                자주 묻는 질문
+                {t('appearance.previewFaq')}
               </p>
               <div className="flex flex-col gap-1.5">
                 {starterQuestions.map((question) => (
@@ -693,7 +688,7 @@ function WidgetPreview({
                 key={chip.hint}
                 className="rounded-full border border-[#eeeae9] bg-[#f6f3f2] px-[13px] py-1.5 text-[12.5px] leading-[1.3] whitespace-nowrap text-[#6e6968]"
               >
-                {chip.label}
+                {t(`appearance.chips.${chip.hint}`)}
               </span>
             ))}
           </div>
@@ -705,7 +700,7 @@ function WidgetPreview({
             className="max-w-[78%] rounded-[14px] rounded-br-[4px] px-3.5 py-2.5 text-[14px] leading-[1.55] tracking-[-0.01em] break-words"
             style={{ background: bubbleBg, color: bubbleFg }}
           >
-            쿠폰함이 계속 비어 보여요
+            {t('appearance.previewVisitor')}
           </div>
         </div>
 
@@ -729,7 +724,7 @@ function WidgetPreview({
               </span>
             </span>
             <div className="rounded-[14px] rounded-bl-[4px] bg-[#f6f3f2] px-3.5 py-2.5 text-[14px] leading-[1.55] tracking-[-0.01em] break-words">
-              확인해서 알려드릴게요.
+              {t('appearance.previewReply')}
             </div>
           </div>
         </div>
@@ -740,22 +735,22 @@ function WidgetPreview({
         <div className="flex items-center gap-1.5 px-2.5 pt-2.5">
           <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#eeeae9] bg-white pl-2.5 pr-3 text-[12.5px] font-semibold tracking-[-0.01em] text-[#191d1b]">
             <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] shrink-0 fill-none stroke-current" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 5a7 7 0 1 0 0 14a7 7 0 1 0 0-14M12 2v3M12 19v3M2 12h3M19 12h3M12 10.8a1.2 1.2 0 1 0 0 2.4a1.2 1.2 0 1 0 0-2.4" /></svg>
-            {PICK_LABEL}
+            {t('appearance.previewPick')}
           </span>
           <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#eeeae9] bg-white pl-2.5 pr-3 text-[12.5px] font-semibold tracking-[-0.01em] text-[#191d1b]">
             <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] shrink-0 fill-none stroke-current" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 21c0-4 3.6-7 8-7s8 3 8 7" /></svg>
-            {ASK_HUMAN_LABEL}
+            {t('appearance.previewHuman')}
           </span>
         </div>
         <div className="flex items-end gap-2 px-2.5 pt-2 pb-1.5">
           <div className="h-[42px] flex-1 rounded-xl border border-[#eeeae9] px-3 py-2.5 text-[14px] text-[#a39d9b]">
-            무엇이든 편하게 남겨주세요
+            {t('appearance.previewPlaceholder')}
           </div>
           <div
             className="flex h-[38px] shrink-0 items-center rounded-full px-[18px] text-[13px] font-bold"
             style={{ background: accent, color: accentFg }}
           >
-            보내기
+            {t('appearance.previewSend')}
           </div>
         </div>
         {/* 크레딧 — 위젯 render() 의 .credit 과 같은 모양. 도구 줄(.tools)은 입력창 «위»에 있다. */}

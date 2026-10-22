@@ -64,7 +64,7 @@ export async function saveChannelMessage(params: {
       source: 'channel',
       external_user_id: params.externalUserId,
       external_message_id: params.externalMessageId,
-      author_name: params.authorName || '고객',
+      author_name: params.authorName || null,
       body: params.text,
       origin: null,
       detected_at: params.detectedAt || new Date().toISOString(),

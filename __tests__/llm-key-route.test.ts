@@ -72,7 +72,7 @@ describe('PATCH /api/bots/[id]/llm-key — 키 확인 속도 제한', () => {
 
     const sixth = await patchKey();
     expect(sixth.status).toBe(429);
-    expect(sixth.body.error).toContain('자주');
+    expect(sixth.body.error).toContain('Too many');
 
     // 막힌 요청은 provider 로 나가지도 않는다 — 그게 이 제한의 요점이다.
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(5);
@@ -93,5 +93,27 @@ describe('PATCH /api/bots/[id]/llm-key — 키 확인 속도 제한', () => {
     }
 
     expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/bots/[id]/llm-key — failedReason 문장', () => {
+  async function getReason(row: Record<string, unknown>) {
+    singleMock.mockResolvedValue({ data: { ...BOT_ROW, ...row }, error: null });
+    const { GET } = await import('@/app/api/bots/[id]/llm-key/route');
+    const res = await GET(new Request(`https://feedloop.test/api/bots/${BOT_ID}/llm-key`), {
+      params: Promise.resolve({ id: BOT_ID }),
+    });
+    return ((await res.json()) as { failedReason: string | null }).failedReason;
+  }
+
+  it('모델을 안 골랐으면 추천 기본 모델 ID 를 붙인다(옛 문장과 같다)', async () => {
+    const { RECOMMENDED } = await import('@/lib/llm/models');
+    const reason = await getReason({ llm_provider: 'openai', llm_model: null, llm_key_failed_reason: 'model_invalid' });
+    expect(reason).toBe(`Check the model name: ${RECOMMENDED.openai}`);
+  });
+
+  it('고른 모델이 있으면 그 ID 를 붙인다', async () => {
+    const reason = await getReason({ llm_provider: 'openai', llm_model: 'gpt-nope', llm_key_failed_reason: 'model_invalid' });
+    expect(reason).toBe('Check the model name: gpt-nope');
   });
 });
