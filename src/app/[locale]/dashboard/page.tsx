@@ -16,6 +16,8 @@ import { ChannelIntegration } from '@/components/dashboard/ChannelIntegration';
 import { RecentFeedback, type FeedbackItem } from '@/components/dashboard/RecentFeedback';
 import { LoopActivityFeed, type LoopEvent } from '@/components/dashboard/LoopActivityFeed';
 import { InsightGroups, type GroupSummary } from '@/components/dashboard/InsightGroups';
+import { PaymentStats } from '@/components/dashboard/PaymentStats';
+import type { DashboardPayments } from '@/app/api/dashboard/route';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { Button } from '@/components/ui/button';
 import { PageHero, PAGE_EMOJI } from '@/components/layout/PageHero';
@@ -44,6 +46,8 @@ interface DashboardData {
   stats: LoopStats;
   feedbacks: FeedbackItem[];
   events: LoopEvent[];
+  /** PayPal 숫자·연결 상태. 예시 데이터(데모)는 연결된 봇의 예시 숫자를 싣는다. 401 빈 화면에는 없다 — 그때는 PayPal 줄을 안 그린다 */
+  payments?: DashboardPayments;
 }
 
 interface DemoDashboard extends DashboardData {
@@ -286,7 +290,7 @@ export default function DashboardPage() {
     return <ErrorState message={error} onRetry={() => { setLoading(true); fetchData(); }} />;
   }
 
-  const { stats, feedbacks, events } = demo.isDemo ? demo.data : (data ?? EMPTY);
+  const { stats, feedbacks, events, payments } = demo.isDemo ? demo.data : (data ?? EMPTY);
   const shownGroups = demo.isDemo ? demo.data.groups : groups;
   // 「피드백 채널」 판정 — /bots 와 같은 기준(widget/channel_connected_at).
   // 스코프가 있으면 그 봇만, 전체면 하나라도 켜지면 켜짐.
@@ -341,7 +345,14 @@ export default function DashboardPage() {
 
       {mergeNotice && <p className="-mt-4 text-[12.5px] text-muted-foreground">{mergeNotice}</p>}
 
+      {/* PayPal 은 두 자리에 나뉜다(ny 2026-10-22). 연결된 봇의 숫자 3칸은 맨 첫 줄 — 체크리스트보다 위.
+          「PayPal 연결하기」 카드는 체크리스트 «아래» — PayPal 은 선택 단계라 「첫 루프」 안내를 밀어내지 않는다
+          (체크리스트에도 마지막 단계로 들어간다). 어느 쪽을 그릴지는 `paymentsLayout`. */}
+      <PaymentStats payments={payments} placement="numbers" />
+
       {showChecklist && <OnboardingChecklist steps={onboardingSteps(onboardingFacts, checklistBotId)} />}
+
+      <PaymentStats payments={payments} placement="connect" />
 
       {/* 루프 단계는 «화면 전체 폭»을 쓴다 — 이 화면이 크게 말하는 한 가지라서,
           사이드 칼럼 옆에 끼워 넣으면 그 음량이 나오지 않는다. */}

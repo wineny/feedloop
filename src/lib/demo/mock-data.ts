@@ -1,6 +1,7 @@
 import { groupPriority, compareGroupPriority } from '@/lib/groups/priority-score';
 import { escalationNotice } from '@/lib/bot/holding';
 import type { PickedShotData } from '@/lib/widget/picked-shot';
+import type { DashboardPayments } from '@/app/api/dashboard/route';
 import { copy as enCopy } from './mock-copy.en';
 import { copy as koCopy, type DemoCopy } from './mock-copy.ko';
 
@@ -55,6 +56,9 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
       // 실데이터도 web 으로 좁힌다). 데모의 되돌림 4건은 전부 웹 대화이고, 3명이 답해 2명이 「잘 돼요」.
       // `githubReadyBotIds` 는 F6 체크리스트 ③ 의 재료다. 데모는 제보가 47건이라 체크리스트 자체가 숨는다.
       stats: { collected: 47, classified: 41, prCreated: 6, returned: 4, loopTime: { state: 'ok', sampleSize: 4, averageMs: 207_360_000 }, confirmation: { state: 'ok', fixed: 2, notFixed: 1, delivered: 4 }, githubReadyBotIds: ['demo-bot-1'] },
+      // PayPal 줄(`/api/dashboard` 의 `payments` 와 같은 모양). 데모 봇은 공용 키로 연결된 봇이라 connected,
+      // 연결할 내 봇이 없으니 connectBotId 는 null. 장부 예시 행은 5단계 3번에서 붙인다.
+      payments: { connected: true, connectBotId: null, inquiries7d: 12, autoRefunds7d: { count: 3, amountCents: 4700, currency: 'USD' }, pendingApprovals: 1 } satisfies DashboardPayments,
       feedbacks: [
         {
           id: 'demo-msg-1',

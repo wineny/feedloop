@@ -190,5 +190,21 @@
     "dismiss": "Close",
     "dismissLabel": "Close this group",
     "specNote": "Spec draft · a person decides whether to build it"
+  },
+  "payments": {
+    "title": "PayPal",
+    "inquiries": "Payment inquiries",
+    "autoRefunds": "Auto refunds",
+    "pending": "Waiting for approval",
+    "last7d": "Last 7 days",
+    "notCounted": "Couldn't count",
+    "pendingCta": "Review in Inbox",
+    "pendingNone": "Nothing waiting",
+    "connect": {
+      "title": "PayPal isn't connected",
+      "body": "Connect PayPal so your bot can answer payment questions and handle refunds. Large refunds wait for your approval.",
+      "cta": "Connect PayPal",
+      "more": "One of your bots isn't connected to PayPal yet."
+    }
   }
 }
