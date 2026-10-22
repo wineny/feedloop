@@ -18,6 +18,11 @@ export type OwnedBots =
       botIds: string[];
       /** Set when one bot was asked for (resolveAccessibleBots). Approvers may operate, not configure. */
       role?: BotRole;
+      /**
+       * Set when no bot was asked for (resolveAccessibleBots): the subset of `botIds` the user owns,
+       * in the same order. Screens that link to owner-only settings pick from these.
+       */
+      ownedBotIds?: string[];
     }
   | { ok: false; status: 401 | 403; error: string };
 
@@ -82,7 +87,7 @@ export async function resolveAccessibleBots(requestedBotId?: string | null): Pro
     return { ok: true, userId: session.user.id, botIds: [requestedBotId], role };
   }
 
-  return { ok: true, userId: session.user.id, botIds };
+  return { ok: true, userId: session.user.id, botIds, ownedBotIds: access.owned };
 }
 
 /** The bots a user may touch, split by how: owned (configure + operate) and approver-only (operate). */

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { toPayPalBot } from '@/lib/paypal/bot';
+import { isPayPalConnected, toPayPalBot } from '@/lib/paypal/bot';
 
 // The AES key is read when crypto.ts loads, so the decrypt step is replaced instead.
 vi.mock('@/lib/utils/crypto', () => ({ decrypt: (v: string) => (v === 'enc:ok' ? 'per-bot-secret' : '') }));
@@ -44,5 +44,45 @@ describe('toPayPalBot', () => {
 
   it('an unreadable saved secret is "not connected", never a client with an empty secret', () => {
     expect(toPayPalBot(row({ paypal_client_id: 'own', paypal_secret_encrypted: 'garbage' }))).toEqual({ ok: false, reason: 'not_connected' });
+  });
+});
+
+describe('isPayPalConnected', () => {
+  it('own saved keys → connected', () => {
+    expect(isPayPalConnected(row({ paypal_client_id: 'own', paypal_secret_encrypted: 'enc:ok' }))).toBe(true);
+  });
+
+  it('demo bot without keys → connected (it uses the deployment env keys)', () => {
+    expect(isPayPalConnected(row({ is_demo: true }))).toBe(true);
+  });
+
+  it('normal bot without keys, or with only half of them → not connected', () => {
+    expect(isPayPalConnected(row())).toBe(false);
+    expect(isPayPalConnected(row({ paypal_client_id: 'own' }))).toBe(false);
+    expect(isPayPalConnected(row({ paypal_secret_encrypted: 'enc:ok' }))).toBe(false);
+  });
+
+  it('paused bot → not connected, even the demo bot with keys', () => {
+    expect(isPayPalConnected(row({ status: 'paused', is_demo: true, paypal_client_id: 'own', paypal_secret_encrypted: 'enc:ok' }))).toBe(false);
+  });
+
+  it('agrees with toPayPalBot whenever the saved secret decrypts', () => {
+    vi.stubEnv('PAYPAL_CLIENT_ID', 'cid');
+    vi.stubEnv('PAYPAL_CLIENT_SECRET', 'sec');
+    vi.stubEnv('PAYPAL_ENVIRONMENT', 'SANDBOX');
+    // Live is allowed here so toPayPalBot answers instead of throwing — the yes/no must still match.
+    vi.stubEnv('PAYPAL_ALLOW_LIVE', '1');
+    for (const status of ['active', 'paused']) {
+      for (const is_demo of [false, true]) {
+        for (const paypal_client_id of [null, 'own']) {
+          for (const paypal_secret_encrypted of [null, 'enc:ok']) {
+            for (const paypal_env of ['sandbox', 'live']) {
+              const r = row({ status, is_demo, paypal_client_id, paypal_secret_encrypted, paypal_env });
+              expect(isPayPalConnected(r), JSON.stringify(r)).toBe(toPayPalBot(r).ok);
+            }
+          }
+        }
+      }
+    }
   });
 });

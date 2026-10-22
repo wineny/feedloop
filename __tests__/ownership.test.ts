@@ -44,7 +44,7 @@ describe('resolveAccessibleBots', () => {
   it('lists owned bots first, then approver bots, without duplicates', async () => {
     tables.bot_members = { data: [{ bot_id: MEMBER }, { bot_id: OWNED }], error: null };
     const { resolveAccessibleBots } = await import('@/lib/auth/ownership');
-    expect(await resolveAccessibleBots()).toEqual({ ok: true, userId: 'u1', botIds: [OWNED, MEMBER] });
+    expect(await resolveAccessibleBots()).toEqual({ ok: true, userId: 'u1', botIds: [OWNED, MEMBER], ownedBotIds: [OWNED] });
   });
 
   it('lets an approver into a bot they do not own, and says so (role)', async () => {

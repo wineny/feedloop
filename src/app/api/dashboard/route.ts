@@ -20,6 +20,8 @@ import {
   FAILED_CONFIRMATION,
   type ConfirmationStats,
 } from '@/lib/dashboard/confirmation';
+import { isPayPalConnected } from '@/lib/paypal/bot';
+import { PAYMENT_AGENT_RESPONSE_TYPE, PAYMENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
 import { serverT } from '@/i18n/server-messages';
 import { localeFromRequest } from '@/i18n/server-locale';
 
@@ -81,6 +83,52 @@ export interface LoopEvent {
   at: string;
 }
 
+/**
+ * 대시보드의 PayPal 숫자 3개 + 「PayPal 연결하기」 카드 재료. `botIds`(선택한 봇 하나 또는 유저의 봇 전체)를
+ * 합친 값이다.
+ *
+ * 연결 안 된 봇이어도 같은 모양으로 내려간다 — 숫자는 그대로 센다(예전에 연결했던 봇은 기록이 남아 있다).
+ *
+ * 화면 계약 — 두 칸이 각자 하나만 정한다:
+ *  - `connected` 가 true 면 숫자 카드를 보인다.
+ *  - `connectBotId` 가 null 이 아니면 「PayPal 연결하기」 카드를 보인다(그 봇의 PayPal 탭으로).
+ *  둘이 동시에 켜질 수 있다 — 예: 전체 봇 보기에서 연결 안 된 자기 봇 + 승인자로 들어간 데모 봇.
+ *
+ * 숫자 칸의 `null` 은 「0」이 아니라 **「집계 못 함」** 이다(조회 실패·상한 도달). 0 으로 채우면 깨진 집계가
+ * 「아직 없음」처럼 보인다 — `loopTime`·`confirmation` 과 같은 규칙.
+ */
+export interface DashboardPayments {
+  /**
+   * 보고 있는 봇(`botIds` — `?botId=` 면 그 봇 하나, 아니면 접근 가능한 봇 전체) 중 하나라도 PayPal 이
+   * 연결돼 있다(`isPayPalConnected` — 자기 키 저장됨, 또는 데모 봇. 일시정지 봇 제외). 역할과 무관하다 —
+   * 데모 봇의 승인자인 심사위원도 데모 숫자를 본다.
+   */
+  connected: boolean;
+  /**
+   * 「PayPal 연결하기」 카드가 열 봇 = 보고 있는 봇 중 **소유한** 봇에서 연결 안 된 첫 봇, 없으면 null.
+   * PayPal 설정 탭은 소유자 전용(`resolveOwnedBots`)이라 승인자로만 들어간 봇은 고르지 않는다(403 이 된다).
+   * `?botId=` 로 승인자 봇을 보고 있으면 null.
+   */
+  connectBotId: string | null;
+  /** 지난 7일 결제 답(`payment`·`payment_agent`)이 1번이라도 나간 **대화 수**(행 수 아님). */
+  inquiries7d: number | null;
+  /**
+   * 지난 7일 자동 실행된 환불. `count` 는 통화와 무관하게 센다. `amountCents`·`currency` 는 통화가 하나일 때만
+   * 값이 있고, 통화가 섞이면 둘 다 null 이다(서로 다른 통화를 더한 숫자는 거짓말이다).
+   */
+  autoRefunds7d: { count: number; amountCents: number | null; currency: string | null } | null;
+  /** 운영자 승인을 기다리는 실행(`payment_actions.status='pending'`). 기간 제한 없음. */
+  pendingApprovals: number | null;
+}
+
+const EMPTY_PAYMENTS: DashboardPayments = {
+  connected: false,
+  connectBotId: null,
+  inquiries7d: 0,
+  autoRefunds7d: { count: 0, amountCents: 0, currency: null },
+  pendingApprovals: 0,
+};
+
 const EMPTY = {
   stats: {
     collected: 0,
@@ -94,6 +142,7 @@ const EMPTY = {
   } satisfies LoopStats,
   feedbacks: [] as LoopFeedbackItem[],
   events: [] as LoopEvent[],
+  payments: EMPTY_PAYMENTS,
 };
 
 /** 최근 목록에 싣는 메시지 수. 통계는 이 상한과 무관하게 전량을 센다. */
@@ -105,6 +154,18 @@ const RECENT_LIMIT = 50;
  * 조용히 잘리면 첫 제보가 빠져 평균이 실제보다 **작게** 나온다(루프가 빨라 보인다).
  */
 const ANCHOR_ROW_LIMIT = 1000;
+
+/**
+ * PayPal 숫자의 7일 창에서 읽는 행 수 상한. 결제 문의 대화 수는 PostgREST 로 DISTINCT 를 셀 수 없어서
+ * `conversation_id` 만 받아 JS 에서 중복을 지운다. 해커톤 규모에서는 한참 아래다.
+ *
+ * 잘렸는지는 행 수가 아니라 `count: 'exact'` 로 판단한다(`count > data.length`) — 서버 쪽 상한(PostgREST
+ * 기본 1000)이 우리 limit 보다 작아도 잡힌다. 잘렸으면 숫자를 내지 않고 「집계 못 함」(null)으로 말한다
+ * (앵커 조회와 같은 규칙). 값은 `ANCHOR_ROW_LIMIT` 과 맞춘다.
+ */
+const PAYMENT_ROW_LIMIT = 1000;
+
+const SEVEN_DAYS_MS = 7 * 24 * 3_600_000;
 
 /** `.in()` 한 번에 싣는 대화 id 수. 목록이 길어지면 URL 이 서버 상한을 넘겨 414 로 죽는다. */
 const CONVERSATION_CHUNK = 200;
@@ -300,6 +361,77 @@ export async function GET(req?: NextRequest) {
     .filter((bot) => Boolean(bot.github_repo_url))
     .map((bot) => bot.id as string);
 
+  // PayPal 숫자 3개 + 연결 여부(5단계). 서로 독립이라 한 번에 보낸다.
+  // ⚠️ 이 블록도 위 조회들 **뒤** 에 온다 — 응답을 순서로 짝짓는 테스트가 어긋나지 않게(`bySource` 주석).
+  const since7d = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
+  const [inquiryRes, autoRefundRes, pendingRes, connectionRes] = await Promise.all([
+    db
+      .from('responses')
+      .select('conversation_id', { count: 'exact' })
+      .in('bot_id', botIds)
+      .in('response_type', [PAYMENT_RESPONSE_TYPE, PAYMENT_AGENT_RESPONSE_TYPE])
+      .gte('sent_at', since7d)
+      .not('conversation_id', 'is', null)
+      .limit(PAYMENT_ROW_LIMIT),
+    // 기간은 `executed_at`(돈이 실제로 나간 시각, settleAction 이 'executed' 로 바꿀 때 찍는다)으로 자른다.
+    // `created_at` 은 행이 생긴 시각이라 실행이 늦어진 건이 엉뚱한 주에 잡힌다.
+    db
+      .from('payment_actions')
+      .select('amount_cents, currency', { count: 'exact' })
+      .in('bot_id', botIds)
+      .eq('kind', 'refund')
+      .eq('origin', 'auto')
+      .eq('status', 'executed')
+      .gte('executed_at', since7d)
+      .limit(PAYMENT_ROW_LIMIT),
+    db.from('payment_actions').select('id', { count: 'exact', head: true }).in('bot_id', botIds).eq('status', 'pending'),
+    // 연결 여부만 판단한다 — 암호문은 «있는지»만 보고 복호화하지 않으며, 응답에 싣지 않는다.
+    db.from('bots').select('id, status, is_demo, paypal_client_id, paypal_secret_encrypted, currency').in('id', botIds),
+  ]);
+
+  // 실패하면 「연결 안 됨」으로 보인다 — 카드는 설정 화면으로 가는 링크라 잘못 떠도 해가 없다(③ 과 같은 방향).
+  if (connectionRes.error) console.error('[dashboard] PayPal 연결 여부 조회 실패:', connectionRes.error.message);
+  const paypalBots = connectionRes.data ?? [];
+  const botCurrencies = new Set(paypalBots.map((bot) => bot.currency as string));
+
+  let inquiries7d: number | null = null;
+  if (inquiryRes.error) console.error('[dashboard] 결제 문의 집계 실패:', inquiryRes.error.message);
+  else if ((inquiryRes.count ?? 0) > (inquiryRes.data?.length ?? 0)) console.error('[dashboard] 결제 문의 표본이 상한에 닿았습니다');
+  else inquiries7d = new Set((inquiryRes.data ?? []).map((r) => r.conversation_id as string)).size;
+
+  let autoRefunds7d: DashboardPayments['autoRefunds7d'] = null;
+  if (autoRefundRes.error) console.error('[dashboard] 자동 환불 집계 실패:', autoRefundRes.error.message);
+  else if ((autoRefundRes.count ?? 0) > (autoRefundRes.data?.length ?? 0)) console.error('[dashboard] 자동 환불 표본이 상한에 닿았습니다');
+  else {
+    const rows = autoRefundRes.data ?? [];
+    // 통화가 하나일 때만 금액을 더한다. 섞이면 금액·통화를 비운다 — 건수는 그대로 맞다.
+    // 봇 통화와 같은 행만 더하는 방법도 있지만, 그러면 화면의 금액이 건수와 안 맞는다. 데모는 USD 하나다.
+    const rowCurrencies = new Set(rows.map((r) => r.currency as string | null));
+    const mixed = rowCurrencies.size > 1;
+    // 0건이면 봇 통화(`bots.currency`)를 쓴다 — 화면이 「$0.00」을 그릴 수 있게. 봇마다 다르면 null.
+    const currencyPool = rows.length > 0 ? rowCurrencies : botCurrencies;
+    autoRefunds7d = {
+      count: rows.length,
+      amountCents: mixed ? null : rows.reduce((sum, r) => sum + ((r.amount_cents as number | null) ?? 0), 0),
+      currency: currencyPool.size === 1 ? ([...currencyPool][0] ?? null) : null,
+    };
+  }
+
+  if (pendingRes.error) console.error('[dashboard] 승인 대기 집계 실패:', pendingRes.error.message);
+  const pendingApprovals = pendingRes.error ? null : (pendingRes.count ?? 0);
+
+  // `connected` 는 보고 있는 봇 전체, 연결 카드는 «소유한» 봇만 본다(타입 주석).
+  // 소유 봇은 `?botId=` 면 role 로, 아니면 ownedBotIds 로 가린다.
+  const ownedIds = auth.role ? (auth.role === 'owner' ? botIds : []) : (auth.ownedBotIds ?? []);
+  const connectedById = new Map(paypalBots.map((bot) => [bot.id as string, isPayPalConnected(bot)]));
+  const payments: DashboardPayments = {
+    connected: botIds.some((id) => connectedById.get(id) === true),
+    connectBotId: ownedIds.find((id) => connectedById.get(id) !== true) ?? null,
+    inquiries7d,
+    autoRefunds7d,
+    pendingApprovals,
+  };
+
   const insightByMessage = new Map<string, (typeof insights)[number]>();
   for (const insight of insights) {
     for (const id of [insight.message_id, ...(insight.source_message_ids ?? [])]) {
@@ -386,5 +518,6 @@ export async function GET(req?: NextRequest) {
     stats: { ...stats, loopTime, confirmation, githubReadyBotIds },
     feedbacks,
     events,
+    payments,
   });
 }
