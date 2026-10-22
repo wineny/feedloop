@@ -34,12 +34,29 @@
       "title": "결제 거절됨",
       "body": "PayPal 이 결제를 거절했습니다. 청구된 금액은 없습니다."
     },
+    "partially_refunded": {
+      "title": "일부 환불됨",
+      "body": "이 결제의 일부가 PayPal 을 통해 구매자에게 돌아갔습니다. 나머지 결제는 그대로 유지됩니다. 환불 금액은 보통 며칠 안에 구매자의 PayPal 계정에 들어옵니다."
+    },
+    "refunded": {
+      "title": "환불됨",
+      "body": "이 결제는 PayPal 로 환불되었습니다. 환불 금액은 보통 며칠 안에 PayPal 계정에 들어옵니다."
+    },
+    "reversed": {
+      "title": "결제 회수됨",
+      "body": "PayPal 이 이 결제를 회수해 구매자에게 돌려보냈습니다(예: 이의 제기·차지백). 이 요금제는 더 이상 결제된 상태가 아닙니다."
+    },
     "item": "상품",
     "total": "합계",
     "orderId": "PayPal 주문 번호",
     "transactionId": "거래 번호",
     "paidWith": "결제 이메일",
     "date": "날짜",
+    "refundedAmount": "환불 금액",
+    "reversedAmount": "회수된 금액",
+    "remaining": "환불 후 결제액",
+    "refundRecorded": "환불 기록일 (UTC)",
+    "reversalRecorded": "회수 기록일 (UTC)",
     "questions": "이 결제에 대해 궁금한 점이 있나요? 구석의 채팅을 열고 PayPal 주문 번호와 결제에 사용한 이메일을 알려주세요.",
     "continue": "PayPal 에서 계속하기",
     "back": "요금제로 돌아가기"

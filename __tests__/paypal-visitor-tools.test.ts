@@ -7,6 +7,7 @@ import {
   VISITOR_TOOL_NAMES,
   createVisitorTools,
   describeActionStatus,
+  describeCaptureStatus,
   describeOrderStatus,
   formatProductList,
   majorToCents,
@@ -451,6 +452,45 @@ describe('verified before capture (P2)', () => {
     });
   });
 
+  it('tells the refunded total so far (stage 4 receipt), and never a $0 refund', async () => {
+    const { store, pp, tools } = setup();
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).not.toHaveProperty('refunded_amount');
+    pp.sellerRefund(ORDER, '9.50');
+    Object.assign(store.orders[0], { status: 'partially_refunded', refunded_cents: 950 });
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).toMatchObject({
+      payment_status: 'partially_refunded',
+      refunded_amount: '$9.50',
+    });
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'partially_refunded', refunded_amount: '$9.50' });
+
+    // A reversal whose total could not be read keeps refunded_cents 0: the field is left out.
+    pp.setCaptureStatus(ORDER, 'REVERSED');
+    Object.assign(store.orders[0], { status: 'reversed', refunded_cents: 0 });
+    const reversed = await run(tools, 'get_payment_status');
+    expect(reversed).toMatchObject({ payment_status: 'reversed' });
+    expect(reversed).not.toHaveProperty('refunded_amount');
+  });
+
+  it('a full reversal reads REFUNDED on the capture; our row says reversed, so the visitor hears reversed', async () => {
+    const { store, pp, tools } = setup();
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    pp.setCaptureStatus(ORDER, 'REFUNDED');
+    Object.assign(store.orders[0], { status: 'reversed', refunded_cents: 2900 });
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'reversed', refunded_amount: '$29' });
+  });
+
+  it('PayPal unreadable: falls back to our row instead of unknown', async () => {
+    const { store, pp, tools } = setup();
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    Object.assign(store.orders[0], { status: 'partially_refunded', refunded_cents: 950 });
+    pp.failCaptureRead();
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'partially_refunded', refunded_amount: '$9.50' });
+    Object.assign(store.orders[0], { status: 'captured', refunded_cents: 0 });
+    const paid = await run(tools, 'get_payment_status');
+    expect(paid).toMatchObject({ payment_status: 'paid' });
+    expect(paid).not.toHaveProperty('refunded_amount');
+  });
+
   it('a row already refunded when the visitor comes back still refreshes the verification (stage 4)', async () => {
     const { store, pp, tools } = setup({ paid: false });
     pp.approve(ORDER);
@@ -594,6 +634,13 @@ describe('helpers', () => {
     expect(describeOrderStatus('partially_refunded')).toBe('partially_refunded');
     expect(describeOrderStatus('refunded')).toBe('refunded');
     expect(describeOrderStatus('reversed')).toBe('reversed');
+  });
+
+  it('describeCaptureStatus knows a reversed capture (not unknown, not paid)', () => {
+    expect(describeCaptureStatus('REVERSED')).toBe('reversed');
+    expect(describeCaptureStatus('PARTIALLY_REFUNDED')).toBe('partially_refunded');
+    expect(describeCaptureStatus('REFUNDED')).toBe('refunded');
+    expect(describeCaptureStatus('COMPLETED')).toBe('paid');
   });
 
   it('describeActionStatus: only executed is refunded; executing/unknown are processing', () => {

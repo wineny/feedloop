@@ -34,12 +34,29 @@
       "title": "Payment declined",
       "body": "PayPal declined the payment. Nothing was charged."
     },
+    "partially_refunded": {
+      "title": "Partially refunded",
+      "body": "Part of this payment went back to the payer through PayPal. The rest of the payment still stands. Refunds usually show up in the payer's PayPal account within a few days."
+    },
+    "refunded": {
+      "title": "Payment refunded",
+      "body": "This payment was refunded through PayPal. Refunds usually show up in your PayPal account within a few days."
+    },
+    "reversed": {
+      "title": "Payment reversed",
+      "body": "PayPal reversed this payment (for example, after a dispute), and the money went back to the payer. This plan is no longer paid."
+    },
     "item": "Item",
     "total": "Total",
     "orderId": "PayPal order ID",
     "transactionId": "Transaction ID",
     "paidWith": "Paid with",
     "date": "Date",
+    "refundedAmount": "Refunded",
+    "reversedAmount": "Reversed",
+    "remaining": "Net paid",
+    "refundRecorded": "Refund recorded (UTC)",
+    "reversalRecorded": "Reversal recorded (UTC)",
     "questions": "Questions about this payment? Open the chat in the corner and include your PayPal order ID and the email you paid with.",
     "continue": "Continue on PayPal",
     "back": "Back to pricing"

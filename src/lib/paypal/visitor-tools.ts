@@ -74,7 +74,9 @@ export function describeOrderStatus(
 }
 
 /** What the visitor is told about a capture's state, from PayPal's own status. */
-export function describeCaptureStatus(status: string): 'paid' | 'processing' | 'refunded' | 'partially_refunded' | 'failed' | 'unknown' {
+export function describeCaptureStatus(
+  status: string,
+): 'paid' | 'processing' | 'refunded' | 'partially_refunded' | 'reversed' | 'failed' | 'unknown' {
   switch (status) {
     case 'COMPLETED':
       return 'paid';
@@ -84,12 +86,22 @@ export function describeCaptureStatus(status: string): 'paid' | 'processing' | '
       return 'refunded';
     case 'PARTIALLY_REFUNDED':
       return 'partially_refunded';
+    case 'REVERSED':
+      return 'reversed';
     case 'DECLINED':
     case 'FAILED':
       return 'failed';
     default:
       return 'unknown';
   }
+}
+
+/**
+ * PayPal's refunded total so far, from our order row (the webhook / refund sync keeps it), as a field to
+ * spread into a tool result — absent when nothing was refunded or the total could not be read (0).
+ */
+function refundedAmount(row: { refunded_cents: number; currency: string } | null): { refunded_amount?: string } {
+  return row && row.refunded_cents > 0 ? { refunded_amount: formatMoney(row.refunded_cents, row.currency) } : {};
 }
 
 /** Dollars as the model says them ("9.5", 9.5) → cents, or null when it is not a sane amount. */
@@ -155,6 +167,7 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         amount: formatMoney(row.amount_cents, row.currency),
         currency: row.currency,
         payment_status: status,
+        ...refundedAmount(row),
         paid_at: capturedAt,
         // A partly refunded payment can be refunded further; the guardrail still decides (approval).
         refundable: status === 'paid' || status === 'partially_refunded',
@@ -164,7 +177,7 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
 
   const get_payment_status = tool({
     description:
-      "Current state of this conversation's verified payment (paid / processing / refunded / failed) and of any refund request on it. Call find_my_payment first if nothing is verified yet.",
+      "Current state of this conversation's verified payment (paid / processing / partially_refunded / refunded / reversed / failed) and of any refund request on it. refunded_amount, when present, is the total PayPal has refunded so far. reversed means PayPal took the payment back (for example a chargeback); it cannot be refunded again. Call find_my_payment first if nothing is verified yet.",
     inputSchema: z.object({}),
     execute: async (_input, { abortSignal }: ToolCallOptions = {}) => {
       const stored = await store.latestVerification(conversationId);
@@ -178,16 +191,25 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         return { ...base, payment_status: row ? describeOrderStatus(row.status) : 'unknown', refund: null };
       }
 
-      let paymentStatus: ReturnType<typeof describeCaptureStatus> = 'unknown';
+      // Our row (kept current by the webhook / refund sync) backs up PayPal's live capture status:
+      // a full reversal reads as REFUNDED on the capture (Payments v2 has no REVERSED capture status),
+      // and when PayPal cannot be read the row is the best we have.
+      const row = await store.getOrder(v.order_id);
+      let paymentStatus: ReturnType<typeof describeCaptureStatus> | ReturnType<typeof describeOrderStatus>;
       try {
         paymentStatus = describeCaptureStatus((await paypal.getCapture(v.capture_id, { signal: abortSignal })).status);
       } catch (err) {
         console.error('[paypal] get_payment_status: getCapture failed', { captureId: v.capture_id, ...describeError(err) });
+        paymentStatus = row ? describeOrderStatus(row.status) : 'unknown';
       }
+      if (row?.status === 'reversed') paymentStatus = 'reversed';
       const action = await freshenAction(await store.latestRefundAction(botId, v.capture_id), abortSignal);
+      const refunded =
+        paymentStatus === 'partially_refunded' || paymentStatus === 'refunded' || paymentStatus === 'reversed' ? refundedAmount(row) : {};
       return {
         ...base,
         payment_status: paymentStatus,
+        ...refunded,
         refund: action
           ? {
               status: describeActionStatus(action.status),
