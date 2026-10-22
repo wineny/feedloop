@@ -7,7 +7,24 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getServiceRoleClient } from '@/lib/supabase';
 
-export type OrderStatus = 'created' | 'approved' | 'captured' | 'expired' | 'failed';
+export type OrderStatus =
+  | 'created'
+  | 'approved'
+  | 'captured'
+  | 'expired'
+  | 'failed'
+  /** 20261022_01: a refund/reversal PayPal reported for the capture. Reached only from `captured`, never left backwards. */
+  | 'partially_refunded'
+  | 'refunded'
+  | 'reversed';
+
+/** States the order can only reach AFTER PayPal captured it, in the order they may move (forward only). */
+export const CAPTURED_ORDER_STATUSES = ['captured', 'partially_refunded', 'refunded', 'reversed'] as const;
+export type RefundOrderStatus = Exclude<(typeof CAPTURED_ORDER_STATUSES)[number], 'captured'>;
+
+export function isCapturedOrLater(status: OrderStatus): boolean {
+  return (CAPTURED_ORDER_STATUSES as readonly string[]).includes(status);
+}
 
 export interface ProductRow {
   id: string;
@@ -36,6 +53,10 @@ export interface OrderRow {
   approve_url: string | null;
   created_at: string;
   captured_at: string | null;
+  /** PayPal's refunded total for the capture, to date (0 = none seen). Only grows. */
+  refunded_cents: number;
+  /** When we last saw the refund state change. */
+  refunded_at: string | null;
 }
 
 export type NewOrderRow = Pick<
@@ -172,6 +193,21 @@ export interface PaymentsStore {
     fromStatuses: readonly OrderStatus[],
     patch: OrderPatch,
   ): Promise<OrderRow | null>;
+  /** This bot's order whose capture is `captureId`, or null. */
+  getOrderByCapture(botId: string, captureId: string): Promise<OrderRow | null>;
+  /**
+   * A refund state the caller read from PayPal (paypal_order_apply_refund): one conditional UPDATE that
+   * only moves a captured-or-later row of this bot+capture FORWARD (captured → partially_refunded →
+   * refunded; reversed terminal) or grows refunded_cents (capped at the order amount). Returns the updated
+   * row, or null when nothing changed — a duplicate, a late/out-of-order event, or not our order.
+   */
+  applyOrderRefund(input: {
+    orderId: string;
+    botId: string;
+    captureId: string;
+    status: RefundOrderStatus;
+    refundedCents: number;
+  }): Promise<OrderRow | null>;
   insertWebhookEvent(row: NewWebhookEvent): Promise<WebhookInsertResult>;
   finishWebhookEvent(eventId: string, error: string | null): Promise<void>;
   /**
@@ -260,7 +296,7 @@ export interface PaymentsStore {
 }
 
 const ORDER_COLUMNS =
-  'order_id, bot_id, conversation_id, product_id, quantity, amount_cents, currency, status, capture_id, payer_email, payer_id, approve_url, created_at, captured_at';
+  'order_id, bot_id, conversation_id, product_id, quantity, amount_cents, currency, status, capture_id, payer_email, payer_id, approve_url, created_at, captured_at, refunded_cents, refunded_at';
 
 const PRODUCT_COLUMNS = 'id, bot_id, sku, name, description, amount_cents, currency, active, sort_order';
 
@@ -346,6 +382,29 @@ export function supabasePaymentsStore(db: SupabaseClient = getServiceRoleClient(
         .maybeSingle();
       if (error) fail('updateOrder', error);
       return (data as OrderRow | null) ?? null;
+    },
+
+    async getOrderByCapture(botId, captureId) {
+      const { data, error } = await db
+        .from('paypal_orders')
+        .select(ORDER_COLUMNS)
+        .eq('bot_id', botId)
+        .eq('capture_id', captureId)
+        .maybeSingle();
+      if (error) fail('getOrderByCapture', error);
+      return (data as OrderRow | null) ?? null;
+    },
+
+    async applyOrderRefund({ orderId, botId, captureId, status, refundedCents }) {
+      const { data, error } = await db.rpc('paypal_order_apply_refund', {
+        p_order_id: orderId,
+        p_bot_id: botId,
+        p_capture_id: captureId,
+        p_status: status,
+        p_refunded_cents: refundedCents,
+      });
+      if (error) fail('applyOrderRefund', error);
+      return ((data as OrderRow[] | null) ?? [])[0] ?? null;
     },
 
     async insertWebhookEvent(row) {

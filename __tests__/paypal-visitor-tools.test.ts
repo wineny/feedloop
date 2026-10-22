@@ -7,8 +7,11 @@ import {
   VISITOR_TOOL_NAMES,
   createVisitorTools,
   describeActionStatus,
+  describeCaptureStatus,
+  describeOrderStatus,
   formatProductList,
   majorToCents,
+  refundReasonFromTrace,
 } from '@/lib/paypal/visitor-tools';
 import { BOT, BUYER_EMAIL, CONVERSATION, OTHER_BOT, fakePayPal, memoryStore, orderRow, products } from './fixtures/paypal/fakes';
 
@@ -64,6 +67,10 @@ describe('tool set', () => {
     expect(Object.keys(find?.inputSchema?.properties ?? {})).toEqual(['order_id', 'email']);
     const refund = seen.find((t) => t.name === 'request_refund');
     expect(Object.keys(refund?.inputSchema?.properties ?? {})).toEqual(['amount', 'reason']);
+    // The reason becomes insight / PR evidence (design §7): the model is told to keep identifiers out.
+    expect((refund?.inputSchema?.properties?.reason as { description?: string }).description).toContain(
+      'Do not include the email address or the order id',
+    );
   });
 });
 
@@ -431,6 +438,71 @@ describe('verified before capture (P2)', () => {
     expect(store.verifications[0].capture_id).toBe(`CAP${ORDER}`);
   });
 
+  it('a partially refunded payment stays refundable (the guardrail decides); a fully refunded one does not', async () => {
+    const { store, tools } = setup();
+    store.orders[0].status = 'partially_refunded';
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).toMatchObject({
+      payment_status: 'partially_refunded',
+      refundable: true,
+    });
+    store.orders[0].status = 'refunded';
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).toMatchObject({
+      payment_status: 'refunded',
+      refundable: false,
+    });
+  });
+
+  it('tells the refunded total so far (stage 4 receipt), and never a $0 refund', async () => {
+    const { store, pp, tools } = setup();
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).not.toHaveProperty('refunded_amount');
+    pp.sellerRefund(ORDER, '9.50');
+    Object.assign(store.orders[0], { status: 'partially_refunded', refunded_cents: 950 });
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).toMatchObject({
+      payment_status: 'partially_refunded',
+      refunded_amount: '$9.50',
+    });
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'partially_refunded', refunded_amount: '$9.50' });
+
+    // A reversal whose total could not be read keeps refunded_cents 0: the field is left out.
+    pp.setCaptureStatus(ORDER, 'REVERSED');
+    Object.assign(store.orders[0], { status: 'reversed', refunded_cents: 0 });
+    const reversed = await run(tools, 'get_payment_status');
+    expect(reversed).toMatchObject({ payment_status: 'reversed' });
+    expect(reversed).not.toHaveProperty('refunded_amount');
+  });
+
+  it('a full reversal reads REFUNDED on the capture; our row says reversed, so the visitor hears reversed', async () => {
+    const { store, pp, tools } = setup();
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    pp.setCaptureStatus(ORDER, 'REFUNDED');
+    Object.assign(store.orders[0], { status: 'reversed', refunded_cents: 2900 });
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'reversed', refunded_amount: '$29' });
+  });
+
+  it('PayPal unreadable: falls back to our row instead of unknown', async () => {
+    const { store, pp, tools } = setup();
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    Object.assign(store.orders[0], { status: 'partially_refunded', refunded_cents: 950 });
+    pp.failCaptureRead();
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'partially_refunded', refunded_amount: '$9.50' });
+    Object.assign(store.orders[0], { status: 'captured', refunded_cents: 0 });
+    const paid = await run(tools, 'get_payment_status');
+    expect(paid).toMatchObject({ payment_status: 'paid' });
+    expect(paid).not.toHaveProperty('refunded_amount');
+  });
+
+  it('a row already refunded when the visitor comes back still refreshes the verification (stage 4)', async () => {
+    const { store, pp, tools } = setup({ paid: false });
+    pp.approve(ORDER);
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    await pp.client.captureOrder(ORDER, ORDER);
+    pp.sellerRefund(ORDER, '29.00');
+    Object.assign(store.orders[0], { status: 'refunded', capture_id: `CAP${ORDER}`, captured_at: '2026-10-20T00:00:00Z', refunded_cents: 2900 });
+
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'refunded' });
+    expect(store.verifications[0].capture_id).toBe(`CAP${ORDER}`);
+  });
+
   it('stays not_paid while nobody captured, and does not re-verify the email', async () => {
     const { store, pp, tools } = setup({ paid: false });
     pp.approve(ORDER);
@@ -518,6 +590,34 @@ describe('through the agent loop', () => {
     expect(outcome.toolTrace[1].output).toMatchObject({ status: 'refunded', amount: '$29' });
     expect(pp.refundCalls()).toHaveLength(1);
   });
+
+  it('the refund reason the visitor gave comes out of the real trace (design §7); a refused call gives none', async () => {
+    const { store, tools } = setup();
+    store.nextDecision = 'pending';
+    const script = [
+      [{ type: 'tool-call', toolCallId: 'c0', toolName: 'request_refund', input: JSON.stringify({ reason: 'early call' }) }],
+      [{ type: 'tool-call', toolCallId: 'c1', toolName: 'find_my_payment', input: JSON.stringify({ order_id: ORDER, email: BUYER_EMAIL }) }],
+      [{ type: 'tool-call', toolCallId: 'c2', toolName: 'request_refund', input: JSON.stringify({ reason: 'The receipt showed the wrong currency' }) }],
+      [{ type: 'text', text: 'Your refund is waiting for the owner.' }],
+    ];
+    let i = 0;
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        const content = script[Math.min(i, script.length - 1)];
+        i += 1;
+        const tool = content.some((c) => c.type === 'tool-call');
+        return { content: content as never, finishReason: { unified: tool ? 'tool-calls' : 'stop', raw: 'x' }, usage, warnings: [] };
+      },
+    });
+    const outcome = await runPaymentAgent({ model, tools, system: 's', prompt: 'refund please' });
+    expect(outcome.toolTrace.map((t) => (t.output as { status?: string } | undefined)?.status)).toEqual([
+      'not_verified',
+      undefined,
+      'waiting_for_approval',
+    ]);
+    expect(refundReasonFromTrace(outcome.toolTrace)).toBe('The receipt showed the wrong currency');
+    expect(refundReasonFromTrace(outcome.toolTrace.slice(0, 2))).toBeNull();
+  });
 });
 
 describe('helpers', () => {
@@ -527,6 +627,20 @@ describe('helpers', () => {
     expect(majorToCents(0.001)).toBeNull();
     expect(majorToCents(-1)).toBeNull();
     expect(majorToCents('abc')).toBeNull();
+  });
+
+  it('describeOrderStatus names the refund states and never calls them paid', () => {
+    expect(describeOrderStatus('captured')).toBe('paid');
+    expect(describeOrderStatus('partially_refunded')).toBe('partially_refunded');
+    expect(describeOrderStatus('refunded')).toBe('refunded');
+    expect(describeOrderStatus('reversed')).toBe('reversed');
+  });
+
+  it('describeCaptureStatus knows a reversed capture (not unknown, not paid)', () => {
+    expect(describeCaptureStatus('REVERSED')).toBe('reversed');
+    expect(describeCaptureStatus('PARTIALLY_REFUNDED')).toBe('partially_refunded');
+    expect(describeCaptureStatus('REFUNDED')).toBe('refunded');
+    expect(describeCaptureStatus('COMPLETED')).toBe('paid');
   });
 
   it('describeActionStatus: only executed is refunded; executing/unknown are processing', () => {
@@ -545,6 +659,26 @@ describe('helpers', () => {
     expect(text).toContain('Products you can sell');
     expect(text).toContain(`- Pro (sku pro) — $29 USD; product_id ${products()[0].id}`);
     expect(formatProductList([])).toBe('');
+  });
+
+  it('refundReasonFromTrace: only a refund the system took up, last one wins, never a plain question', () => {
+    const refund = (status: string, reason = 'Receipt showed the wrong currency') => ({
+      toolName: 'request_refund',
+      input: { reason },
+      output: { status },
+    });
+    for (const status of ['refunded', 'waiting_for_approval', 'processing']) {
+      expect(refundReasonFromTrace([refund(status)])).toBe('Receipt showed the wrong currency');
+    }
+    // failed frees the slot: the retry would file the same reason again
+    for (const status of ['not_verified', 'not_paid', 'declined', 'already_requested', 'canceled', 'failed']) {
+      expect(refundReasonFromTrace([refund(status)])).toBeNull();
+    }
+    expect(refundReasonFromTrace([])).toBeNull();
+    expect(refundReasonFromTrace([{ toolName: 'get_payment_status', input: {}, output: { verified: true, payment_status: 'paid' } }])).toBeNull();
+    expect(refundReasonFromTrace([{ toolName: 'request_refund', input: { reason: 'x' }, error: 'timeout' }])).toBeNull();
+    expect(refundReasonFromTrace([refund('waiting_for_approval', '  ')])).toBeNull();
+    expect(refundReasonFromTrace([refund('declined', 'first'), refund('refunded', ' second ')])).toBe('second');
   });
 
   it('a spy on origin is only consulted by create_checkout', async () => {

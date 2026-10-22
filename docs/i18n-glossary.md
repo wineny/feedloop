@@ -24,6 +24,7 @@
 | 반영(됐어요) | fixed / shipped | 방문자에게 가는 알림은 「Fixed」, 사업자 화면은 「shipped」 |
 | 반영 알림 | notification | 보낸 사람에게 가는 알림 |
 | 환불 | refund | |
+| 회수 (역결제) | reversal / reversed | PayPal 이 결제를 되돌려 구매자에게 돌려준 것(이의 제기·차지백 등). 영수증 「결제 회수됨」·「회수된 금액」·「회수 기록일」. 「결제 취소」는 expired(결제 취소됨)가 쓰므로 reversal 에 쓰지 않는다 |
 | 결제 | payment | PayPal 주문 한 건 = order |
 | 장부 | ledger | 결제 기록(payment ledger) |
 | 저장소 | repository | GitHub 저장소 |

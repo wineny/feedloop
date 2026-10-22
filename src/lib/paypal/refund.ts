@@ -19,6 +19,7 @@
 //     CANCELLED, https://developer.paypal.com/api/payments/v2/definitions/refund/):
 //       COMPLETED          → settle `executed`. If THAT write fails, the row stays as it was
 //                            (executing/unknown): money moved, the reservation stays, the id is the key.
+//                            Then paypal_orders follows from a fresh capture read (syncOrderRefund).
 //       PENDING            → settle `unknown` WITH the refund id: PayPal accepted it but has not
 //                            finished; reconciliation GETs the refund later. Visitor hears "processing".
 //       FAILED / CANCELLED → settle `failed` (definite: no money moved, slot freed).
@@ -36,6 +37,7 @@
 // from the webhook (PAYMENT.CAPTURE.REFUNDED), from the daily cron, and lazily from the visitor
 // tools when they meet a stuck row.
 
+import { syncOrderRefund } from './capture';
 import { isUncertainPayPalError, type PayPalClient } from './client';
 import { describeError } from './checkout';
 import { centsToValue, formatMoney, valueToCents } from './money';
@@ -226,7 +228,7 @@ export async function executeRefundCall(
     );
   }
 
-  return classifyRefundResource(deps, action, refund, { amountCents, currency, payload, from });
+  return classifyRefundResource(deps, action, refund, { amountCents, currency, payload, from, signal });
 }
 
 /** Maps a refund resource (from POST or from GET) onto the row and the outcome. */
@@ -234,7 +236,7 @@ async function classifyRefundResource(
   deps: RefundDeps,
   action: PaymentActionRow,
   refund: { id?: unknown; status?: unknown; amount?: unknown } | null | undefined,
-  ctx: { amountCents: number; currency: string; payload: unknown; from: readonly PaymentActionStatus[] },
+  ctx: { amountCents: number; currency: string; payload: unknown; from: readonly PaymentActionStatus[]; signal?: AbortSignal },
 ): Promise<ExecuteOutcome> {
   const refundId = typeof refund?.id === 'string' && refund.id ? refund.id : null;
   const status = typeof refund?.status === 'string' ? refund.status : null;
@@ -250,6 +252,7 @@ async function classifyRefundResource(
         refundId,
       });
     }
+    await syncOrderAfterRefund(deps, action, refundId, ctx.signal);
     return { status: 'executed', action, refundId, amountCents: ctx.amountCents, currency: ctx.currency };
   }
 
@@ -431,7 +434,7 @@ export async function reconcileAction(
       return { status: 'unreachable', action };
     }
     if (refund?.status === 'PENDING') return { status: 'still_pending', action };
-    return classifyRefundResource(deps, action, refund, { ...ctx, payload: refundPayload(ctx.amountCents, ctx.currency) });
+    return classifyRefundResource(deps, action, refund, { ...ctx, payload: refundPayload(ctx.amountCents, ctx.currency), signal: opts.signal });
   }
 
   const check = await precheckCapture(deps, action, opts.signal);
@@ -464,6 +467,32 @@ export async function reconcileAction(
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────────────────────
+
+/** How long a completed refund waits for the order row to follow before answering anyway. */
+export const ORDER_SYNC_AFTER_REFUND_MS = 2_500;
+
+/**
+ * Our refund completed: the order row (paypal_orders) follows, from a fresh capture/refund read
+ * (syncOrderRefund). Bounded by ORDER_SYNC_AFTER_REFUND_MS and the caller's signal: the PayPal reads get
+ * the combined signal, and the wait itself stops at the bound even if a read or the database hangs — the
+ * money moved, so the answer must not wait on bookkeeping (the agent's total budget is 30 s). Never
+ * throws; the PAYMENT.CAPTURE.REFUNDED webhook runs the same sync again if this one could not finish.
+ */
+async function syncOrderAfterRefund(deps: RefundDeps, action: PaymentActionRow, refundId: string, signal?: AbortSignal): Promise<void> {
+  const deadline = AbortSignal.timeout(ORDER_SYNC_AFTER_REFUND_MS);
+  const bound = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  const sync = syncOrderRefund(deps, { botId: action.bot_id, captureId: action.target_id, refundId, signal: bound });
+  const stop = new Promise<never>((_, reject) => {
+    const fire = () => reject(bound.reason instanceof Error ? bound.reason : new Error('order sync aborted'));
+    if (bound.aborted) fire();
+    else bound.addEventListener('abort', fire, { once: true });
+  });
+  try {
+    await Promise.race([sync, stop]);
+  } catch (err) {
+    console.error('[paypal] order refund state not synced; the webhook will retry', { actionId: action.id, ...describeError(err) });
+  }
+}
 
 function refundPayload(amountCents: number, currency: string) {
   return { amount: { value: centsToValue(amountCents), currency_code: currency } };

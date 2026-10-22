@@ -34,18 +34,23 @@ export async function loadDemoShop(): Promise<DemoShop | null> {
 
 export type Receipt = Pick<
   OrderRow,
-  'order_id' | 'bot_id' | 'status' | 'quantity' | 'amount_cents' | 'currency' | 'capture_id' | 'payer_email' | 'approve_url' | 'created_at' | 'captured_at'
+  'order_id' | 'bot_id' | 'status' | 'quantity' | 'amount_cents' | 'currency' | 'capture_id' | 'payer_email' | 'approve_url' | 'created_at' | 'captured_at' | 'refunded_cents' | 'refunded_at'
 > & { product_name: string | null };
 
+/** The order's receipt, or null when there is no such order. Throws when the lookup itself fails. */
 export async function loadReceipt(orderId: string): Promise<Receipt | null> {
   const { data, error } = await getServiceRoleClient()
     .from('paypal_orders')
     .select(
-      'order_id, bot_id, status, quantity, amount_cents, currency, capture_id, payer_email, approve_url, created_at, captured_at, products(name)',
+      'order_id, bot_id, status, quantity, amount_cents, currency, capture_id, payer_email, approve_url, created_at, captured_at, refunded_cents, refunded_at, products(name)',
     )
     .eq('order_id', orderId)
     .maybeSingle();
-  if (error) console.error('[pricing] receipt lookup failed', { code: error.code, message: error.message });
+  // A failed query is an error page (error.tsx), not "no such order": only a missing row is a 404.
+  if (error) {
+    console.error('[pricing] receipt lookup failed', { code: error.code, message: error.message });
+    throw new Error(`[pricing] receipt lookup failed: ${error.code ?? ''}`.trim());
+  }
   if (!data) return null;
   const { products, ...row } = data as unknown as Omit<Receipt, 'product_name'> & {
     products: { name: string } | { name: string }[] | null;

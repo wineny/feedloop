@@ -9,6 +9,7 @@
 import { getServiceRoleClient } from '@/lib/supabase';
 import { callClaude } from '@/lib/auto-dev/ai-engine';
 import { appendSupplements, loadSupplementBodies } from '@/lib/insights/supplements';
+import { evidenceText, maskEvidence } from '@/lib/insights/evidence';
 import { OWNER_CONTENT_LANGUAGE } from '@/i18n/owner-locale';
 
 const EVIDENCE_LIMIT = 8;
@@ -86,15 +87,17 @@ export async function generateGroupSpec(groupId: string): Promise<SpecResult> {
       (insights ?? []).map(async (i) => {
         const msg = i.messages as { body?: string } | { body?: string }[] | null;
         const one = Array.isArray(msg) ? msg[0] : msg;
-        const primary = one?.body ?? (i.summary as string | null);
-        if (typeof primary !== 'string' || primary.trim() === '') return null;
+        const raw = one?.body ?? (i.summary as string | null);
+        if (typeof raw !== 'string' || raw.trim() === '') return null;
+        // 자동 PR 과 같은 마스킹 — 이메일·주문번호를 빼고, 남는 게 없으면 요약(결제 대화의 증상).
+        const primary = evidenceText(raw, typeof i.summary === 'string' ? i.summary : '');
         const truncated =
           primary.length > EVIDENCE_CHARS ? `${primary.slice(0, EVIDENCE_CHARS)}…` : primary;
         const supplements = await loadSupplementBodies(
           i.source_message_ids as string[] | null,
           group.bot_id as string,
         );
-        return appendSupplements(truncated, supplements);
+        return appendSupplements(truncated, supplements.map(maskEvidence));
       }),
     )
   ).filter((v): v is string => v !== null);

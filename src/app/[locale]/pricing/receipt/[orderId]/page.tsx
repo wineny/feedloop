@@ -5,13 +5,14 @@ import type { Metadata } from 'next';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, RotateCcw, XCircle } from 'lucide-react';
 import { AutoRefresh } from '@/components/pricing/AutoRefresh';
 import { DemoWidget } from '@/components/pricing/DemoWidget';
 import { PricingHeader } from '@/components/pricing/PricingHeader';
 import { ORDER_ID_RE } from '@/lib/paypal/capture';
 import { formatMoney, isPayPalUrl } from '@/lib/paypal/money';
-import { loadReceipt, maskEmail, type Receipt } from '@/lib/pricing/shop';
+import { RECEIPT_TONE, isSettling, refundFacts, showsQuestions } from '@/lib/pricing/receipt';
+import { loadReceipt, maskEmail } from '@/lib/pricing/shop';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -21,14 +22,6 @@ export async function generateMetadata({ params }: PageProps<'/[locale]/pricing/
   const t = await getTranslations({ locale, namespace: 'meta' });
   return { title: t('receiptTitle'), robots: { index: false, follow: false } };
 }
-
-const TONE: Record<Receipt['status'], 'ok' | 'wait' | 'bad'> = {
-  captured: 'ok',
-  approved: 'wait',
-  created: 'wait',
-  expired: 'bad',
-  failed: 'bad',
-};
 
 interface RowProps {
   label: string;
@@ -53,16 +46,19 @@ export default async function ReceiptPage({ params }: { params: Promise<{ orderI
 
   const t = await getTranslations('pricing.receipt');
   const format = await getFormatter();
-  const tone = TONE[order.status];
-  const Icon = tone === 'ok' ? CheckCircle2 : tone === 'wait' ? Clock : XCircle;
-  const iconColor = tone === 'ok' ? 'text-emerald-600' : tone === 'wait' ? 'text-amber-600' : 'text-muted-foreground';
+  const tone = RECEIPT_TONE[order.status];
+  const Icon = tone === 'ok' ? CheckCircle2 : tone === 'wait' ? Clock : tone === 'refund' ? RotateCcw : XCircle;
+  const iconColor =
+    tone === 'ok' ? 'text-emerald-600' : tone === 'wait' ? 'text-amber-600' : tone === 'refund' ? 'text-sky-600' : 'text-muted-foreground';
   const item = order.product_name ? (order.quantity > 1 ? `${order.product_name} × ${order.quantity}` : order.product_name) : null;
   // `expired` keeps the button too: the cancel URL needs no login, so someone holding the order id
   // could mark it expired — the buyer must still be able to finish paying.
   const resumeUrl =
     (order.status === 'created' || order.status === 'expired') && isPayPalUrl(order.approve_url) ? order.approve_url : null;
-  const settling = order.status === 'created' || order.status === 'approved';
+  const settling = isSettling(order.status);
   const date = order.captured_at ?? order.created_at;
+  const refund = refundFacts(order);
+  const money = (cents: number | null) => (cents === null ? null : `${formatMoney(cents, order.currency)} ${order.currency}`);
 
   return (
     <div className="flex flex-col gap-10">
@@ -79,14 +75,27 @@ export default async function ReceiptPage({ params }: { params: Promise<{ orderI
 
         <dl className="flex flex-col">
           <Row label={t('item')} value={item} />
-          <Row label={t('total')} value={`${formatMoney(order.amount_cents, order.currency)} ${order.currency}`} />
+          <Row label={t('total')} value={money(order.amount_cents)} />
+          {refund ? (
+            <>
+              <Row label={t(refund.kind === 'reversed' ? 'reversedAmount' : 'refundedAmount')} value={money(refund.refundedCents)} />
+              <Row label={t('remaining')} value={money(refund.remainingCents)} />
+            </>
+          ) : null}
           <Row label={t('orderId')} value={order.order_id} />
           <Row label={t('transactionId')} value={order.capture_id} />
           <Row label={t('paidWith')} value={maskEmail(order.payer_email)} />
           <Row label={t('date')} value={format.dateTime(new Date(date), { dateStyle: 'medium', timeStyle: 'long', timeZone: 'UTC' })} />
+          {refund?.recordedAt ? (
+            // When Feedloop saw the change, not PayPal's refund time — so the day only, labeled "recorded".
+            <Row
+              label={t(refund.kind === 'reversed' ? 'reversalRecorded' : 'refundRecorded')}
+              value={format.dateTime(new Date(refund.recordedAt), { dateStyle: 'medium', timeZone: 'UTC' })}
+            />
+          ) : null}
         </dl>
 
-        {order.status === 'captured' ? (
+        {showsQuestions(order.status) ? (
           <p className="rounded-xl bg-muted px-4 py-3 text-sm leading-6 text-muted-foreground">
             {t('questions')}
           </p>

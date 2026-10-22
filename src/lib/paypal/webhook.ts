@@ -14,9 +14,11 @@
 import { createPublicKey, createVerify, X509Certificate } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { PayPalApiError, type PayPalCapture, type PayPalClient } from './client';
-import { applyCapturedOrder, captureCheckout } from './capture';
+import { applyCapturedOrder, captureCheckout, captureIdFromRefundResource, syncOrderRefund } from './capture';
 import { isStuckAction, reconcileAction } from './refund';
-import type { PaymentsStore } from './store';
+import { isCapturedOrLater, type OrderStatus, type PaymentsStore } from './store';
+
+export { captureIdFromRefundResource };
 
 export const CERT_HOSTS = new Set(['api.paypal.com', 'api.sandbox.paypal.com']);
 const CERT_PATH = /^\/v1\/notifications\/certs\/CERT-[A-Za-z0-9-]+$/;
@@ -174,40 +176,21 @@ export function parseWebhookEvent(raw: Buffer): WebhookEvent | null {
   return e as WebhookEvent;
 }
 
-const PAYPAL_API_HOSTS = new Set(['api.paypal.com', 'api-m.paypal.com', 'api.sandbox.paypal.com', 'api-m.sandbox.paypal.com']);
+/** Events we store now and act on later (disputes — stage 6). */
+export const RECORD_ONLY = /^CUSTOMER\.DISPUTE\..+$/;
 
-/**
- * The capture id behind a refund resource: its `up` link, https://api(-m)(.sandbox).paypal.com/v2/payments/captures/{id}.
- * Anything else (another host, another path, no link) → null. Exported for tests.
- */
-export function captureIdFromRefundResource(resource: unknown): string | null {
-  const links = (resource as { links?: unknown } | null)?.links;
-  if (!Array.isArray(links)) return null;
-  for (const link of links) {
-    const l = link as { rel?: unknown; href?: unknown };
-    if (l?.rel !== 'up' || typeof l.href !== 'string') continue;
-    let url: URL;
-    try {
-      url = new URL(l.href);
-    } catch {
-      continue;
-    }
-    if (url.protocol !== 'https:' || !PAYPAL_API_HOSTS.has(url.hostname)) continue;
-    const m = /^\/v2\/payments\/captures\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
-    if (m) return m[1];
-  }
-  return null;
-}
-
-/** Events we store now and act on later (reversals, disputes). */
-export const RECORD_ONLY = /^(PAYMENT\.CAPTURE\.REFUNDED|PAYMENT\.CAPTURE\.REVERSED|CUSTOMER\.DISPUTE\..+)$/;
+const CAPTURE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 export type HandleOutcome =
   | { kind: 'captured' | 'already_captured' | 'pending' | 'failed' }
   | { kind: 'ignored'; reason: string }
   | { kind: 'recorded' }
   /** A stuck refund action for this capture was reconciled (its new status in `outcome`). */
-  | { kind: 'reconciled'; outcome: string };
+  | { kind: 'reconciled'; outcome: string }
+  /** Our order moved to the refund state PayPal reports for its capture. */
+  | { kind: 'order_updated'; status: OrderStatus; refundedCents: number }
+  /** Our order already was in that state (a duplicate or late event). */
+  | { kind: 'order_unchanged'; status: OrderStatus };
 
 export interface WebhookDeps {
   store: PaymentsStore;
@@ -252,7 +235,8 @@ export async function handleWebhookEvent(
     if (!orderId) return { kind: 'ignored', reason: 'capture has no order id' };
     const row = await deps.store.getOrder(orderId);
     if (!row || row.bot_id !== botId) return { kind: 'ignored', reason: 'unknown order' };
-    if (row.status === 'captured') return { kind: 'already_captured' };
+    // A late COMPLETED never undoes a refund: refunded / reversed rows were captured already.
+    if (isCapturedOrLater(row.status)) return { kind: 'already_captured' };
     if (capture.status !== 'COMPLETED') return { kind: 'ignored', reason: `capture ${capture.status}` };
     const order = await deps.paypal.getOrder(orderId);
     const result = await applyCapturedOrder(deps, row, order);
@@ -282,20 +266,33 @@ export async function handleWebhookEvent(
     return failed ? { kind: 'failed' } : { kind: 'ignored', reason: `order ${row.status}` };
   }
 
-  if (event.event_type === 'PAYMENT.CAPTURE.REFUNDED') {
+  if (event.event_type === 'PAYMENT.CAPTURE.REFUNDED' || event.event_type === 'PAYMENT.CAPTURE.REVERSED') {
     // The resource is a REFUND (resource.id = refund id); its capture is the `up` link
-    // (https://developer.paypal.com/api/payments/v2/captures-refund/ — capture_refunded callback).
-    // If we have a refund action for that capture whose answer we never saw (executing/unknown),
-    // this is the moment to finish it. reconcileAction re-reads PayPal (GET refund, or the idempotent
-    // re-POST); nothing here trusts the webhook body's amounts or status, and the link is only used
-    // as a lookup key after its host and path were validated.
-    const captureId = captureIdFromRefundResource(event.resource);
+    // (https://developer.paypal.com/api/payments/v2/captures-refund/ — capture_refunded callback; the
+    // webhook event list ties PAYMENT.CAPTURE.REVERSED to the same refund method). Should a reversal
+    // arrive with the capture itself as resource, its id is the capture id. Either way the ids are only
+    // lookup keys (host, path and format validated): nothing here trusts the body's amounts or status.
+    const reversal = event.event_type === 'PAYMENT.CAPTURE.REVERSED';
+    const linked = captureIdFromRefundResource(event.resource);
+    const captureId =
+      linked ?? (event.resource_type === 'capture' && resourceId && CAPTURE_ID_RE.test(resourceId) ? resourceId : null);
     if (!captureId) return { kind: 'recorded' };
-    const action = await deps.store.latestRefundAction(botId, captureId);
-    if (action && isStuckAction(action)) {
-      const outcome = await reconcileAction(deps, action);
-      return { kind: 'reconciled', outcome: outcome.status };
+    const refundId = linked ? resourceId : null;
+
+    // 1. If we have a refund action for that capture whose answer we never saw (executing/unknown),
+    // this is the moment to finish it. reconcileAction re-reads PayPal (GET refund, or the idempotent
+    // re-POST).
+    let reconciled: string | null = null;
+    if (!reversal) {
+      const action = await deps.store.latestRefundAction(botId, captureId);
+      if (action && isStuckAction(action)) reconciled = (await reconcileAction(deps, action)).status;
     }
+
+    // 2. The order row follows what PayPal now says about the capture — our refund or the seller's.
+    const sync = await syncOrderRefund(deps, { botId, captureId, refundId, reversal });
+    if (reconciled) return { kind: 'reconciled', outcome: reconciled };
+    if (sync.kind === 'updated') return { kind: 'order_updated', status: sync.order.status, refundedCents: sync.order.refunded_cents };
+    if (sync.kind === 'unchanged') return { kind: 'order_unchanged', status: sync.order.status };
     return { kind: 'recorded' };
   }
 

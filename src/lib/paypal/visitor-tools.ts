@@ -15,13 +15,14 @@
 
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
+import type { PaymentToolTrace } from './agent';
 import { ORDER_ID_RE, readCaptureFacts } from './capture';
 import { createCheckout, describeError, MAX_QUANTITY } from './checkout';
 import type { PayPalClient } from './client';
 import { formatMoney } from './money';
 import { isStuckAction, reconcileAction, requestRefund } from './refund';
 import { checkoutLine } from './sentences';
-import type { OrderStatus, PaymentActionRow, PaymentsStore, ProductRow, VerificationRow } from './store';
+import { isCapturedOrLater, type OrderStatus, type PaymentActionRow, type PaymentsStore, type ProductRow, type VerificationRow } from './store';
 
 /**
  * A stuck row (executing/unknown) older than this is reconciled on the spot before the visitor is
@@ -63,7 +64,9 @@ const NOT_FOUND = { found: false as const, reason: 'no_match' as const };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What the visitor is told about an order row's state. */
-export function describeOrderStatus(status: OrderStatus): 'paid' | 'processing' | 'not_paid' | 'expired' | 'failed' {
+export function describeOrderStatus(
+  status: OrderStatus,
+): 'paid' | 'processing' | 'not_paid' | 'expired' | 'failed' | 'partially_refunded' | 'refunded' | 'reversed' {
   if (status === 'captured') return 'paid';
   if (status === 'approved') return 'processing';
   if (status === 'created') return 'not_paid';
@@ -71,7 +74,9 @@ export function describeOrderStatus(status: OrderStatus): 'paid' | 'processing' 
 }
 
 /** What the visitor is told about a capture's state, from PayPal's own status. */
-export function describeCaptureStatus(status: string): 'paid' | 'processing' | 'refunded' | 'partially_refunded' | 'failed' | 'unknown' {
+export function describeCaptureStatus(
+  status: string,
+): 'paid' | 'processing' | 'refunded' | 'partially_refunded' | 'reversed' | 'failed' | 'unknown' {
   switch (status) {
     case 'COMPLETED':
       return 'paid';
@@ -81,12 +86,22 @@ export function describeCaptureStatus(status: string): 'paid' | 'processing' | '
       return 'refunded';
     case 'PARTIALLY_REFUNDED':
       return 'partially_refunded';
+    case 'REVERSED':
+      return 'reversed';
     case 'DECLINED':
     case 'FAILED':
       return 'failed';
     default:
       return 'unknown';
   }
+}
+
+/**
+ * PayPal's refunded total so far, from our order row (the webhook / refund sync keeps it), as a field to
+ * spread into a tool result — absent when nothing was refunded or the total could not be read (0).
+ */
+function refundedAmount(row: { refunded_cents: number; currency: string } | null): { refunded_amount?: string } {
+  return row && row.refunded_cents > 0 ? { refunded_amount: formatMoney(row.refunded_cents, row.currency) } : {};
 }
 
 /** Dollars as the model says them ("9.5", 9.5) → cents, or null when it is not a sane amount. */
@@ -152,15 +167,17 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         amount: formatMoney(row.amount_cents, row.currency),
         currency: row.currency,
         payment_status: status,
+        ...refundedAmount(row),
         paid_at: capturedAt,
-        refundable: status === 'paid',
+        // A partly refunded payment can be refunded further; the guardrail still decides (approval).
+        refundable: status === 'paid' || status === 'partially_refunded',
       };
     },
   });
 
   const get_payment_status = tool({
     description:
-      "Current state of this conversation's verified payment (paid / processing / refunded / failed) and of any refund request on it. Call find_my_payment first if nothing is verified yet.",
+      "Current state of this conversation's verified payment (paid / processing / partially_refunded / refunded / reversed / failed) and of any refund request on it. refunded_amount, when present, is the total PayPal has refunded so far. reversed means PayPal took the payment back (for example a chargeback); it cannot be refunded again. Call find_my_payment first if nothing is verified yet.",
     inputSchema: z.object({}),
     execute: async (_input, { abortSignal }: ToolCallOptions = {}) => {
       const stored = await store.latestVerification(conversationId);
@@ -174,16 +191,25 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         return { ...base, payment_status: row ? describeOrderStatus(row.status) : 'unknown', refund: null };
       }
 
-      let paymentStatus: ReturnType<typeof describeCaptureStatus> = 'unknown';
+      // Our row (kept current by the webhook / refund sync) backs up PayPal's live capture status:
+      // a full reversal reads as REFUNDED on the capture (Payments v2 has no REVERSED capture status),
+      // and when PayPal cannot be read the row is the best we have.
+      const row = await store.getOrder(v.order_id);
+      let paymentStatus: ReturnType<typeof describeCaptureStatus> | ReturnType<typeof describeOrderStatus>;
       try {
         paymentStatus = describeCaptureStatus((await paypal.getCapture(v.capture_id, { signal: abortSignal })).status);
       } catch (err) {
         console.error('[paypal] get_payment_status: getCapture failed', { captureId: v.capture_id, ...describeError(err) });
+        paymentStatus = row ? describeOrderStatus(row.status) : 'unknown';
       }
+      if (row?.status === 'reversed') paymentStatus = 'reversed';
       const action = await freshenAction(await store.latestRefundAction(botId, v.capture_id), abortSignal);
+      const refunded =
+        paymentStatus === 'partially_refunded' || paymentStatus === 'refunded' || paymentStatus === 'reversed' ? refundedAmount(row) : {};
       return {
         ...base,
         payment_status: paymentStatus,
+        ...refunded,
         refund: action
           ? {
               status: describeActionStatus(action.status),
@@ -247,14 +273,18 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
 
   const request_refund = tool({
     description:
-      "Ask for a refund of this conversation's verified payment. Only works after find_my_payment succeeded and the payment is paid. The system decides: it refunds automatically within the store's limits, otherwise the owner reviews it. The visitor is shown the result as a card automatically; add one short sentence and do not promise anything the result does not say.",
+      "Ask for a refund of this conversation's verified payment. Only works after find_my_payment succeeded and the payment is paid (a partially refunded payment can be refunded further). The system decides: it refunds automatically within the store's limits, otherwise the owner reviews it. The visitor is shown the result as a card automatically; add one short sentence and do not promise anything the result does not say.",
     inputSchema: z.object({
       amount: z
         .number()
         .positive()
         .optional()
         .describe('Amount to refund in the payment currency (e.g. 9.5). Omit for the whole payment.'),
-      reason: z.string().min(1).max(300).describe("The visitor's reason, in their words"),
+      reason: z
+        .string()
+        .min(1)
+        .max(300)
+        .describe("The visitor's reason, in their words. Do not include the email address or the order id."),
     }),
     execute: async ({ amount, reason }, { abortSignal }: ToolCallOptions = {}) => {
       const stored = await store.latestVerification(conversationId);
@@ -332,7 +362,7 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
     let captureId: string | null = null;
     let capturedAt: string | null = null;
     const row = await store.getOrder(v.order_id);
-    if (row && row.bot_id === botId && row.status === 'captured' && row.capture_id) {
+    if (row && row.bot_id === botId && isCapturedOrLater(row.status) && row.capture_id) {
       captureId = row.capture_id;
       capturedAt = row.captured_at;
     } else {
@@ -359,6 +389,33 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
   }
 
   return { find_my_payment, get_payment_status, create_checkout, request_refund };
+}
+
+/**
+ * request_refund results that leave a live payment_actions row (executed / pending / unknown). While
+ * that row lives, a repeat call answers already_requested, so one problem is filed once. Everything
+ * else is left out: calls turned away before any row (not verified, not paid, declined, canceled)
+ * and `failed`, whose row frees the slot — the visitor's retry would come back with the same reason
+ * and file it a second time.
+ */
+const REFUND_TAKEN_UP = new Set(['refunded', 'waiting_for_approval', 'processing']);
+
+/**
+ * The visitor's reason from this turn's last refund request that the system took up, or null.
+ * The widget route runs it through the ordinary feedback classifier (design §7), so a product problem
+ * behind a refund ("the receipt showed the wrong currency") joins insights → grouping → fix PR, and
+ * "changed my mind" lands in a category that is never grouped. Plain questions never call the tool.
+ */
+export function refundReasonFromTrace(trace: readonly PaymentToolTrace[]): string | null {
+  for (let i = trace.length - 1; i >= 0; i--) {
+    const t = trace[i];
+    if (t.toolName !== 'request_refund' || t.error !== undefined) continue;
+    const status = (t.output as { status?: unknown } | undefined)?.status;
+    if (typeof status !== 'string' || !REFUND_TAKEN_UP.has(status)) continue;
+    const reason = (t.input as { reason?: unknown } | undefined)?.reason;
+    return typeof reason === 'string' && reason.trim() ? reason.trim() : null;
+  }
+  return null;
 }
 
 /**

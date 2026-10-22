@@ -375,4 +375,42 @@ BEGIN
   RAISE NOTICE 'single demo bot: OK';
 END $$;
 
+-- (stage 4) paypal_order_apply_refund: forward only, refunded total only grows, capped at the amount
+DO $$
+DECLARE o paypal_orders%ROWTYPE; n integer;
+BEGIN
+  INSERT INTO paypal_orders (order_id, bot_id, amount_cents, currency, status, capture_id)
+  VALUES ('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 2900, 'USD', 'captured', 'CAP-R1'),
+         ('ORDREFUND0002', '00000000-0000-4000-8000-0000000000b0', 2900, 'USD', 'approved', 'CAP-R2');
+
+  -- partial → partially_refunded + total
+  SELECT * INTO o FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-R1', 'partially_refunded', 500);
+  IF o.status IS DISTINCT FROM 'partially_refunded' OR o.refunded_cents <> 500 OR o.refunded_at IS NULL THEN RAISE EXCEPTION 'partial: %', o; END IF;
+  -- the same again → no row
+  SELECT count(*) INTO n FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-R1', 'partially_refunded', 500);
+  IF n <> 0 THEN RAISE EXCEPTION 'duplicate partial should change nothing'; END IF;
+  -- a second partial grows the total
+  SELECT * INTO o FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-R1', 'partially_refunded', 1200);
+  IF o.refunded_cents <> 1200 THEN RAISE EXCEPTION 'second partial: %', o; END IF;
+  -- full (over-reported amount is capped)
+  SELECT * INTO o FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-R1', 'refunded', 99999);
+  IF o.status <> 'refunded' OR o.refunded_cents <> 2900 THEN RAISE EXCEPTION 'full: %', o; END IF;
+  -- a late partial never moves it back
+  SELECT count(*) INTO n FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-R1', 'partially_refunded', 500);
+  IF n <> 0 OR (SELECT status FROM paypal_orders WHERE order_id = 'ORDREFUND0001') <> 'refunded' THEN RAISE EXCEPTION 'late partial regressed'; END IF;
+  -- reversed is terminal
+  SELECT * INTO o FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-R1', 'reversed', 2900);
+  IF o.status <> 'reversed' THEN RAISE EXCEPTION 'reversed: %', o; END IF;
+  SELECT count(*) INTO n FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-R1', 'refunded', 2900);
+  IF n <> 0 THEN RAISE EXCEPTION 'reversed must stay reversed'; END IF;
+  -- wrong capture, wrong bot, not-yet-captured row, a non-refund status → nothing
+  SELECT count(*) INTO n FROM paypal_order_apply_refund('ORDREFUND0001', '00000000-0000-4000-8000-0000000000b0', 'CAP-OTHER', 'reversed', 0);
+  IF n <> 0 THEN RAISE EXCEPTION 'wrong capture id applied'; END IF;
+  SELECT count(*) INTO n FROM paypal_order_apply_refund('ORDREFUND0002', '00000000-0000-4000-8000-0000000000b0', 'CAP-R2', 'refunded', 2900);
+  IF n <> 0 THEN RAISE EXCEPTION 'an approved (not captured) row must not move'; END IF;
+  SELECT count(*) INTO n FROM paypal_order_apply_refund('ORDREFUND0002', '00000000-0000-4000-8000-0000000000b0', 'CAP-R2', 'captured', 0);
+  IF n <> 0 THEN RAISE EXCEPTION 'captured is not a refund state'; END IF;
+  RAISE NOTICE 'order refund state: 11 cases OK';
+END $$;
+
 ROLLBACK;
