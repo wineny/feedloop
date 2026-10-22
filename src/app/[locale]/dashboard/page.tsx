@@ -11,7 +11,7 @@ import { LoopQuality } from '@/components/dashboard/LoopQuality';
 import type { LoopTimeStats } from '@/lib/dashboard/loop-time';
 import type { ConfirmationStats } from '@/lib/dashboard/confirmation';
 import { OnboardingChecklist } from '@/components/dashboard/OnboardingChecklist';
-import { onboardingSteps, shouldShowOnboarding, type OnboardingFacts } from '@/lib/dashboard/onboarding';
+import { onboardingSteps, paypalStepFacts, shouldShowOnboarding, type OnboardingFacts } from '@/lib/dashboard/onboarding';
 import { ChannelIntegration } from '@/components/dashboard/ChannelIntegration';
 import { RecentFeedback, type FeedbackItem } from '@/components/dashboard/RecentFeedback';
 import { LoopActivityFeed, type LoopEvent } from '@/components/dashboard/LoopActivityFeed';
@@ -307,6 +307,9 @@ export default function DashboardPage() {
   // 봇 하나로 좁혀졌을 때만 그 봇의 설정 화면으로 곧장 보낸다(스코프 선택 또는 봇이 하나뿐).
   const checklistBotId = botId ?? (scope.bots.length === 1 ? scope.bots[0].id : null);
   const checklistBot = checklistBotId ? scope.bots.find((b) => b.id === checklistBotId) ?? null : null;
+  // ⑤ 선택 단계 — `payments` 에 이미 있는 값(새 API 호출 없음). 승인자 봇의 연결로 끝난 것처럼 보이지 않게
+  // 「연결할 내 봇이 남지 않음」으로 보고, 링크는 그 내 봇으로(`paypalStepFacts` 주석).
+  const paypalStep = paypalStepFacts(payments);
   // ①·③ 은 **그 봇의 사실**로 본다. 「어느 봇이든 하나 되어 있음」으로 보면 봇이 여럿인 계정에서
   // A 봇 때문에 B 봇의 단계가 완료로 보인다. 어느 봇인지 모를 때만(봇 여럿 + 전체 보기)
   // 합쳐서 본다 — 그 화면의 숫자(제보·PR)도 어차피 합계라 기준이 일관된다.
@@ -319,6 +322,7 @@ export default function DashboardPage() {
       ? (stats.githubReadyBotIds ?? []).includes(checklistBotId)
       : (stats.githubReadyBotIds ?? []).length > 0,
     prCount: stats.prCreated,
+    paypalConnected: paypalStep.paypalConnected,
   };
   // 데모(비로그인)는 제보 47건이라 어차피 숨는다. 심사자가 보는 기본 화면에 「아직 아무것도
   // 안 했다」는 안내를 세우지 않는 편이 맞아 데모에서도 그대로 둔다.
@@ -351,7 +355,7 @@ export default function DashboardPage() {
 
       {/* PayPal 은 두 자리에 나뉜다(ny 2026-10-22). 연결된 봇의 숫자 3칸은 맨 첫 줄 — 체크리스트보다 위.
           「PayPal 연결하기」 카드는 체크리스트 «아래» — PayPal 은 선택 단계라 「첫 루프」 안내를 밀어내지 않는다
-          (체크리스트에도 마지막 단계로 들어간다). 어느 쪽을 그릴지는 `paymentsLayout`. */}
+          (체크리스트에도 마지막 단계로 들어간다 — 체크리스트가 서 있는 동안은 카드를 내린다). 어느 쪽을 그릴지는 `paymentsLayout`. */}
       <PaymentStats
         payments={payments}
         placement="numbers"
@@ -361,9 +365,9 @@ export default function DashboardPage() {
         }
       />
 
-      {showChecklist && <OnboardingChecklist steps={onboardingSteps(onboardingFacts, checklistBotId)} />}
+      {showChecklist && <OnboardingChecklist steps={onboardingSteps(onboardingFacts, checklistBotId, paypalStep.paypalBotId)} />}
 
-      <PaymentStats payments={payments} placement="connect" />
+      <PaymentStats payments={payments} placement="connect" checklistVisible={showChecklist} />
 
       {/* 루프 단계는 «화면 전체 폭»을 쓴다 — 이 화면이 크게 말하는 한 가지라서,
           사이드 칼럼 옆에 끼워 넣으면 그 음량이 나오지 않는다. */}

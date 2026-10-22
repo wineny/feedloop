@@ -114,6 +114,10 @@
       "pr": {
         "label": "First fix PR",
         "action": "View fix PRs"
+      },
+      "paypal": {
+        "label": "Connect PayPal (optional)",
+        "action": "Connect PayPal"
       }
     }
   },

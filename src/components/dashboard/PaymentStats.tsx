@@ -21,6 +21,8 @@ interface PaymentStatsProps {
   placement: 'numbers' | 'connect';
   /** The payment ledger (`PaymentLedger`), drawn right under the numbers — only where the numbers are. */
   ledger?: ReactNode;
+  /** The onboarding checklist is showing — its last step already says "Connect PayPal", so the standalone card stays hidden. */
+  checklistVisible?: boolean;
 }
 
 interface CellProps {
@@ -76,9 +78,9 @@ function Cell({ label, value, extra, note, index, href }: CellProps) {
   );
 }
 
-export function PaymentStats({ payments, placement, ledger }: PaymentStatsProps) {
+export function PaymentStats({ payments, placement, ledger, checklistVisible }: PaymentStatsProps) {
   const t = useTranslations('dashboard.payments');
-  const layout = paymentsLayout(payments);
+  const layout = paymentsLayout(payments, { checklistVisible });
   if (layout.kind === 'none' || layout.kind !== placement || !payments) return null;
 
   if (layout.kind === 'connect') {

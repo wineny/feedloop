@@ -16,7 +16,8 @@ interface OnboardingChecklistProps {
 
 export function OnboardingChecklist({ steps }: OnboardingChecklistProps) {
   const t = useTranslations('dashboard.onboarding');
-  const doneCount = steps.filter((step) => step.done).length;
+  // 진행 수는 필수 단계만 센다(제목·「n/4」와 맞게). 선택 단계(PayPal)는 끝나도 숫자를 올리지 않는다
+  const doneCount = steps.filter((step) => !step.optional && step.done).length;
 
   return (
     <section aria-labelledby="onboarding-title" className="card-surface p-5 sm:p-6">

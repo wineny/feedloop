@@ -21,11 +21,18 @@ export function paypalSettingsHref(botId: string): string {
   return `/bots/${encodeURIComponent(botId)}/paypal`;
 }
 
-export function paymentsLayout(payments: DashboardPayments | null | undefined): PaymentsLayout {
+/**
+ * `checklistVisible`: 시작 체크리스트가 서 있으면 그 마지막 단계(「PayPal 연결 (선택)」)가 같은 일을 권한다.
+ * 같은 행동을 두 번 권하지 않게 따로 서는 「PayPal 연결하기」 카드는 내린다(숫자 아래 작은 안내는 그대로).
+ */
+export function paymentsLayout(
+  payments: DashboardPayments | null | undefined,
+  { checklistVisible = false }: { checklistVisible?: boolean } = {},
+): PaymentsLayout {
   if (!payments) return { kind: 'none' };
   const connectHref = payments.connectBotId ? paypalSettingsHref(payments.connectBotId) : null;
   if (payments.connected) return { kind: 'numbers', connectHref };
-  if (connectHref) return { kind: 'connect', connectHref };
+  if (connectHref) return checklistVisible ? { kind: 'none' } : { kind: 'connect', connectHref };
   // 연결도 안 됐고 연결할 봇도 없다 = 승인자로만 들어간 봇(남의 봇)을 보고 있다. PayPal 탭은 소유자 전용이라
   // 승인자는 여기서 할 수 있는 일이 없다 — 빈 카드나 0 을 세우면 「뭔가 해야 한다」로 읽히니 줄 자체를 그리지 않는다.
   return { kind: 'none' };

@@ -171,3 +171,25 @@ describe('sample-data demo dashboard', () => {
     });
   }
 });
+
+describe('onboarding checklist visible — the standalone connect card steps aside', () => {
+  const renderConnect = (payments: DashboardPayments, checklistVisible: boolean) =>
+    renderWithIntl(React.createElement(PaymentStats, { payments, placement: 'connect', checklistVisible }));
+
+  it('not connected + checklist showing → no standalone card (the checklist’s last step says it)', () => {
+    expect(paymentsLayout(UNCONNECTED_OWNER, { checklistVisible: true })).toEqual({ kind: 'none' });
+    expect(renderConnect(UNCONNECTED_OWNER, true)).toBe('');
+  });
+
+  it('not connected + checklist hidden → the card is back', () => {
+    expect(paymentsLayout(UNCONNECTED_OWNER, { checklistVisible: false })).toEqual({ kind: 'connect', connectHref: '/bots/bot-1/paypal' });
+    expect(renderConnect(UNCONNECTED_OWNER, false)).toContain('Connect PayPal');
+  });
+
+  it('connected → numbers stay whatever the checklist does', () => {
+    expect(paymentsLayout({ ...CONNECTED, connectBotId: 'bot-2' }, { checklistVisible: true })).toEqual({
+      kind: 'numbers',
+      connectHref: '/bots/bot-2/paypal',
+    });
+  });
+});

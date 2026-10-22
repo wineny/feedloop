@@ -792,6 +792,7 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                     <SettingsLink href={`/bots/${bot.id}/knowledge`} disabled={isDemo}>{t('settings.knowledge')}</SettingsLink>
                     <SettingsLink href={`/bots/${bot.id}/knowledge?tab=key`} disabled={isDemo}>{t('settings.key')}</SettingsLink>
                     <SettingsLink href={`/bots/${bot.id}/knowledge?tab=github`} disabled={isDemo}>{t('settings.github')}</SettingsLink>
+                    <SettingsLink href={`/bots/${bot.id}/paypal`} disabled={isDemo}>{t('settings.paypal')}</SettingsLink>
                     <div className="ml-auto flex min-w-0 basis-full justify-end sm:basis-auto">
                       <DeleteBotButton botId={bot.id} serviceName={bot.service_name} disabled={isDemo} />
                     </div>

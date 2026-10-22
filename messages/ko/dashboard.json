@@ -114,6 +114,10 @@
       "pr": {
         "label": "첫 수정안",
         "action": "수정안 보기"
+      },
+      "paypal": {
+        "label": "PayPal 연결 (선택)",
+        "action": "PayPal 연결하기"
       }
     }
   },
