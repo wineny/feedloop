@@ -28,7 +28,9 @@ const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
 function run(table: string, methods: Method[]) {
   if (failing.table === table) return { data: null, count: null, error: { message: 'timeout' } };
   let rows = (tables[table] ?? []).filter((row) =>
-    methods.every(([method, col, ...args]) => (method === 'in' ? (args[0] as unknown[]).includes(row[col as string]) : true)),
+    methods.every(([method, col, ...args]) =>
+      method === 'in' ? (args[0] as unknown[]).includes(row[col as string]) : method === 'eq' ? row[col as string] === args[0] : true,
+    ),
   );
   const order = methods.find((m) => m[0] === 'order');
   if (order) {
@@ -331,5 +333,68 @@ describe('limits', () => {
     failing.table = 'paypal_orders';
     const res = await GET();
     expect(res.status).toBe(500);
+  });
+});
+
+describe('?conversationId= (the inbox payment activity panel)', () => {
+  const CONV = '11111111-2222-4333-8444-555555555555';
+  const CONV_2 = '11111111-2222-4333-8444-666666666666';
+  const forConversation = (id: string) => ({ nextUrl: new URL(`http://x/api/payments/ledger?conversationId=${id}`), headers: new Headers() }) as never;
+  const asApprover = () => resolveAccessibleBots.mockResolvedValue({ ok: true, userId: USER, botIds: [BOT], ownedBotIds: [] });
+
+  it('only that conversation, and still only the caller’s bots', async () => {
+    tables.payment_actions = [
+      action({ conversation_id: CONV }),
+      action({ id: 'act-other-conv', conversation_id: CONV_2 }),
+      // Same conversation id on another tenant's bot: the bot scope still applies.
+      action({ id: 'act-other-bot', bot_id: OTHER, conversation_id: CONV }),
+    ];
+    tables.paypal_orders = [order({ conversation_id: CONV }), order({ order_id: 'ORDER-OTHER-CONV', conversation_id: CONV_2 }), order({ order_id: 'ORDER-X', bot_id: OTHER, conversation_id: CONV })];
+    const res = await GET(forConversation(CONV));
+    const { rows } = (await res.json()) as LedgerResponse;
+    expect(rows.map((r) => r.id).sort()).toEqual(['ORDER1', 'act-1']);
+    expect(resolveAccessibleBots).toHaveBeenCalledWith(null);
+    for (const call of calls.filter((c) => c.table !== 'users')) {
+      expect(call.methods).toContainEqual(['in', 'bot_id', [BOT]]);
+      expect(call.methods).toContainEqual(['eq', 'conversation_id', CONV]);
+    }
+  });
+
+  it('a conversation of a bot the caller may not operate yields nothing', async () => {
+    tables.payment_actions = [action({ bot_id: OTHER, conversation_id: '99999999-2222-4333-8444-555555555555' })];
+    tables.paypal_orders = [order({ bot_id: OTHER, conversation_id: '99999999-2222-4333-8444-555555555555' })];
+    const { rows } = (await (await GET(forConversation('99999999-2222-4333-8444-555555555555'))).json()) as LedgerResponse;
+    expect(rows).toEqual([]);
+  });
+
+  it('without it the ledger is not filtered by conversation', async () => {
+    tables.payment_actions = [action(), action({ id: 'act-2', conversation_id: CONV_2 })];
+    const { rows } = await ledger();
+    expect(rows).toHaveLength(2);
+    for (const call of calls) expect(call.methods.some((m) => m[0] === 'eq')).toBe(false);
+  });
+
+  it('same masking as the ledger: an approver gets no names and a short order id; the owner gets both', async () => {
+    tables.payment_actions = [action({ conversation_id: CONV, decided_by: 'user-2', decided_at: ago(1) })];
+    tables.paypal_orders = [order({ conversation_id: CONV, order_id: '5O190127TN364715T' })];
+    const owner = (await (await GET(forConversation(CONV))).json()) as LedgerResponse;
+    expect(owner.rows.find((r) => r.type === 'refund')?.detail).toMatchObject({ decidedBy: { name: 'Jamie' } });
+    expect(owner.rows.find((r) => r.type === 'purchase')?.id).toBe('5O190127TN364715T');
+
+    asApprover();
+    const text = await (await GET(forConversation(CONV))).text();
+    expect(text).not.toContain('Jamie');
+    expect(text).not.toContain('5O190127TN364715T');
+    expect(text).not.toContain('@example.com');
+    const approver = JSON.parse(text) as LedgerResponse;
+    expect(approver.rows.find((r) => r.type === 'purchase')?.id).toBe('…64715T');
+  });
+
+  it('a conversation id that is not a uuid is a 400, and nothing is read', async () => {
+    for (const bad of ['conv-1', "x' or 1=1", '1'.repeat(36)]) {
+      const res = await GET(forConversation(encodeURIComponent(bad)));
+      expect(res.status).toBe(400);
+    }
+    expect(from).not.toHaveBeenCalled();
   });
 });

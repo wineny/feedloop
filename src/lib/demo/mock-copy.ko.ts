@@ -66,6 +66,10 @@ export const copy = {
   ledgerReasonAgency: '팀 규모가 줄어서 Agency 플랜이 필요 없어졌어요. 환불 가능할까요?',
   ledgerReasonPro: 'Pro 플랜을 실수로 두 번 결제했어요',
   ledgerReasonStarter: '기대했던 기능이 아니라서 환불하고 싶어요',
+  // 결제 대화 예시(demo-conv-6) — 장부의 Agency 구매·$79 승인 대기 환불과 같은 대화
+  sayBuyAgency: 'Agency 플랜을 구매하고 싶어요',
+  payCheckoutAgency: 'PayPal로 결제 — $79 · Agency',
+  payRefundPending: '$79 환불 요청이 상점의 승인을 기다리고 있어요. 결과는 여기에서 알려 드릴게요.',
 };
 
 export type DemoCopy = typeof copy;

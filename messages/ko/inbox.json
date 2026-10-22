@@ -108,5 +108,12 @@
       "not_propose_only": "상점이 자동 환불을 허용",
       "not_paused": "자동 환불이 중지되지 않음"
     }
+  },
+  "activity": {
+    "title": "결제 내역",
+    "count": "{count}건",
+    "show": "펼치기",
+    "hide": "접기",
+    "decideAbove": "위 환불 요청 카드에서 승인하거나 거절하세요."
   }
 }

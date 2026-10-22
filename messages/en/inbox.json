@@ -108,5 +108,12 @@
       "not_propose_only": "Store allows automatic refunds",
       "not_paused": "Automatic refunds not paused"
     }
+  },
+  "activity": {
+    "title": "Payment activity",
+    "count": "{count, plural, one {# entry} other {# entries}}",
+    "show": "Show",
+    "hide": "Hide",
+    "decideAbove": "Approve or reject it in the approval card above."
   }
 }

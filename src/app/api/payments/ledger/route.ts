@@ -4,6 +4,8 @@
 //
 // GET ?botId=  — owner OR approver (resolveAccessibleBots), like the dashboard: the judge who joined the
 // demo bot as an approver reads its ledger. Without botId: every bot the caller may operate.
+// GET ?conversationId=  — only that conversation's rows (the inbox's payment activity panel). Same bot
+// scope and the same owner/approver rules: a conversation of a bot the caller may not operate yields nothing.
 //
 // What leaves the server is `LedgerRow` (src/lib/paypal/ledger.ts) — no buyer email, no approve URL,
 // no raw PayPal response; emails/tokens inside the buyer's words are masked. Owners see who decided (a name)
@@ -13,6 +15,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { resolveAccessibleBots } from '@/lib/auth/ownership';
 import { maskSecrets } from '@/lib/widget/context';
+import { apiText } from '@/lib/http/api-text';
 import {
   LEDGER_LIMIT,
   actionToLedgerRow,
@@ -32,12 +35,21 @@ const ACTION_COLUMNS =
 const ORDER_COLUMNS =
   'order_id, bot_id, status, amount_cents, currency, quantity, capture_id, conversation_id, refunded_cents, created_at, captured_at, refunded_at, products(name)';
 
+// conversations.id is a uuid — anything else would only reach Postgres as a cast error (a 500).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type ActionQueryRow = LedgerActionSource & { bot_id: string };
 type OrderQueryRow = Omit<LedgerOrderSource, 'product_name'> & { bot_id: string; products: { name: string | null } | { name: string | null }[] | null };
 
 export async function GET(req?: NextRequest) {
-  const auth = await resolveAccessibleBots(req?.nextUrl.searchParams.get('botId') ?? null);
+  const params = req?.nextUrl.searchParams;
+  const auth = await resolveAccessibleBots(params?.get('botId') ?? null);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const conversationId = params?.get('conversationId') || null;
+  if (conversationId && !UUID_RE.test(conversationId)) {
+    return NextResponse.json({ error: apiText(req, 'badRequest') }, { status: 400 });
+  }
 
   const empty: LedgerResponse = { rows: [], truncated: false };
   const botIds = auth.botIds;
@@ -48,19 +60,15 @@ export async function GET(req?: NextRequest) {
   const owned = new Set(auth.role ? (auth.role === 'owner' ? botIds : []) : (auth.ownedBotIds ?? []));
 
   const db = getServiceRoleClient();
+  let actionQuery = db.from('payment_actions').select(ACTION_COLUMNS, { count: 'exact' }).in('bot_id', botIds);
+  let orderQuery = db.from('paypal_orders').select(ORDER_COLUMNS, { count: 'exact' }).in('bot_id', botIds);
+  if (conversationId) {
+    actionQuery = actionQuery.eq('conversation_id', conversationId);
+    orderQuery = orderQuery.eq('conversation_id', conversationId);
+  }
   const [actionRes, orderRes] = await Promise.all([
-    db
-      .from('payment_actions')
-      .select(ACTION_COLUMNS, { count: 'exact' })
-      .in('bot_id', botIds)
-      .order('created_at', { ascending: false })
-      .limit(LEDGER_LIMIT),
-    db
-      .from('paypal_orders')
-      .select(ORDER_COLUMNS, { count: 'exact' })
-      .in('bot_id', botIds)
-      .order('created_at', { ascending: false })
-      .limit(LEDGER_LIMIT),
+    actionQuery.order('created_at', { ascending: false }).limit(LEDGER_LIMIT),
+    orderQuery.order('created_at', { ascending: false }).limit(LEDGER_LIMIT),
   ]);
 
   const failed = actionRes.error ?? orderRes.error;

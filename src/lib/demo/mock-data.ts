@@ -3,6 +3,8 @@ import { escalationNotice } from '@/lib/bot/holding';
 import type { PickedShotData } from '@/lib/widget/picked-shot';
 import type { DashboardPayments } from '@/app/api/dashboard/route';
 import type { LedgerActionRow, LedgerPurchaseRow, LedgerRow } from '@/lib/paypal/ledger';
+import { CHECK_LABELS, type PaymentActionView } from '@/lib/paypal/action-view';
+import { formatMoney } from '@/lib/paypal/money';
 import { copy as enCopy } from './mock-copy.en';
 import { copy as koCopy, type DemoCopy } from './mock-copy.ko';
 
@@ -18,11 +20,14 @@ export type DemoPageKey =
 // 고정 날짜를 박아두면 시간이 지날수록 "162일 전" 같은 죽은 데모가 된다.
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
 
+/** 데모 받은편지함의 결제 대화 — Agency 구매와 $79 승인 대기 환불이 이 대화에서 났다. 장부 「Open」 링크가 여기로 온다. */
+const DEMO_PAYMENT_CONV = 'demo-conv-6';
+
 /** 대시보드 장부 예시 행. 상품·금액은 데모 상점(`scripts/seed-demo.ts`: Starter $9 · Pro $29 · Agency $79)과 같다. */
 function demoLedger(c: DemoCopy): LedgerRow[] {
   const refund = (o: {
     n: string; at: number; status: LedgerActionRow['status']; origin: LedgerActionRow['origin']; cents: number;
-    reason: string; failedChecks?: string[]; decidedAt?: number; executedAt?: number; error?: string;
+    reason: string; failedChecks?: string[]; decidedAt?: number; executedAt?: number; error?: string; conv?: string;
   }): LedgerActionRow => ({
     key: `action:demo-refund-${o.n}`,
     type: 'refund',
@@ -32,7 +37,7 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
     origin: o.origin,
     amountCents: o.cents,
     currency: 'USD',
-    conversationId: null,
+    conversationId: o.conv ?? null,
     decidable: o.status === 'pending',
     detail: {
       kind: 'refund',
@@ -51,7 +56,7 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
       updatedAt: minutesAgo(o.executedAt ?? o.decidedAt ?? o.at),
     },
   });
-  const purchase = (o: { n: string; at: number; status: LedgerPurchaseRow['status']; product: string; cents: number; refunded?: number; refundedAt?: number }): LedgerPurchaseRow => ({
+  const purchase = (o: { n: string; at: number; status: LedgerPurchaseRow['status']; product: string; cents: number; refunded?: number; refundedAt?: number; conv?: string }): LedgerPurchaseRow => ({
     key: `order:demo-order-${o.n}`,
     type: 'purchase',
     id: `DEMO${o.n}ORDER0000000000`.slice(0, 17),
@@ -60,7 +65,7 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
     origin: null,
     amountCents: o.cents,
     currency: 'USD',
-    conversationId: null,
+    conversationId: o.conv ?? null,
     decidable: false,
     detail: {
       orderId: `DEMO${o.n}ORDER0000000000`.slice(0, 17),
@@ -73,8 +78,8 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
     },
   });
   return [
-    refund({ n: '1', at: 35, status: 'pending', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgency, failedChecks: ['amount_within_max'] }),
-    purchase({ n: '1', at: 2_880, status: 'captured', product: 'Agency', cents: 7900 }),
+    refund({ n: '1', at: 35, status: 'pending', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgency, failedChecks: ['amount_within_max'], conv: DEMO_PAYMENT_CONV }),
+    purchase({ n: '1', at: 2_880, status: 'captured', product: 'Agency', cents: 7900, conv: DEMO_PAYMENT_CONV }),
     refund({ n: '2', at: 190, status: 'executed', origin: 'auto', cents: 2900, reason: c.ledgerReasonPro, executedAt: 190 }),
     purchase({ n: '2', at: 250, status: 'refunded', product: 'Pro', cents: 2900, refunded: 2900, refundedAt: 189 }),
     refund({ n: '3', at: 1_500, status: 'failed', origin: 'approval', cents: 2900, reason: c.ledgerReasonPro, failedChecks: ['customer_known'], decidedAt: 1_420, error: 'CAPTURE_NOT_REFUNDABLE' }),
@@ -84,8 +89,37 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
   ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) satisfies LedgerRow[];
 }
 
+/**
+ * 승인 대기 장부 행 → 받은편지함 승인 카드(`/api/inbox/[id]` 의 paymentActions 와 같은 모양). 실패한 검사만 false,
+ * 나머지는 통과. 데모라 카드 버튼은 꺼진다.
+ */
+function demoApprovalCard(row: LedgerActionRow): PaymentActionView {
+  const failed = new Set(row.detail.failedChecks);
+  return {
+    id: row.id,
+    kind: row.detail.kind,
+    status: row.status,
+    origin: row.origin,
+    amountCents: row.amountCents,
+    currency: row.currency,
+    amount: row.amountCents !== null && row.currency ? formatMoney(row.amountCents, row.currency) : null,
+    reason: row.detail.reason,
+    captureId: row.detail.targetId,
+    checks: Object.entries(CHECK_LABELS).map(([key, label]) => ({ key, label, passed: !failed.has(key) })),
+    paypalRef: row.detail.paypalRef,
+    error: row.detail.error,
+    createdAt: row.detail.createdAt,
+    decidedAt: row.detail.decidedAt,
+    decidable: row.decidable,
+  };
+}
+
 /** 언어마다 문구가 다른 연습용 데이터(`mock-copy.en.ts` · `mock-copy.ko.ts`). 구조·숫자·시각은 같다. */
 function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown> {
+  // 장부 예시 행 — 대시보드 장부와 받은편지함 결제 대화가 같은 행을 쓴다(숫자가 어긋나지 않게).
+  const ledger = demoLedger(c);
+  const paymentConvRows = ledger.filter((r) => r.conversationId === DEMO_PAYMENT_CONV);
+  const pendingRefund = paymentConvRows.find((r): r is LedgerActionRow => r.type === 'refund' && r.status === 'pending');
   // 「화면에서 선택하기」 예시(I-55) — 데모 사이트 경복궁 페이지에서 「쿠폰 받기」를 짚는 순간 찍은 화면(1280×800).
   // 정적 자산이라 서명 URL 이 아니다. 좌표는 그 화면에서 실측한 값이다.
   const DEMO_PICK_CONTEXT = {
@@ -127,9 +161,9 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
       // 연결할 내 봇이 없으니 connectBotId 는 null.
       payments: { connected: true, connectBotId: null, inquiries7d: 12, autoRefunds7d: { count: 3, amountCents: 4700, currency: 'USD' }, pendingApprovals: 1 } satisfies DashboardPayments,
       // 장부 예시 행(`/api/payments/ledger` 의 rows 와 같은 모양). 위 숫자와 맞춘다 — 자동 환불 3건 $9+$9+$29 = $47,
-      // 승인 대기 1건(Agency $79, 자동 한도 초과). 실패 1건, 구매 3건. 데모 받은편지함에는 결제 대화가 없어서
-      // conversationId 는 비워 둔다(죽은 링크 대신 「—」). 승인 대기 줄은 버튼을 보여 주되 데모라 꺼진다.
-      ledger: demoLedger(c),
+      // 승인 대기 1건(Agency $79, 자동 한도 초과). 실패 1건, 구매 3건. 승인 대기 환불과 그 Agency 구매만
+      // 데모 받은편지함의 결제 대화(DEMO_PAYMENT_CONV)에 이어지고, 나머지는 대화가 없어 「—」. 버튼은 데모라 꺼진다.
+      ledger,
       feedbacks: [
         {
           id: 'demo-msg-1',
@@ -299,6 +333,19 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
           lastMessageBody: c.sayDark,
           unread: false,
         },
+        // 결제 대화 — 이틀 전 위젯에서 Agency 를 사고, 오늘 환불을 청했는데 자동 한도($79 > 한도)를 넘어 승인 대기.
+        // 승인 대기가 생기면 배지가 함께 켜진다(20261021_02) — 대시보드 「승인 대기 1」의 그 건이다.
+        {
+          id: DEMO_PAYMENT_CONV,
+          source: 'web',
+          externalUserId: 'e5a19b37-0000-4000-8000-000000000006',
+          contactName: null,
+          contactEmail: null,
+          lastMessageAt: minutesAgo(35),
+          lastMessageBody: c.payRefundPending,
+          unread: true,
+          escalated: true,
+        },
         {
           id: 'demo-conv-3',
           source: 'web',
@@ -339,6 +386,16 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
           { id: 'd3-3', kind: 'notice', body: escalationNotice({ locale: l, quote: c.sayBooking, hasEmail: false, statusText: c.statusText }), at: minutesAgo(46) },
           { id: 'd3-4', kind: 'system', body: c.systemBooking, at: minutesAgo(30) },
         ],
+        [DEMO_PAYMENT_CONV]: [
+          { id: 'd6-1', kind: 'user', body: c.sayBuyAgency, at: minutesAgo(2_881) },
+          { id: 'd6-2', kind: 'payment', body: c.payCheckoutAgency, at: minutesAgo(2_880) },
+          { id: 'd6-3', kind: 'user', body: c.ledgerReasonAgency, at: minutesAgo(35) },
+          { id: 'd6-4', kind: 'payment', body: c.payRefundPending, at: minutesAgo(35) },
+        ],
+      },
+      // 결제 대화의 승인 카드와 결제 내역 — 대시보드 장부와 같은 행이다.
+      payments: {
+        [DEMO_PAYMENT_CONV]: { actions: pendingRefund ? [demoApprovalCard(pendingRefund)] : [], rows: paymentConvRows },
       },
     },
 
