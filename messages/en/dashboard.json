@@ -205,6 +205,101 @@
       "body": "Connect PayPal so your bot can answer payment questions and handle refunds. Large refunds wait for your approval.",
       "cta": "Connect PayPal",
       "more": "One of your bots isn't connected to PayPal yet."
+    },
+    "ledger": {
+      "title": "Payment ledger",
+      "subtitle": "Refunds and purchases, newest first",
+      "loading": "Loading the ledger…",
+      "loadFailed": "Couldn't load the ledger.",
+      "retry": "Try again",
+      "empty": "No refunds or purchases yet.",
+      "emptyFiltered": "Nothing matches these filters.",
+      "truncated": "Showing the newest {count} entries.",
+      "filters": {
+        "type": "Type",
+        "status": "Status",
+        "allStatuses": "All statuses"
+      },
+      "typeFilters": {
+        "all": "All",
+        "refund": "Refunds",
+        "purchase": "Purchases",
+        "dispute": "Disputes"
+      },
+      "types": {
+        "refund": "Refund",
+        "purchase": "Purchase",
+        "dispute": "Dispute"
+      },
+      "columns": {
+        "time": "Time",
+        "type": "Type",
+        "amount": "Amount",
+        "status": "Status",
+        "origin": "Origin",
+        "conversation": "Conversation",
+        "actions": "Actions"
+      },
+      "origin": {
+        "auto": "Auto",
+        "approval": "Manual approval"
+      },
+      "orderStatus": {
+        "created": "Checkout started",
+        "approved": "Processing",
+        "captured": "Paid",
+        "expired": "Canceled",
+        "failed": "Declined",
+        "partially_refunded": "Partially refunded",
+        "refunded": "Refunded",
+        "reversed": "Reversed"
+      },
+      "open": "Open",
+      "showRecord": "Details",
+      "hideRecord": "Hide",
+      "confirm": {
+        "approve": "Approve the {amount} refund?",
+        "approveBare": "Approve this refund?",
+        "reject": "Reject the {amount} refund?",
+        "rejectBare": "Reject this refund?",
+        "yes": "Confirm",
+        "no": "Cancel"
+      },
+      "decided": "Saved. Status: {status}",
+      "alreadyDecided": "Someone already decided this. Showing the latest status.",
+      "demoOff": "Sample data: Approve and Reject are off.",
+      "record": {
+        "title": "Execution record",
+        "call": "PayPal call",
+        "callRefund": "Refund a captured payment",
+        "callDispute": "Accept a dispute claim",
+        "sent": "Amount sent",
+        "result": "PayPal result",
+        "notSent": "Nothing sent to PayPal",
+        "dispute": "Dispute ID",
+        "reference": "PayPal reference",
+        "reason": "Buyer said",
+        "error": "Error",
+        "timeline": "Timeline",
+        "requested": "Requested",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "expired": "Expired",
+        "executed": "Sent to PayPal",
+        "accepted": "Accepted",
+        "failed": "Failed",
+        "by": "by {name}",
+        "you": "you",
+        "teammate": "a team member",
+        "orderId": "PayPal order ID",
+        "captureId": "Capture ID",
+        "product": "Item",
+        "quantity": "Quantity",
+        "created": "Order created",
+        "paid": "Paid",
+        "refundedAmount": "Refunded",
+        "refundRecorded": "Refund recorded"
+      }
     }
   }
 }

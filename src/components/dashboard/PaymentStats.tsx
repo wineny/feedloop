@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
@@ -18,6 +19,8 @@ interface PaymentStatsProps {
    * `connect` = 체크리스트 아래(연결 안 됐을 때 「PayPal 연결하기」 카드). 자기 자리가 아니면 아무것도 안 그린다.
    */
   placement: 'numbers' | 'connect';
+  /** The payment ledger (`PaymentLedger`), drawn right under the numbers — only where the numbers are. */
+  ledger?: ReactNode;
 }
 
 interface CellProps {
@@ -73,7 +76,7 @@ function Cell({ label, value, extra, note, index, href }: CellProps) {
   );
 }
 
-export function PaymentStats({ payments, placement }: PaymentStatsProps) {
+export function PaymentStats({ payments, placement, ledger }: PaymentStatsProps) {
   const t = useTranslations('dashboard.payments');
   const layout = paymentsLayout(payments);
   if (layout.kind === 'none' || layout.kind !== placement || !payments) return null;
@@ -115,7 +118,8 @@ export function PaymentStats({ payments, placement }: PaymentStatsProps) {
         />
       </div>
 
-      {/* 5단계 3번: 장부 표(환불 + 구매 주문, 시간순)가 이 자리 — 숫자 바로 아래 — 에 들어온다. */}
+      {/* 장부(환불 + 구매 주문, 최신순) — 숫자 바로 아래. */}
+      {ledger}
 
       {/* 보고 있는 봇 중 하나는 연결됐지만 내 봇 하나가 아직이다. 숫자가 주인공이라 연결 안내는 한 줄로 작게 둔다. */}
       {layout.connectHref && (

@@ -17,6 +17,8 @@ import { RecentFeedback, type FeedbackItem } from '@/components/dashboard/Recent
 import { LoopActivityFeed, type LoopEvent } from '@/components/dashboard/LoopActivityFeed';
 import { InsightGroups, type GroupSummary } from '@/components/dashboard/InsightGroups';
 import { PaymentStats } from '@/components/dashboard/PaymentStats';
+import { PaymentLedger } from '@/components/dashboard/PaymentLedger';
+import type { LedgerRow } from '@/lib/paypal/ledger';
 import type { DashboardPayments } from '@/app/api/dashboard/route';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { Button } from '@/components/ui/button';
@@ -52,6 +54,8 @@ interface DashboardData {
 
 interface DemoDashboard extends DashboardData {
   groups: GroupSummary[];
+  /** 장부 예시 행. 데모에서는 /api/payments/ledger 를 부르지 않는다 */
+  ledger: LedgerRow[];
   channels: { web: boolean; channel: boolean };
 }
 
@@ -348,7 +352,14 @@ export default function DashboardPage() {
       {/* PayPal 은 두 자리에 나뉜다(ny 2026-10-22). 연결된 봇의 숫자 3칸은 맨 첫 줄 — 체크리스트보다 위.
           「PayPal 연결하기」 카드는 체크리스트 «아래» — PayPal 은 선택 단계라 「첫 루프」 안내를 밀어내지 않는다
           (체크리스트에도 마지막 단계로 들어간다). 어느 쪽을 그릴지는 `paymentsLayout`. */}
-      <PaymentStats payments={payments} placement="numbers" />
+      <PaymentStats
+        payments={payments}
+        placement="numbers"
+        ledger={
+          // key = 스코프: 봇을 바꾸면 옛 봇의 장부 줄을 새 이름 밑에 두지 않는다. 결정하면 숫자(승인 대기)도 다시 읽는다.
+          <PaymentLedger key={botId ?? 'all'} botId={botId} demoRows={demo.isDemo ? demo.data.ledger : null} onChanged={fetchData} />
+        }
+      />
 
       {showChecklist && <OnboardingChecklist steps={onboardingSteps(onboardingFacts, checklistBotId)} />}
 

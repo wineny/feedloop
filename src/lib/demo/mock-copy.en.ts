@@ -65,4 +65,7 @@ export const copy: DemoCopy = {
   bot1Desc: 'Collects rona.so community feedback and triages it with AI',
   bot2: 'Feedloop test bot',
   bot2Desc: 'Bot for development and testing',
+  ledgerReasonAgency: "Our team got smaller, so we don't need the Agency plan anymore. Can I get a refund?",
+  ledgerReasonPro: 'I paid for the Pro plan twice by mistake',
+  ledgerReasonStarter: "It's not the feature I expected. I'd like a refund.",
 };

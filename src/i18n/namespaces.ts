@@ -13,7 +13,7 @@ export const PAGE_NAMESPACES = {
   landing: ['landing', 'demo'],
   pricing: ['pricing'],
   inbox: ['inbox', 'picked', 'dashboard'],
-  dashboard: ['dashboard'],
+  dashboard: ['dashboard', 'inbox'],
   classify: ['classify', 'dashboard', 'picked'],
   monitor: ['monitor', 'dashboard', 'picked'],
   feedbackConfirm: ['feedbackConfirm'],

@@ -63,6 +63,9 @@ export const copy = {
   bot1Desc: 'rona.so 커뮤니티 피드백 수집 및 AI 분류',
   bot2: 'Feedloop 테스트봇',
   bot2Desc: '개발/테스트용 봇',
+  ledgerReasonAgency: '팀 규모가 줄어서 Agency 플랜이 필요 없어졌어요. 환불 가능할까요?',
+  ledgerReasonPro: 'Pro 플랜을 실수로 두 번 결제했어요',
+  ledgerReasonStarter: '기대했던 기능이 아니라서 환불하고 싶어요',
 };
 
 export type DemoCopy = typeof copy;

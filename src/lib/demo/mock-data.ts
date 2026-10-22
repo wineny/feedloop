@@ -2,6 +2,7 @@ import { groupPriority, compareGroupPriority } from '@/lib/groups/priority-score
 import { escalationNotice } from '@/lib/bot/holding';
 import type { PickedShotData } from '@/lib/widget/picked-shot';
 import type { DashboardPayments } from '@/app/api/dashboard/route';
+import type { LedgerActionRow, LedgerPurchaseRow, LedgerRow } from '@/lib/paypal/ledger';
 import { copy as enCopy } from './mock-copy.en';
 import { copy as koCopy, type DemoCopy } from './mock-copy.ko';
 
@@ -16,6 +17,72 @@ export type DemoPageKey =
 // 데모 타임스탬프는 "N분 전"으로 읽히도록 현재 기준으로 만든다.
 // 고정 날짜를 박아두면 시간이 지날수록 "162일 전" 같은 죽은 데모가 된다.
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
+
+/** 대시보드 장부 예시 행. 상품·금액은 데모 상점(`scripts/seed-demo.ts`: Starter $9 · Pro $29 · Agency $79)과 같다. */
+function demoLedger(c: DemoCopy): LedgerRow[] {
+  const refund = (o: {
+    n: string; at: number; status: LedgerActionRow['status']; origin: LedgerActionRow['origin']; cents: number;
+    reason: string; failedChecks?: string[]; decidedAt?: number; executedAt?: number; error?: string;
+  }): LedgerActionRow => ({
+    key: `action:demo-refund-${o.n}`,
+    type: 'refund',
+    id: `demo-refund-${o.n}`,
+    at: minutesAgo(o.at),
+    status: o.status,
+    origin: o.origin,
+    amountCents: o.cents,
+    currency: 'USD',
+    conversationId: null,
+    decidable: o.status === 'pending',
+    detail: {
+      kind: 'refund',
+      targetId: `DEMO${o.n}CAPTURE00000000`.slice(0, 17),
+      paypalRef: o.executedAt !== undefined ? `DEMO${o.n}REFUND000000000`.slice(0, 17) : null,
+      reason: o.reason,
+      failedChecks: o.failedChecks ?? [],
+      // 실패 예시(CAPTURE_NOT_REFUNDABLE)는 보내기 전 결제 확인에서 멈춘 것 — PayPal 로 나간 금액이 없다.
+      sent: o.executedAt !== undefined ? { value: (o.cents / 100).toFixed(2), currency: 'USD' } : null,
+      resultStatus: o.executedAt !== undefined ? 'COMPLETED' : null,
+      error: o.error ?? null,
+      createdAt: minutesAgo(o.at),
+      decidedAt: o.decidedAt !== undefined ? minutesAgo(o.decidedAt) : null,
+      decidedBy: o.decidedAt !== undefined ? { self: false, name: null } : null,
+      executedAt: o.executedAt !== undefined ? minutesAgo(o.executedAt) : null,
+      updatedAt: minutesAgo(o.executedAt ?? o.decidedAt ?? o.at),
+    },
+  });
+  const purchase = (o: { n: string; at: number; status: LedgerPurchaseRow['status']; product: string; cents: number; refunded?: number; refundedAt?: number }): LedgerPurchaseRow => ({
+    key: `order:demo-order-${o.n}`,
+    type: 'purchase',
+    id: `DEMO${o.n}ORDER0000000000`.slice(0, 17),
+    at: minutesAgo(o.at),
+    status: o.status,
+    origin: null,
+    amountCents: o.cents,
+    currency: 'USD',
+    conversationId: null,
+    decidable: false,
+    detail: {
+      orderId: `DEMO${o.n}ORDER0000000000`.slice(0, 17),
+      captureId: `DEMO${o.n}CAPTURE00000000`.slice(0, 17),
+      product: o.product,
+      quantity: 1,
+      refundedCents: o.refunded ?? 0,
+      capturedAt: minutesAgo(o.at - 2),
+      refundedAt: o.refundedAt !== undefined ? minutesAgo(o.refundedAt) : null,
+    },
+  });
+  return [
+    refund({ n: '1', at: 35, status: 'pending', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgency, failedChecks: ['amount_within_max'] }),
+    purchase({ n: '1', at: 2_880, status: 'captured', product: 'Agency', cents: 7900 }),
+    refund({ n: '2', at: 190, status: 'executed', origin: 'auto', cents: 2900, reason: c.ledgerReasonPro, executedAt: 190 }),
+    purchase({ n: '2', at: 250, status: 'refunded', product: 'Pro', cents: 2900, refunded: 2900, refundedAt: 189 }),
+    refund({ n: '3', at: 1_500, status: 'failed', origin: 'approval', cents: 2900, reason: c.ledgerReasonPro, failedChecks: ['customer_known'], decidedAt: 1_420, error: 'CAPTURE_NOT_REFUNDABLE' }),
+    refund({ n: '4', at: 3_100, status: 'executed', origin: 'auto', cents: 900, reason: c.ledgerReasonStarter, executedAt: 3_100 }),
+    refund({ n: '5', at: 5_200, status: 'executed', origin: 'auto', cents: 900, reason: c.ledgerReasonStarter, executedAt: 5_200 }),
+    purchase({ n: '5', at: 5_400, status: 'refunded', product: 'Starter', cents: 900, refunded: 900, refundedAt: 5_199 }),
+  ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) satisfies LedgerRow[];
+}
 
 /** 언어마다 문구가 다른 연습용 데이터(`mock-copy.en.ts` · `mock-copy.ko.ts`). 구조·숫자·시각은 같다. */
 function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown> {
@@ -57,8 +124,12 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
       // `githubReadyBotIds` 는 F6 체크리스트 ③ 의 재료다. 데모는 제보가 47건이라 체크리스트 자체가 숨는다.
       stats: { collected: 47, classified: 41, prCreated: 6, returned: 4, loopTime: { state: 'ok', sampleSize: 4, averageMs: 207_360_000 }, confirmation: { state: 'ok', fixed: 2, notFixed: 1, delivered: 4 }, githubReadyBotIds: ['demo-bot-1'] },
       // PayPal 줄(`/api/dashboard` 의 `payments` 와 같은 모양). 데모 봇은 공용 키로 연결된 봇이라 connected,
-      // 연결할 내 봇이 없으니 connectBotId 는 null. 장부 예시 행은 5단계 3번에서 붙인다.
+      // 연결할 내 봇이 없으니 connectBotId 는 null.
       payments: { connected: true, connectBotId: null, inquiries7d: 12, autoRefunds7d: { count: 3, amountCents: 4700, currency: 'USD' }, pendingApprovals: 1 } satisfies DashboardPayments,
+      // 장부 예시 행(`/api/payments/ledger` 의 rows 와 같은 모양). 위 숫자와 맞춘다 — 자동 환불 3건 $9+$9+$29 = $47,
+      // 승인 대기 1건(Agency $79, 자동 한도 초과). 실패 1건, 구매 3건. 데모 받은편지함에는 결제 대화가 없어서
+      // conversationId 는 비워 둔다(죽은 링크 대신 「—」). 승인 대기 줄은 버튼을 보여 주되 데모라 꺼진다.
+      ledger: demoLedger(c),
       feedbacks: [
         {
           id: 'demo-msg-1',
