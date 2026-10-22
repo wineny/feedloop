@@ -28,6 +28,26 @@ const TONE: Record<Receipt['status'], 'ok' | 'wait' | 'bad'> = {
   created: 'wait',
   expired: 'bad',
   failed: 'bad',
+  // Stage 4 item 2 placeholder: refund states keep the paid look until item 3 gives them their own
+  // tone, title, body, refunded amount and date (see COPY).
+  partially_refunded: 'ok',
+  refunded: 'ok',
+  reversed: 'ok',
+};
+
+/**
+ * Which `pricing.receipt.<key>` copy a status shows. Placeholder for stage 4 item 3: the refund states
+ * reuse `captured` until their own en/ko strings exist.
+ */
+const COPY: Record<Receipt['status'], 'captured' | 'approved' | 'created' | 'expired' | 'failed'> = {
+  captured: 'captured',
+  approved: 'approved',
+  created: 'created',
+  expired: 'expired',
+  failed: 'failed',
+  partially_refunded: 'captured',
+  refunded: 'captured',
+  reversed: 'captured',
 };
 
 interface RowProps {
@@ -72,8 +92,8 @@ export default async function ReceiptPage({ params }: { params: Promise<{ orderI
         <div className="flex items-start gap-3">
           <Icon className={cn('mt-0.5 size-7 shrink-0', iconColor)} aria-hidden />
           <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-foreground">{t(`${order.status}.title`)}</h1>
-            <p className="text-sm leading-6 text-muted-foreground">{t(`${order.status}.body`)}</p>
+            <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-foreground">{t(`${COPY[order.status]}.title`)}</h1>
+            <p className="text-sm leading-6 text-muted-foreground">{t(`${COPY[order.status]}.body`)}</p>
           </div>
         </div>
 

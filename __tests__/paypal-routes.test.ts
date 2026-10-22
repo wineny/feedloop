@@ -21,7 +21,11 @@ vi.mock('@/lib/paypal/bot', () => ({
       : { ok: false, reason: 'not_found' },
   ),
 }));
-vi.mock('@/lib/paypal/store', () => ({ supabasePaymentsStore: () => state.store }));
+// Keep the module's constants and helpers (capture.ts / webhook.ts use them); only the store is replaced.
+vi.mock('@/lib/paypal/store', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/paypal/store')>();
+  return { ...actual, supabasePaymentsStore: () => state.store };
+});
 
 const key = signer();
 
@@ -98,6 +102,30 @@ describe('POST /api/paypal/webhook/[botId]', () => {
     expect(state.pp.captureCalls()).toHaveLength(1);
     expect(state.store.orders[0].status).toBe('captured');
     expect(state.store.events).toEqual([expect.objectContaining({ event_id: 'WH-APPROVED-1', processed_at: expect.any(String) })]);
+  });
+
+  it('signed PAYMENT.CAPTURE.REFUNDED from a dashboard refund → order refunded once; the redelivery is a duplicate', async () => {
+    const captureId = state.pp.seedCaptured(ORDER, '29.00');
+    Object.assign(state.store.orders[0], { status: 'captured', capture_id: captureId });
+    const refundId = state.pp.sellerRefund(ORDER, '29.00');
+    const raw = JSON.stringify({
+      id: 'WH-REFUNDED-1',
+      event_type: 'PAYMENT.CAPTURE.REFUNDED',
+      resource_type: 'refund',
+      resource: {
+        id: refundId,
+        status: 'COMPLETED',
+        amount: { value: '1.00', currency_code: 'USD' },
+        links: [{ rel: 'up', href: `https://api.sandbox.paypal.com/v2/payments/captures/${captureId}`, method: 'GET' }],
+      },
+    });
+    const r = await route();
+    const first = await r.POST(webhookReq(raw), ctx());
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ ok: true, outcome: { kind: 'order_updated', status: 'refunded', refundedCents: 2900 } });
+    const again = await r.POST(webhookReq(raw), ctx());
+    expect(await again.json()).toEqual({ ok: true, duplicate: true });
+    expect(state.store.orders[0]).toMatchObject({ status: 'refunded', refunded_cents: 2900 });
   });
 
   it('a delivery that failed half-way is processed again on retry', async () => {

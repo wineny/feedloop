@@ -6,7 +6,7 @@
 import { createSign, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { PayPalClient } from '@/lib/paypal/client';
-import { isAnnouncedStatus } from '@/lib/paypal/store';
+import { CAPTURED_ORDER_STATUSES, isAnnouncedStatus } from '@/lib/paypal/store';
 import type {
   NewOrderRow,
   OpenRefundInput,
@@ -85,6 +85,8 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
         payer_id: null,
         created_at: new Date().toISOString(),
         captured_at: null,
+        refunded_cents: 0,
+        refunded_at: null,
       });
     },
     async getOrder(orderId) {
@@ -95,6 +97,23 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
       const o = store.orders.find((r) => r.order_id === orderId && r.bot_id === botId && fromStatuses.includes(r.status));
       if (!o) return null;
       Object.assign(o, patch);
+      return { ...o };
+    },
+    async getOrderByCapture(botId, captureId) {
+      const o = store.orders.find((r) => r.bot_id === botId && r.capture_id === captureId);
+      return o ? { ...o } : null;
+    },
+    // Mirrors paypal_order_apply_refund (20261022_01): forward-only rank, refunded_cents only grows, capped.
+    async applyOrderRefund({ orderId, botId, captureId, status, refundedCents }) {
+      const rank = (s: string) => (CAPTURED_ORDER_STATUSES as readonly string[]).indexOf(s);
+      const o = store.orders.find((r) => r.order_id === orderId && r.bot_id === botId && r.capture_id === captureId);
+      if (!o || rank(o.status) < 0 || rank(status) < 1) return null;
+      const cents = Math.min(Math.max(refundedCents, 0), o.amount_cents);
+      const forward = rank(status) > rank(o.status);
+      if (!forward && cents <= o.refunded_cents) return null;
+      if (forward) o.status = status;
+      o.refunded_cents = Math.max(o.refunded_cents, cents);
+      o.refunded_at = new Date().toISOString();
       return { ...o };
     },
     async insertWebhookEvent(row): Promise<WebhookInsertResult> {
@@ -310,6 +329,8 @@ export function orderRow(overrides: Partial<OrderRow> = {}): OrderRow {
     approve_url: 'https://www.sandbox.paypal.com/checkoutnow?token=ORDER0000001',
     created_at: '2026-10-19T00:00:00.000Z',
     captured_at: null,
+    refunded_cents: 0,
+    refunded_at: null,
     ...overrides,
   };
 }
@@ -336,6 +357,8 @@ interface FakeRefund {
   currency: string;
   /** What GET /v2/payments/refunds/{id} reports now. */
   status: string;
+  /** The capture's refunded total right after this refund (seller_payable_breakdown.total_refunded_amount). */
+  totalAfter: string;
 }
 
 export type Call = { method: string; path: string; requestId: string | null; body: unknown };
@@ -370,6 +393,17 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
   const calls: Call[] = [];
   let seq = 0;
   let refundSeq = 0;
+
+  const toCents = (v: string) => Math.round(Number(v) * 100);
+  const fromCents = (c: number) => `${Math.floor(c / 100)}.${String(c % 100).padStart(2, '0')}`;
+  /** Records a refund against a capture; the capture's status follows the refunded sum, like PayPal's. */
+  function addRefund(o: FakeOrder, refund: FakeRefund) {
+    const before = refunds.filter((r) => r.captureId === o.captureId).reduce((n, r) => n + toCents(r.value), 0);
+    const after = before + toCents(refund.value);
+    refund.totalAfter = fromCents(after);
+    refunds.push(refund);
+    o.captureStatus = after >= toCents(o.value) ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+  }
 
   const orderBody = (o: FakeOrder) => ({
     id: o.id,
@@ -474,11 +508,9 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
         value: body.amount.value,
         currency: body.amount.currency_code,
         status,
+        totalAfter: body.amount.value,
       };
-      if (status === 'COMPLETED' || status === 'PENDING') {
-        refunds.push(refund);
-        o.captureStatus = refund.value === o.value ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
-      }
+      if (status === 'COMPLETED' || status === 'PENDING') addRefund(o, refund);
       if (flags.refundThenFail) {
         // PayPal refunded, but this caller only sees a 500 (lost response).
         flags.refundThenFail = false;
@@ -493,7 +525,19 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
     if ((m = url.pathname.match(/^\/v2\/payments\/refunds\/([^/]+)$/)) && method === 'GET') {
       const r = refunds.find((x) => x.id === m![1]);
       if (!r) return json({ name: 'RESOURCE_NOT_FOUND', message: 'no refund' }, 404);
-      return json({ id: r.id, status: r.status, amount: { value: r.value, currency_code: r.currency } });
+      return json({
+        id: r.id,
+        status: r.status,
+        amount: { value: r.value, currency_code: r.currency },
+        seller_payable_breakdown: {
+          gross_amount: { value: r.value, currency_code: r.currency },
+          total_refunded_amount: { value: r.totalAfter, currency_code: r.currency },
+        },
+        links: [
+          { rel: 'self', href: `https://api.sandbox.paypal.com/v2/payments/refunds/${r.id}`, method: 'GET' },
+          { rel: 'up', href: `https://api.sandbox.paypal.com/v2/payments/captures/${r.captureId}`, method: 'GET' },
+        ],
+      });
     }
     if (url.pathname === '/v1/customer/disputes' && method === 'GET') {
       if (flags.failDisputes) return json({ name: 'INTERNAL_SERVER_ERROR', message: 'disputes boom' }, 500);
@@ -577,6 +621,25 @@ export function fakePayPal(opts: { approveHost?: string; failCreate?: boolean } 
     setRefundStatus(refundId: string, status: string) {
       const r = refunds.find((x) => x.id === refundId);
       if (r) r.status = status;
+    },
+    /**
+     * The seller refunds in the PayPal dashboard (no PayPal-Request-Id, nothing of ours involved). Returns
+     * the refund id — what a PAYMENT.CAPTURE.REFUNDED event carries as resource.id.
+     */
+    sellerRefund(orderId: string, value: string) {
+      const o = orders.get(orderId);
+      if (!o?.captureId) throw new Error(`order ${orderId} has no capture`);
+      const refund: FakeRefund = {
+        id: `REF${String(++refundSeq).padStart(4, '0')}`,
+        captureId: o.captureId,
+        requestId: null,
+        value,
+        currency: o.currency,
+        status: 'COMPLETED',
+        totalAfter: value,
+      };
+      addRefund(o, refund);
+      return refund.id;
     },
     refundReads: () => calls.filter((c) => c.method === 'GET' && c.path.startsWith('/v2/payments/refunds/')),
     /** Capture reads take this long and ignore the caller's signal. */

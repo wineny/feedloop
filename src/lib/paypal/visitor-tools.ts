@@ -22,7 +22,7 @@ import type { PayPalClient } from './client';
 import { formatMoney } from './money';
 import { isStuckAction, reconcileAction, requestRefund } from './refund';
 import { checkoutLine } from './sentences';
-import type { OrderStatus, PaymentActionRow, PaymentsStore, ProductRow, VerificationRow } from './store';
+import { isCapturedOrLater, type OrderStatus, type PaymentActionRow, type PaymentsStore, type ProductRow, type VerificationRow } from './store';
 
 /**
  * A stuck row (executing/unknown) older than this is reconciled on the spot before the visitor is
@@ -64,7 +64,9 @@ const NOT_FOUND = { found: false as const, reason: 'no_match' as const };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What the visitor is told about an order row's state. */
-export function describeOrderStatus(status: OrderStatus): 'paid' | 'processing' | 'not_paid' | 'expired' | 'failed' {
+export function describeOrderStatus(
+  status: OrderStatus,
+): 'paid' | 'processing' | 'not_paid' | 'expired' | 'failed' | 'partially_refunded' | 'refunded' | 'reversed' {
   if (status === 'captured') return 'paid';
   if (status === 'approved') return 'processing';
   if (status === 'created') return 'not_paid';
@@ -154,7 +156,8 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         currency: row.currency,
         payment_status: status,
         paid_at: capturedAt,
-        refundable: status === 'paid',
+        // A partly refunded payment can be refunded further; the guardrail still decides (approval).
+        refundable: status === 'paid' || status === 'partially_refunded',
       };
     },
   });
@@ -248,7 +251,7 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
 
   const request_refund = tool({
     description:
-      "Ask for a refund of this conversation's verified payment. Only works after find_my_payment succeeded and the payment is paid. The system decides: it refunds automatically within the store's limits, otherwise the owner reviews it. The visitor is shown the result as a card automatically; add one short sentence and do not promise anything the result does not say.",
+      "Ask for a refund of this conversation's verified payment. Only works after find_my_payment succeeded and the payment is paid (a partially refunded payment can be refunded further). The system decides: it refunds automatically within the store's limits, otherwise the owner reviews it. The visitor is shown the result as a card automatically; add one short sentence and do not promise anything the result does not say.",
     inputSchema: z.object({
       amount: z
         .number()
@@ -337,7 +340,7 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
     let captureId: string | null = null;
     let capturedAt: string | null = null;
     const row = await store.getOrder(v.order_id);
-    if (row && row.bot_id === botId && row.status === 'captured' && row.capture_id) {
+    if (row && row.bot_id === botId && isCapturedOrLater(row.status) && row.capture_id) {
       captureId = row.capture_id;
       capturedAt = row.captured_at;
     } else {

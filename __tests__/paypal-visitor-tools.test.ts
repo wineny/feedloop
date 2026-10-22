@@ -7,6 +7,7 @@ import {
   VISITOR_TOOL_NAMES,
   createVisitorTools,
   describeActionStatus,
+  describeOrderStatus,
   formatProductList,
   majorToCents,
   refundReasonFromTrace,
@@ -436,6 +437,32 @@ describe('verified before capture (P2)', () => {
     expect(store.verifications[0].capture_id).toBe(`CAP${ORDER}`);
   });
 
+  it('a partially refunded payment stays refundable (the guardrail decides); a fully refunded one does not', async () => {
+    const { store, tools } = setup();
+    store.orders[0].status = 'partially_refunded';
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).toMatchObject({
+      payment_status: 'partially_refunded',
+      refundable: true,
+    });
+    store.orders[0].status = 'refunded';
+    expect(await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL })).toMatchObject({
+      payment_status: 'refunded',
+      refundable: false,
+    });
+  });
+
+  it('a row already refunded when the visitor comes back still refreshes the verification (stage 4)', async () => {
+    const { store, pp, tools } = setup({ paid: false });
+    pp.approve(ORDER);
+    await run(tools, 'find_my_payment', { order_id: ORDER, email: BUYER_EMAIL });
+    await pp.client.captureOrder(ORDER, ORDER);
+    pp.sellerRefund(ORDER, '29.00');
+    Object.assign(store.orders[0], { status: 'refunded', capture_id: `CAP${ORDER}`, captured_at: '2026-10-20T00:00:00Z', refunded_cents: 2900 });
+
+    expect(await run(tools, 'get_payment_status')).toMatchObject({ payment_status: 'refunded' });
+    expect(store.verifications[0].capture_id).toBe(`CAP${ORDER}`);
+  });
+
   it('stays not_paid while nobody captured, and does not re-verify the email', async () => {
     const { store, pp, tools } = setup({ paid: false });
     pp.approve(ORDER);
@@ -560,6 +587,13 @@ describe('helpers', () => {
     expect(majorToCents(0.001)).toBeNull();
     expect(majorToCents(-1)).toBeNull();
     expect(majorToCents('abc')).toBeNull();
+  });
+
+  it('describeOrderStatus names the refund states and never calls them paid', () => {
+    expect(describeOrderStatus('captured')).toBe('paid');
+    expect(describeOrderStatus('partially_refunded')).toBe('partially_refunded');
+    expect(describeOrderStatus('refunded')).toBe('refunded');
+    expect(describeOrderStatus('reversed')).toBe('reversed');
   });
 
   it('describeActionStatus: only executed is refunded; executing/unknown are processing', () => {

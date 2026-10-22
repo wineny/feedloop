@@ -10,10 +10,10 @@
 //    the loser re-reads the row and returns it.
 // Unknown order ids are refused: we never capture an order we did not create.
 
-import { PayPalApiError, type PayPalClient, type PayPalOrder } from './client';
+import { PayPalApiError, type PayPalCapture, type PayPalClient, type PayPalOrder } from './client';
 import { describeError } from './checkout';
-import { centsToValue, formatMoney } from './money';
-import type { OrderRow, OrderStatus, PaymentsStore } from './store';
+import { centsToValue, formatMoney, valueToCents } from './money';
+import { isCapturedOrLater, type OrderRow, type OrderStatus, type PaymentsStore, type RefundOrderStatus } from './store';
 
 /** PayPal order ids are short upper-case alphanumerics (e.g. 5O190127TN364715T). */
 export const ORDER_ID_RE = /^[A-Z0-9]{8,32}$/;
@@ -78,7 +78,8 @@ export async function captureCheckout(
 ): Promise<CaptureResult> {
   const row = await deps.store.getOrder(input.orderId);
   if (!row || row.bot_id !== input.botId) return { ok: false, error: 'not_found' };
-  if (row.status === 'captured') return { ok: true, order: row, changed: false };
+  // Refunded / reversed rows were captured too: nothing to capture again.
+  if (isCapturedOrLater(row.status)) return { ok: true, order: row, changed: false };
 
   let order: PayPalOrder;
   try {
@@ -206,4 +207,149 @@ export async function announcePayment(store: PaymentsStore, order: OrderRow): Pr
     // The money part is done; a missing chat line must not turn the capture into an error.
     console.error('[paypal] payment line not saved', { orderId: order.order_id, message: (err as Error).message });
   }
+}
+
+// ── refunds and reversals → the order row (stage 4, 20261022_01) ─────────────────────────────
+
+const PAYPAL_API_HOSTS = new Set(['api.paypal.com', 'api-m.paypal.com', 'api.sandbox.paypal.com', 'api-m.sandbox.paypal.com']);
+
+/**
+ * The capture id behind a refund resource: its `up` link, https://api(-m)(.sandbox).paypal.com/v2/payments/captures/{id}.
+ * Anything else (another host, another path, no link) → null. Used on webhook bodies (as a lookup key
+ * only) and on refunds re-read from PayPal (to prove which capture they belong to).
+ */
+export function captureIdFromRefundResource(resource: unknown): string | null {
+  const links = (resource as { links?: unknown } | null)?.links;
+  if (!Array.isArray(links)) return null;
+  for (const link of links) {
+    const l = link as { rel?: unknown; href?: unknown };
+    if (l?.rel !== 'up' || typeof l.href !== 'string') continue;
+    let url: URL;
+    try {
+      url = new URL(l.href);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'https:' || !PAYPAL_API_HOSTS.has(url.hostname)) continue;
+    const m = /^\/v2\/payments\/captures\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/**
+ * The order state a capture's PayPal status stands for. Payments v2 lists no REVERSED capture status, so a
+ * PAYMENT.CAPTURE.REVERSED event (signature-verified, so the event type is PayPal's word) is read against
+ * the capture: fully refunded → `reversed` (terminal); only partly → `partially_refunded`, so a later
+ * refund can still move it on. A REVERSED capture status is accepted as well should PayPal report it.
+ */
+function refundStateFor(captureStatus: string, reversal: boolean): RefundOrderStatus | null {
+  if (captureStatus === 'REVERSED') return 'reversed';
+  if (captureStatus === 'REFUNDED') return reversal ? 'reversed' : 'refunded';
+  if (captureStatus === 'PARTIALLY_REFUNDED') return 'partially_refunded';
+  return null;
+}
+
+const REFUND_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+interface RefundResource {
+  id?: unknown;
+  status?: unknown;
+  amount?: { value?: unknown; currency_code?: unknown };
+  seller_payable_breakdown?: { total_refunded_amount?: { value?: unknown; currency_code?: unknown } };
+  links?: unknown;
+}
+
+/**
+ * The capture's refunded total to date, from a refund RE-READ from PayPal (GET /v2/payments/refunds/{id}).
+ * Payments v2 puts it on the refund, not the capture: `seller_payable_breakdown.total_refunded_amount` —
+ * "the total amount refunded from the original capture to date". Without it, this refund's own `amount`
+ * is a lower bound (the database only ever raises refunded_cents). 0 = nothing usable: the refund is not
+ * COMPLETED, belongs to another capture, is in another currency, or PayPal does not know it (404).
+ * Throws on any other read failure.
+ */
+async function refundedTotalCents(
+  deps: CaptureDeps,
+  input: { captureId: string; refundId: string; currency: string; signal?: AbortSignal },
+): Promise<number> {
+  const { captureId, refundId, currency } = input;
+  let refund: RefundResource;
+  try {
+    refund = (await deps.paypal.getRefund(refundId, { signal: input.signal })) as RefundResource;
+  } catch (err) {
+    if (err instanceof PayPalApiError && err.status === 404) return 0;
+    throw err;
+  }
+  if (refund?.status !== 'COMPLETED' || captureIdFromRefundResource(refund) !== captureId) return 0;
+  const total = refund.seller_payable_breakdown?.total_refunded_amount;
+  const pick = total?.value !== undefined ? total : refund.amount;
+  if (typeof pick?.currency_code !== 'string' || pick.currency_code.toUpperCase() !== currency) return 0;
+  return valueToCents(pick.value) ?? 0;
+}
+
+export type OrderRefundSync =
+  | { kind: 'updated'; order: OrderRow }
+  /** Already in this state (duplicate or out-of-order event). */
+  | { kind: 'unchanged'; order: OrderRow }
+  | { kind: 'ignored'; reason: string };
+
+/**
+ * Moves our order row to the refund state PayPal reports for its capture, wherever the refund happened
+ * (our refund.ts, the seller's PayPal dashboard, a reversal). Every fact is re-read from PayPal: the
+ * capture (status, amount) and, for a partial refund, the refund named by `refundId` (its total). The
+ * webhook body is only ever a lookup key. The write is one conditional UPDATE in the database
+ * (applyOrderRefund) that only moves forward, so duplicates, late events and concurrent callers are safe.
+ * Captures that are not one of this bot's orders cost no PayPal call. Throws when PayPal or the database
+ * cannot be read (or `signal` aborts the PayPal reads); a 404 from PayPal is an answer (`ignored`).
+ * A full refund or full reversal always records the capture amount; a refunded total that cannot be read
+ * is sent as 0, which never lowers a known amount (the database keeps the greater).
+ */
+export async function syncOrderRefund(
+  deps: CaptureDeps,
+  input: { botId: string; captureId: string; refundId?: string | null; reversal?: boolean; signal?: AbortSignal },
+): Promise<OrderRefundSync> {
+  const row = await deps.store.getOrderByCapture(input.botId, input.captureId);
+  if (!row) return { kind: 'ignored', reason: 'unknown capture' };
+
+  let capture: PayPalCapture & { supplementary_data?: { related_ids?: { order_id?: string } } };
+  try {
+    capture = await deps.paypal.getCapture(input.captureId, { signal: input.signal });
+  } catch (err) {
+    if (err instanceof PayPalApiError && err.status === 404) return { kind: 'ignored', reason: 'unknown capture' };
+    throw err;
+  }
+  const paypalOrderId = capture.supplementary_data?.related_ids?.order_id;
+  if (paypalOrderId && paypalOrderId !== row.order_id) return { kind: 'ignored', reason: 'capture belongs to another order' };
+
+  const status = refundStateFor(capture.status, input.reversal ?? false);
+  if (!status) return { kind: 'ignored', reason: `capture ${capture.status}` };
+
+  const captureCurrency = capture.amount?.currency_code?.toUpperCase();
+  if (captureCurrency && captureCurrency !== row.currency) {
+    console.error('[paypal] refund sync: capture currency differs from our order row', { orderId: row.order_id, captureCurrency });
+    return { kind: 'ignored', reason: 'currency mismatch' };
+  }
+
+  // Fully refunded: the total is the capture amount itself. Partial: only the refund knows the total.
+  let refundedCents = 0;
+  if (capture.status === 'REFUNDED' || capture.status === 'REVERSED') {
+    refundedCents = valueToCents(capture.amount?.value) ?? row.amount_cents;
+  } else if (input.refundId && REFUND_ID_RE.test(input.refundId)) {
+    refundedCents = await refundedTotalCents(deps, {
+      captureId: input.captureId,
+      refundId: input.refundId,
+      currency: row.currency,
+      signal: input.signal,
+    });
+  }
+
+  const updated = await deps.store.applyOrderRefund({
+    orderId: row.order_id,
+    botId: row.bot_id,
+    captureId: input.captureId,
+    status,
+    refundedCents,
+  });
+  if (updated) return { kind: 'updated', order: updated };
+  return { kind: 'unchanged', order: (await deps.store.getOrder(row.order_id)) ?? row };
 }
