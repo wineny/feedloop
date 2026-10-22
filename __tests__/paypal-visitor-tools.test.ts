@@ -9,6 +9,7 @@ import {
   describeActionStatus,
   formatProductList,
   majorToCents,
+  refundReasonFromTrace,
 } from '@/lib/paypal/visitor-tools';
 import { BOT, BUYER_EMAIL, CONVERSATION, OTHER_BOT, fakePayPal, memoryStore, orderRow, products } from './fixtures/paypal/fakes';
 
@@ -64,6 +65,10 @@ describe('tool set', () => {
     expect(Object.keys(find?.inputSchema?.properties ?? {})).toEqual(['order_id', 'email']);
     const refund = seen.find((t) => t.name === 'request_refund');
     expect(Object.keys(refund?.inputSchema?.properties ?? {})).toEqual(['amount', 'reason']);
+    // The reason becomes insight / PR evidence (design §7): the model is told to keep identifiers out.
+    expect((refund?.inputSchema?.properties?.reason as { description?: string }).description).toContain(
+      'Do not include the email address or the order id',
+    );
   });
 });
 
@@ -518,6 +523,34 @@ describe('through the agent loop', () => {
     expect(outcome.toolTrace[1].output).toMatchObject({ status: 'refunded', amount: '$29' });
     expect(pp.refundCalls()).toHaveLength(1);
   });
+
+  it('the refund reason the visitor gave comes out of the real trace (design §7); a refused call gives none', async () => {
+    const { store, tools } = setup();
+    store.nextDecision = 'pending';
+    const script = [
+      [{ type: 'tool-call', toolCallId: 'c0', toolName: 'request_refund', input: JSON.stringify({ reason: 'early call' }) }],
+      [{ type: 'tool-call', toolCallId: 'c1', toolName: 'find_my_payment', input: JSON.stringify({ order_id: ORDER, email: BUYER_EMAIL }) }],
+      [{ type: 'tool-call', toolCallId: 'c2', toolName: 'request_refund', input: JSON.stringify({ reason: 'The receipt showed the wrong currency' }) }],
+      [{ type: 'text', text: 'Your refund is waiting for the owner.' }],
+    ];
+    let i = 0;
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        const content = script[Math.min(i, script.length - 1)];
+        i += 1;
+        const tool = content.some((c) => c.type === 'tool-call');
+        return { content: content as never, finishReason: { unified: tool ? 'tool-calls' : 'stop', raw: 'x' }, usage, warnings: [] };
+      },
+    });
+    const outcome = await runPaymentAgent({ model, tools, system: 's', prompt: 'refund please' });
+    expect(outcome.toolTrace.map((t) => (t.output as { status?: string } | undefined)?.status)).toEqual([
+      'not_verified',
+      undefined,
+      'waiting_for_approval',
+    ]);
+    expect(refundReasonFromTrace(outcome.toolTrace)).toBe('The receipt showed the wrong currency');
+    expect(refundReasonFromTrace(outcome.toolTrace.slice(0, 2))).toBeNull();
+  });
 });
 
 describe('helpers', () => {
@@ -545,6 +578,26 @@ describe('helpers', () => {
     expect(text).toContain('Products you can sell');
     expect(text).toContain(`- Pro (sku pro) — $29 USD; product_id ${products()[0].id}`);
     expect(formatProductList([])).toBe('');
+  });
+
+  it('refundReasonFromTrace: only a refund the system took up, last one wins, never a plain question', () => {
+    const refund = (status: string, reason = 'Receipt showed the wrong currency') => ({
+      toolName: 'request_refund',
+      input: { reason },
+      output: { status },
+    });
+    for (const status of ['refunded', 'waiting_for_approval', 'processing']) {
+      expect(refundReasonFromTrace([refund(status)])).toBe('Receipt showed the wrong currency');
+    }
+    // failed frees the slot: the retry would file the same reason again
+    for (const status of ['not_verified', 'not_paid', 'declined', 'already_requested', 'canceled', 'failed']) {
+      expect(refundReasonFromTrace([refund(status)])).toBeNull();
+    }
+    expect(refundReasonFromTrace([])).toBeNull();
+    expect(refundReasonFromTrace([{ toolName: 'get_payment_status', input: {}, output: { verified: true, payment_status: 'paid' } }])).toBeNull();
+    expect(refundReasonFromTrace([{ toolName: 'request_refund', input: { reason: 'x' }, error: 'timeout' }])).toBeNull();
+    expect(refundReasonFromTrace([refund('waiting_for_approval', '  ')])).toBeNull();
+    expect(refundReasonFromTrace([refund('declined', 'first'), refund('refunded', ' second ')])).toBe('second');
   });
 
   it('a spy on origin is only consulted by create_checkout', async () => {

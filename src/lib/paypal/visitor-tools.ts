@@ -15,6 +15,7 @@
 
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
+import type { PaymentToolTrace } from './agent';
 import { ORDER_ID_RE, readCaptureFacts } from './capture';
 import { createCheckout, describeError, MAX_QUANTITY } from './checkout';
 import type { PayPalClient } from './client';
@@ -254,7 +255,11 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
         .positive()
         .optional()
         .describe('Amount to refund in the payment currency (e.g. 9.5). Omit for the whole payment.'),
-      reason: z.string().min(1).max(300).describe("The visitor's reason, in their words"),
+      reason: z
+        .string()
+        .min(1)
+        .max(300)
+        .describe("The visitor's reason, in their words. Do not include the email address or the order id."),
     }),
     execute: async ({ amount, reason }, { abortSignal }: ToolCallOptions = {}) => {
       const stored = await store.latestVerification(conversationId);
@@ -359,6 +364,33 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
   }
 
   return { find_my_payment, get_payment_status, create_checkout, request_refund };
+}
+
+/**
+ * request_refund results that leave a live payment_actions row (executed / pending / unknown). While
+ * that row lives, a repeat call answers already_requested, so one problem is filed once. Everything
+ * else is left out: calls turned away before any row (not verified, not paid, declined, canceled)
+ * and `failed`, whose row frees the slot — the visitor's retry would come back with the same reason
+ * and file it a second time.
+ */
+const REFUND_TAKEN_UP = new Set(['refunded', 'waiting_for_approval', 'processing']);
+
+/**
+ * The visitor's reason from this turn's last refund request that the system took up, or null.
+ * The widget route runs it through the ordinary feedback classifier (design §7), so a product problem
+ * behind a refund ("the receipt showed the wrong currency") joins insights → grouping → fix PR, and
+ * "changed my mind" lands in a category that is never grouped. Plain questions never call the tool.
+ */
+export function refundReasonFromTrace(trace: readonly PaymentToolTrace[]): string | null {
+  for (let i = trace.length - 1; i >= 0; i--) {
+    const t = trace[i];
+    if (t.toolName !== 'request_refund' || t.error !== undefined) continue;
+    const status = (t.output as { status?: unknown } | undefined)?.status;
+    if (typeof status !== 'string' || !REFUND_TAKEN_UP.has(status)) continue;
+    const reason = (t.input as { reason?: unknown } | undefined)?.reason;
+    return typeof reason === 'string' && reason.trim() ? reason.trim() : null;
+  }
+  return null;
 }
 
 /**

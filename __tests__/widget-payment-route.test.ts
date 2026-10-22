@@ -5,6 +5,7 @@
 //   PayPal not connected + "refund"     → callLlm as before (a plain CS question for that bot)
 //   agent failure                       → English fallback saved, conversation escalated
 //   slow / rate / budget / no config    → English notice on the payment path, Korean on the ordinary one
+//   refund with a product-problem reason → classified after the answer → one groupable insight → auto-grouping (§7)
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
@@ -29,6 +30,11 @@ const h = vi.hoisted(() => ({
   // the visitor tools are real; we only capture what the route wires into them
   toolDeps: null as null | Record<string, unknown>,
   emailOwnerRefundApproval: vi.fn<(input: Record<string, unknown>) => Promise<unknown>>(async () => ({ sent: true, to: 'owner@example.com' })),
+  scheduleAutoGrouping: vi.fn(async () => ({ ran: false, reason: 'not_waiter' })),
+  rpc: vi.fn<(name: string) => Promise<unknown>>(async () => ({ data: 1, error: null })),
+  listExtendableInsights: vi.fn<() => Promise<unknown[]>>(async () => []),
+  // every after() task, so a test can wait for the post-response work
+  afterTasks: [] as Promise<unknown>[],
 }));
 
 function noopChain(): Record<string, unknown> {
@@ -43,7 +49,7 @@ function noopChain(): Record<string, unknown> {
 }
 
 vi.mock('@/lib/supabase', () => ({
-  getServiceRoleClient: () => ({ rpc: vi.fn(async () => ({ data: 1, error: null })), from: vi.fn(() => noopChain()) }),
+  getServiceRoleClient: () => ({ rpc: h.rpc, from: vi.fn(() => noopChain()) }),
 }));
 
 vi.mock('next/server', async (importOriginal) => {
@@ -52,7 +58,7 @@ vi.mock('next/server', async (importOriginal) => {
     ...actual,
     after: (task: unknown) => {
       if (task && typeof (task as Promise<unknown>).catch === 'function') {
-        (task as Promise<unknown>).catch(() => {});
+        h.afterTasks.push((task as Promise<unknown>).catch(() => {}));
       }
     },
   };
@@ -109,6 +115,16 @@ vi.mock('@/lib/bot/db', async (importOriginal) => {
   return { ...actual, applyInsightWrite: h.applyInsightWrite };
 });
 
+vi.mock('@/lib/bot/reply-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/bot/reply-context')>();
+  return { ...actual, listExtendableInsights: h.listExtendableInsights };
+});
+
+vi.mock('@/lib/groups/auto-grouping', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/groups/auto-grouping')>();
+  return { ...actual, scheduleAutoGrouping: h.scheduleAutoGrouping };
+});
+
 vi.mock('@/lib/bot/core', () => ({ getBotConfigFromDB: h.getBotConfigFromDB, invalidateBotCache: vi.fn() }));
 
 const BOT_ID = '11111111-1111-4111-8111-111111111111';
@@ -133,6 +149,7 @@ import {
 } from '@/lib/paypal/notices';
 import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
 import { HOLDING_MESSAGE_EN, HOLDING_NOTICE } from '@/lib/bot/holding';
+import { buildInsightRefMap } from '@/lib/bot/reply-context';
 
 function post(text: string, locale?: 'ko' | 'en') {
   const request = new NextRequest(`http://localhost/api/widget/b1/messages${locale ? `?locale=${locale}` : ''}`, {
@@ -151,6 +168,10 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.afterTasks.length = 0;
+  h.rpc.mockResolvedValue({ data: 1, error: null });
+  h.applyInsightWrite.mockResolvedValue(null);
+  h.listExtendableInsights.mockResolvedValue([]);
   h.checkWidgetWriteRate.mockResolvedValue({ ok: true });
   h.resolvePayPalBot.mockResolvedValue({ ok: true, bot: { id: BOT_ID, client: {} } });
   h.hasOpenPaymentAction.mockResolvedValue(false);
@@ -361,5 +382,175 @@ describe('payment route — every notice is English', () => {
       const json = await (await post('The login button is broken', locale)).json();
       expect(json.notice).toBe(`Got it! ${HOLDING_MESSAGE_EN}`);
     }
+  });
+});
+
+describe('payment route → insights and grouping (design §7)', () => {
+  const REASON = 'The receipt showed the wrong currency';
+  const refundTrace = (reason: string, status = 'waiting_for_approval') => [
+    { toolName: 'find_my_payment', input: { order_id: '5O190127TN364715T', email: 'a@b.c' }, output: { found: true } },
+    { toolName: 'request_refund', input: { reason }, output: { status, amount: '$29' } },
+  ];
+  const classified = (category: string, summary: string) =>
+    JSON.stringify({ response: 'ignored', insight: { category, summary, sentiment: 'negative' } });
+  /** after() tasks may add more after() tasks; drain until none are left. */
+  async function drainAfter() {
+    for (let seen = 0; seen < h.afterTasks.length; ) {
+      const batch = h.afterTasks.slice(seen);
+      seen += batch.length;
+      await Promise.all(batch);
+    }
+  }
+  const insightWrites = () =>
+    (h.applyInsightWrite.mock.calls as unknown as Array<[string, string, { category: string; summary: string } | null, boolean, { action: string }]>);
+
+  it('refund + bug reason: the answer goes out first, then one groupable insight and auto-grouping', async () => {
+    h.runPaymentAgent.mockResolvedValue({
+      text: 'Your refund is waiting for the owner to approve.',
+      steps: 3,
+      finishReason: 'stop',
+      toolTrace: refundTrace(REASON),
+    });
+    let release!: (raw: string) => void;
+    h.callLlm.mockImplementationOnce(() => new Promise<string>((resolve) => { release = resolve; }));
+    h.applyInsightWrite.mockResolvedValue({ id: 'ins-1', created: true } as never);
+
+    const res = await post('5O190127TN364715T a@b.c');
+    // The visitor already has the agent's answer while the classifier is still running.
+    expect(res.status).toBe(200);
+    expect((await res.json()).notice).toBeNull();
+    expect(saved()).toMatchObject({ responseType: PAYMENT_AGENT_RESPONSE_TYPE, body: 'Your refund is waiting for the owner to approve.' });
+    expect(h.applyInsightWrite).not.toHaveBeenCalled();
+
+    release(classified('bug', 'Receipt shows the wrong currency'));
+    await drainAfter();
+
+    // The existing feedback classifier, fed the refund reason (not this turn's email), no key-failure record.
+    expect(h.callLlm).toHaveBeenCalledTimes(1);
+    const [, system, user, opts] = h.callLlm.mock.calls[0];
+    expect(system).toContain('## Classification');
+    expect(user).toContain(`Visitor: ${REASON}`);
+    expect(user).not.toContain('a@b.c');
+    expect(opts).toMatchObject({ recordKeyFailure: false });
+    // Counted against the same daily budget: one bump for the agent, one for the classifier.
+    expect(h.rpc.mock.calls.filter(([name]) => name === 'bump_bot_usage')).toHaveLength(2);
+
+    expect(insightWrites()).toHaveLength(1);
+    const [botId, messageId, insight, , plan] = insightWrites()[0];
+    expect({ botId, messageId, plan: plan.action }).toEqual({ botId: BOT_ID, messageId: 'msg-1', plan: 'insert' });
+    expect(insight).toMatchObject({ category: 'bug', summary: 'Receipt shows the wrong currency' });
+    expect(h.scheduleAutoGrouping).toHaveBeenCalledTimes(1);
+    expect(h.scheduleAutoGrouping.mock.calls[0]).toEqual([BOT_ID, expect.objectContaining({ deadlineMs: expect.any(Number) })]);
+    // The classifier's own reply text is never shown or saved.
+    expect(h.saveConversationResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it('same problem reported earlier in this conversation: the refund reason extends it (update, no second insight)', async () => {
+    const earlier = { id: 'ins-earlier', category: 'bug', summary: 'Receipt shows the wrong currency', source_message_ids: [] };
+    h.listExtendableInsights.mockResolvedValue([earlier]);
+    const [ref] = [...buildInsightRefMap([earlier]).keys()];
+    h.runPaymentAgent.mockResolvedValue({ text: 'Waiting for approval.', steps: 3, finishReason: 'stop', toolTrace: refundTrace(REASON) });
+    h.callLlm.mockResolvedValue(JSON.stringify({
+      response: 'ignored',
+      insight: { category: 'bug', summary: 'Receipt shows the wrong currency', sentiment: 'negative' },
+      extends: ref,
+    }));
+    h.applyInsightWrite.mockResolvedValue({ id: 'ins-earlier', created: false } as never);
+    await post('5O190127TN364715T a@b.c');
+    await drainAfter();
+
+    // The classifier was shown this conversation's reports, so it could point at the earlier one.
+    expect(h.callLlm.mock.calls[0][2]).toContain(`[${ref}] bug · Receipt shows the wrong currency`);
+    expect(insightWrites()).toHaveLength(1);
+    expect(insightWrites()[0][4]).toEqual({ action: 'update', id: 'ins-earlier' });
+    // An update keeps the grouping debounce moving, as for any supplement.
+    expect(h.scheduleAutoGrouping).toHaveBeenCalledTimes(1);
+  });
+
+  it('status-only question: no classifier call, no insight, no grouping', async () => {
+    h.runPaymentAgent.mockResolvedValue({
+      text: 'Your payment of $29 is complete.',
+      steps: 2,
+      finishReason: 'stop',
+      toolTrace: [{ toolName: 'get_payment_status', input: {}, output: { verified: true, payment_status: 'paid', refund: null } }],
+    });
+    await post('where is my order?');
+    await drainAfter();
+
+    expect(h.callLlm).not.toHaveBeenCalled();
+    expect(insightWrites()).toHaveLength(1);
+    expect(insightWrites()[0][2]).toBeNull();
+    expect(insightWrites()[0][4]).toEqual({ action: 'skip' });
+    expect(h.scheduleAutoGrouping).not.toHaveBeenCalled();
+  });
+
+  it('"changed my mind": the insight is kept in a category that is never grouped', async () => {
+    h.runPaymentAgent.mockResolvedValue({ text: 'Refunded.', steps: 3, finishReason: 'stop', toolTrace: refundTrace('I changed my mind', 'refunded') });
+    h.callLlm.mockResolvedValue(classified('other', 'Refund requested after a change of mind'));
+    h.applyInsightWrite.mockResolvedValue({ id: 'ins-2', created: true } as never);
+    await post('I changed my mind, refund please');
+    await drainAfter();
+
+    expect(insightWrites()).toHaveLength(1);
+    expect(insightWrites()[0][2]).toMatchObject({ category: 'other' });
+    expect(h.scheduleAutoGrouping).not.toHaveBeenCalled();
+  });
+
+  it('a refund call the system turned away (not verified) is not classified', async () => {
+    h.runPaymentAgent.mockResolvedValue({
+      text: 'I need your order id and email first.',
+      steps: 2,
+      finishReason: 'stop',
+      toolTrace: [{ toolName: 'request_refund', input: { reason: REASON }, output: { status: 'not_verified' } }],
+    });
+    await post(`refund please, ${REASON}`);
+    await drainAfter();
+    expect(h.callLlm).not.toHaveBeenCalled();
+    expect(insightWrites()[0][2]).toBeNull();
+  });
+
+  it('daily budget used up by the agent call: the classifier is not called, no insight', async () => {
+    let bumps = 0;
+    h.rpc.mockImplementation(async (name: string) => ({ data: name === 'bump_bot_usage' ? (bumps += 30) : 1, error: null }));
+    h.runPaymentAgent.mockResolvedValue({ text: 'Waiting for approval.', steps: 3, finishReason: 'stop', toolTrace: refundTrace(REASON) });
+    await post('5O190127TN364715T a@b.c');
+    await drainAfter();
+
+    expect(h.runPaymentAgent).toHaveBeenCalledTimes(1);
+    expect(h.callLlm).not.toHaveBeenCalled();
+    expect(insightWrites()[0][2]).toBeNull();
+    expect(h.scheduleAutoGrouping).not.toHaveBeenCalled();
+  });
+
+  it('agent failure path unchanged: fallback + escalate, no classifier, no insight, no grouping', async () => {
+    h.runPaymentAgent.mockRejectedValue(new Error('provider 500'));
+    await post('refund please');
+    await drainAfter();
+
+    expect(saved()).toMatchObject({ responseType: PAYMENT_AGENT_RESPONSE_TYPE, body: PAYMENT_AGENT_FALLBACK });
+    expect(h.recordLlmFailure).toHaveBeenCalledTimes(1);
+    expect(h.markConversationEscalated).toHaveBeenCalledTimes(1);
+    expect(h.callLlm).not.toHaveBeenCalled();
+    expect(insightWrites()).toHaveLength(1);
+    expect(insightWrites()[0][2]).toBeNull();
+    expect(h.scheduleAutoGrouping).not.toHaveBeenCalled();
+  });
+
+  it('a late agent answer with a refund reason is classified on the late path too', async () => {
+    vi.useFakeTimers();
+    let settle!: (v: unknown) => void;
+    h.runPaymentAgent.mockImplementationOnce(() => new Promise((resolve) => { settle = resolve; }));
+    h.callLlm.mockResolvedValue(classified('bug', 'Receipt shows the wrong currency'));
+    h.applyInsightWrite.mockResolvedValue({ id: 'ins-3', created: true } as never);
+    const pending = post('5O190127TN364715T a@b.c');
+    await vi.advanceTimersByTimeAsync(10_001);
+    expect((await (await pending).json()).notice).toBe(PAYMENT_SLOW_NOTICE);
+
+    settle({ text: 'Waiting for approval.', steps: 3, finishReason: 'stop', toolTrace: refundTrace(REASON) });
+    await vi.advanceTimersByTimeAsync(1);
+    await drainAfter();
+    expect(h.callLlm).toHaveBeenCalledTimes(1);
+    expect(insightWrites()[0][2]).toMatchObject({ category: 'bug' });
+    expect(h.scheduleAutoGrouping).toHaveBeenCalledTimes(1);
   });
 });

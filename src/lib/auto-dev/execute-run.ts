@@ -18,6 +18,7 @@ import {
 } from '@/lib/widget/context';
 import type { ContextItems } from '@/lib/widget/verify-context';
 import { appendSupplements, loadSupplementBodies } from '@/lib/insights/supplements';
+import { evidenceText, maskEvidence } from '@/lib/insights/evidence';
 import type { RunExplanation } from '@/lib/auto-dev/explanation';
 
 // Supabase 조인 결과는 단일 객체 또는 배열로 온다.
@@ -97,6 +98,8 @@ const GROUP_BODY_CHARS = 250;
 // 본문을 모으고 덧붙이는 규칙은 `lib/insights/supplements.ts` 하나다 — 스펙 초안
 // 경로(`groups/spec.ts`)도 같은 것을 써야 같은 묶음이 경로에 따라 다르게 안 읽힌다.
 
+// 원문·보충 본문은 엔진 프롬프트와 «GitHub PR 본문»에 그대로 인용된다 — 인용 전에 가린다
+// (`lib/insights/evidence.ts`, 스펙 초안과 같은 규칙).
 async function collectGroupEvidence(
   groupId: string,
   fallback: string,
@@ -115,12 +118,13 @@ async function collectGroupEvidence(
   const bodies = (
     await Promise.all(
       rows.map(async (i) => {
-        const primary = one<{ body?: string }>(i.messages)?.body ?? i.summary;
-        if (typeof primary !== 'string' || primary.trim() === '') return null;
+        const raw = one<{ body?: string }>(i.messages)?.body ?? i.summary;
+        if (typeof raw !== 'string' || raw.trim() === '') return null;
+        const primary = evidenceText(raw, typeof i.summary === 'string' ? i.summary : '');
         const truncated =
           primary.length > GROUP_BODY_CHARS ? `${primary.slice(0, GROUP_BODY_CHARS)}…` : primary;
         const supplements = await loadSupplementBodies(i.source_message_ids as string[] | null, botId);
-        return appendSupplements(truncated, supplements);
+        return appendSupplements(truncated, supplements.map(maskEvidence));
       }),
     )
   ).filter((b): b is string => b !== null);
@@ -166,14 +170,14 @@ export async function resolveRunValidationInput(run: LoadedRun) {
     };
   } else {
     const message = one<{ body?: string; context?: unknown }>(insight!.messages);
-    const primary = message?.body || insight!.summary;
+    const primary = evidenceText(message?.body || insight!.summary, insight!.summary);
     // 위젯 즉답이 꼬리질문 답을 이 인사이트에 갱신(source_message_ids)으로 흡수했을 수
     // 있다 — 엔진이 첫 턴만 보면 "쿠폰함 확인 안 돼요" 뿐이라 보충 내용을 놓친다.
     const supplements = await loadSupplementBodies(insight!.source_message_ids, run.bot_id);
     target = {
       category: insight!.category,
       summary: insight!.summary,
-      message_body: appendSupplements(primary, supplements),
+      message_body: appendSupplements(primary, supplements.map(maskEvidence)),
       // 위젯이 걷어온 페이지·브라우저·콘솔 에러. 카카오 등 다른 채널은 비어 있다.
       context: formatContextForPrompt(message?.context) || undefined,
       contextItems: collectContextItems([message?.context]),

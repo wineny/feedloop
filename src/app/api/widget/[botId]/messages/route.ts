@@ -6,7 +6,8 @@ import { NextRequest, after } from 'next/server';
 
 // 늦은 답 최대 30초(LLM_TIMEOUT_MS) + after() 의 자동 묶기(90초 조용한 시간 + 묶기 100초 예산).
 // 묶기 마감은 요청 시작 기준(reqStartedAt + GROUPING_DEADLINE_FROM_START_MS)으로 넘긴다 — 늦은 답이
-// 30초를 먹은 뒤에도 대기+묶기가 이 안에 든다. 기본값에 기대지 않는다.
+// 30초를 먹은 뒤에도 대기+묶기가 이 안에 든다(결제 턴의 환불 사유 분류 최대 30초가 더해져도 대기가 그만큼 준다).
+// 기본값에 기대지 않는다.
 export const maxDuration = 300;
 import { getBotConfigFromDB } from '@/lib/bot/core';
 import { callLlm, extractResult, recordLlmFailure, type BotConfig, type LlmResult } from '@/lib/bot/handler';
@@ -26,7 +27,7 @@ import { explicitWidgetLocale } from '@/i18n/server-locale';
 import { PAYMENT_AGENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
 import { appOrigin } from '@/lib/paypal/checkout';
 import { supabasePaymentsStore } from '@/lib/paypal/store';
-import { createVisitorTools, formatProductList } from '@/lib/paypal/visitor-tools';
+import { createVisitorTools, formatProductList, refundReasonFromTrace } from '@/lib/paypal/visitor-tools';
 // HOLDING_NOTICE 는 AI 가 답을 못 낸 경우(출력이 깨졌거나, 근거가 없어 스스로 넘겼거나)의
 // 안내다. 문구가 holding.ts 한 곳에서 오는 이유: 프롬프트가 시키는 문장과 서버가 쓰는 문장이
 // 갈라지면 방문자는 같은 상황에서 두 가지 말을 듣는다.
@@ -87,6 +88,12 @@ import { formatContextForPrompt, sanitizeWidgetContext } from '@/lib/widget/cont
 import { settleMessageShot } from '@/lib/widget/shots';
 import { withReplyBudget } from '@/lib/llm/usage';
 import { emailOwnerNewConversation, emailOwnerRefundApproval } from '@/lib/email/notify';
+
+/**
+ * 결제 턴의 결과는 환불 사유를 하나 더 싣는다(`refundReasonFromTrace`). 사유는 방문자 말이고
+ * settleInsight 가 after() 에서 분류한다. 기존 경로·카카오·텔레그램의 LlmResult 는 그대로다.
+ */
+type WidgetLlmResult = LlmResult & { paymentRefundReason?: string };
 
 /** Origin 헤더 저장 상한. 차단이 아니라 사후 판별용이라 넉넉히 자르기만 한다(§B-7). */
 const MAX_ORIGIN_CHARS = 200;
@@ -312,25 +319,70 @@ export async function POST(
    * 갱신 분기가 생긴 뒤로 한쪽만 고치면 늦게 온 답만 조각을 만든다.
    */
   let insertedCategory: string | null = null;
-  const settleInsight = async (result: LlmResult): Promise<InsightWriteReceipt | null> => {
+
+  /**
+   * 결제 턴의 환불 사유(`paymentRefundReason`)를 즉답과 «같은» 시스템 프롬프트·파서로 분류한다(설계 §7).
+   * 결제 에이전트는 분류를 안 하므로(insight: null) 이 한 번이 그 턴의 인사이트 재료다 —
+   * 「영수증 통화가 틀렸다」는 bug 로 묶기·PR 경로를 타고, 「마음이 바뀜」은 묶이지 않는 분류로 남는다.
+   * 「이 대화의 기존 제보」 목록(refMap)도 싣는다 — 같은 대화에서 먼저 낸 제보와 같은 문제면 `extends` 로
+   * 그 제보에 붙고 새 행이 안 생긴다.
+   * `after()` 안(settleInsight)에서만 돈다 — 방문자 답은 이미 나갔다. 같은 일일 예산을 한 번 더 센다
+   * (선증가 후판정, withReplyBudget). 넘었거나 실패하면 인사이트 없이 끝난다. 환불 처리는 이미 끝났고
+   * 대화는 받은편지함에 있다. 키 실패로 기록하지 않는다 — 응답 뒤 분류의 타임아웃으로 운영자 키 배지를
+   * 켜지 않는다(배치 분류와 같은 이유).
+   */
+  const classifyRefundReason = async (reason: string): Promise<Pick<LlmResult, 'insight' | 'extends'>> => {
+    const none = { insight: null, extends: null };
+    if (!config) return none;
+    const budgeted = await withReplyBudget(botId, config, () =>
+      callLlm(
+        config,
+        getSystemPrompt(config.serviceProfile),
+        buildWidgetUserTurn({
+          recent: '',
+          extendable: formatExtendableSection(refMap),
+          text: reason,
+          hintLine: '',
+          reminder: GROUNDING_REMINDER,
+        }),
+        { timeoutMs: LLM_TIMEOUT_MS, recordKeyFailure: false },
+      ),
+    );
+    const raw = budgeted.allowed ? await budgeted.value : null;
+    if (!raw) return none;
+    const parsed = extractResult(raw);
+    return parsed.parsed ? { insight: parsed.insight, extends: parsed.extends ?? null } : none;
+  };
+
+  // 받아들이는 한계(리뷰에서 확인, 코드 변경 없음):
+  //  - 환불이 실행된 «뒤» 에이전트의 다음 단계가 던지면 결과가 폴백(catch)이라 사유가 없다 → 인사이트 없음.
+  //    환불 자체는 payment_actions 에 남고 대화는 escalate 로 받은편지함에 뜬다.
+  //  - settle(DB)이 실패하면 메시지가 pending 으로 남아 recovery 가 messages.body 로 다시 분류한다 —
+  //    결제 턴이면 그 본문(주문번호·이메일)에는 환불 사유가 없어 대개 인사이트가 안 생긴다.
+  const settleInsight = async (result: WidgetLlmResult): Promise<InsightWriteReceipt | null> => {
     if (!chipOnly && result.parsed !== true) return null;
+    // 결제 턴은 환불 사유가 있을 때만 인사이트 재료가 생긴다. 분류 대상도 사유다(이번 메시지는 이메일일 수 있다).
+    const reason = result.paymentRefundReason ?? null;
+    const source = reason !== null ? await classifyRefundReason(reason) : result;
+    const insightIn = source.insight;
+    const classifyText = reason ?? bodyText;
     const plan = planInsightWrite({
-      insight: result.insight,
-      extends: result.extends,
+      insight: insightIn,
+      extends: source.extends,
       refMap,
       chipOnly,
-      text: bodyText,
+      text: classifyText,
     });
     // 모델이 목록에 없는 ref 를 낸 경우. 동작은 새 행(insert) 그대로이고 흔적만 남긴다 —
     // 얼마나 자주 지어내는지를 알아야 프롬프트를 고칠지 판단할 수 있다.
     // 본문은 안 찍는다(방문자 입력이다). ref 와 후보 수면 재현에 충분하다.
     if (plan.action === 'insert' && plan.reason === 'unknown_ref') {
       console.warn(
-        `[reply-context] unknown extends ref bot=${botId} ref=${String(result.extends).slice(0, 64)} 후보=${refMap.size}`,
+        `[reply-context] unknown extends ref bot=${botId} ref=${String(source.extends).slice(0, 64)} 후보=${refMap.size}`,
       );
     }
-    const insight = plan.action === 'insert' && result.insight
-      ? await refineCategoryWithJev(bodyText, result.insight) : result.insight;
+    const insight = plan.action === 'insert' && insightIn
+      ? await refineCategoryWithJev(classifyText, insightIn) : insightIn;
     if (plan.action === 'insert') insertedCategory = insight?.category ?? null;
     return applyInsightWrite(botId, messageId, insight, result.escalate === true, plan);
   };
@@ -341,7 +393,7 @@ export async function POST(
    * 대기는 봇당 한 요청(대기자)만 하고 나머지는 RPC 한 번으로 끝난다. `after()` 안에서만
    * 돈다(응답은 이미 나갔다). 실패는 로그로만 — 제보는 저장됐고 운영자에겐 [지금 묶기]가 있다.
    */
-  const groupAfterSettle = async (result: LlmResult, receipt: InsightWriteReceipt | null): Promise<void> => {
+  const groupAfterSettle = async (result: WidgetLlmResult, receipt: InsightWriteReceipt | null): Promise<void> => {
     if (!shouldScheduleAutoGrouping({ insightId: receipt?.id ?? null, category: insertedCategory ?? result.insight?.category ?? null, source: 'web' })) return;
     try {
       await scheduleAutoGrouping(botId, { deadlineMs: reqStartedAt + GROUPING_DEADLINE_FROM_START_MS });
@@ -361,7 +413,7 @@ export async function POST(
    * 모델이 남의 주문·남의 봇·상품표에 없는 금액을 말할 길이 없다. 툴킷 원형은 주지 않는다.
    * 상품 목록은 프롬프트에 싣는다(create_checkout 의 product_id 를 모델이 고르게).
    */
-  const replyWithPaymentAgent = async (cfg: BotConfig, paypalClient: PayPalClient): Promise<LlmResult> => {
+  const replyWithPaymentAgent = async (cfg: BotConfig, paypalClient: PayPalClient): Promise<WidgetLlmResult> => {
     let resolved: ResolvedModel | null = null;
     try {
       const store = supabasePaymentsStore();
@@ -414,6 +466,8 @@ export async function POST(
         extends: null,
         matchesExistingGroup: null,
         parsed: true,
+        // 분류는 여기서 하지 않는다(방문자 답이 늦어진다). 사유만 실어 보내고 settleInsight 가 after() 에서 분류한다.
+        paymentRefundReason: refundReasonFromTrace(outcome.toolTrace) ?? undefined,
       };
     } catch (err) {
       await recordLlmFailure(cfg, resolved, err);
@@ -434,7 +488,7 @@ export async function POST(
   // paypalBot.ok 는 paymentRoute.route 의 전제라 여기서 다시 좁히기만 한다(TS 가 둘의 관계를 모른다).
   const paypalClient = paypalBot?.ok ? paypalBot.bot.client : null;
   const budget = config && !rateHold
-    ? await withReplyBudget(botId, config, (): Promise<LlmResult> =>
+    ? await withReplyBudget(botId, config, (): Promise<WidgetLlmResult> =>
         paymentRoute.route && paypalClient ? replyWithPaymentAgent(config, paypalClient) : (async () => {
           // 같은 예산을 SDK 안쪽까지 밀어 넣는다. 아래 Promise.race 는 «기다리기»만
           // 멈출 뿐 provider 요청은 계속 돈다 — 그 요청도 결국 운영자 돈이고,
