@@ -65,4 +65,10 @@ export const copy: DemoCopy = {
   bot1Desc: 'Collects rona.so community feedback and triages it with AI',
   bot2: 'Feedloop test bot',
   bot2Desc: 'Bot for development and testing',
+  ledgerReasonAgency: "Our team got smaller, so we don't need the Agency plan anymore. Can I get a refund?",
+  ledgerReasonPro: 'I paid for the Pro plan twice by mistake',
+  ledgerReasonStarter: "It's not the feature I expected. I'd like a refund.",
+  sayBuyAgency: "I'd like to buy the Agency plan.",
+  payCheckoutAgency: 'Pay with PayPal — $79 · Agency',
+  payRefundPending: "Your refund request for $79 is waiting for the store's approval. You'll see the result here.",
 };

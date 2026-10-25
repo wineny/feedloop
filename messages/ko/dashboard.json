@@ -114,6 +114,10 @@
       "pr": {
         "label": "첫 수정안",
         "action": "수정안 보기"
+      },
+      "paypal": {
+        "label": "PayPal 연결 (선택)",
+        "action": "PayPal 연결하기"
       }
     }
   },
@@ -190,5 +194,116 @@
     "dismiss": "닫기",
     "dismissLabel": "이 묶음 닫기",
     "specNote": "스펙 초안 · 만들지 말지는 사람이 정합니다"
+  },
+  "payments": {
+    "title": "PayPal",
+    "inquiries": "결제 문의",
+    "autoRefunds": "자동 환불",
+    "pending": "승인 대기",
+    "last7d": "최근 7일",
+    "notCounted": "집계 못 함",
+    "pendingCta": "대화에서 보기",
+    "pendingNone": "기다리는 요청 없음",
+    "connect": {
+      "title": "PayPal 이 연결되지 않았어요",
+      "body": "PayPal 을 연결하면 봇이 결제 문의에 답하고 환불을 처리해요. 큰 금액 환불은 승인을 기다려요.",
+      "cta": "PayPal 연결하기",
+      "more": "아직 PayPal 에 연결하지 않은 봇이 있어요."
+    },
+    "ledger": {
+      "title": "결제 장부",
+      "subtitle": "환불과 구매, 최신순",
+      "loading": "장부를 불러오는 중…",
+      "loadFailed": "장부를 불러오지 못했습니다.",
+      "retry": "다시 시도",
+      "empty": "아직 환불·구매 기록이 없습니다.",
+      "emptyFiltered": "조건에 맞는 기록이 없습니다.",
+      "truncated": "최근 {count}건만 보여 줍니다.",
+      "filters": {
+        "type": "종류",
+        "status": "상태",
+        "allStatuses": "모든 상태"
+      },
+      "typeFilters": {
+        "all": "전체",
+        "refund": "환불",
+        "purchase": "구매",
+        "dispute": "분쟁"
+      },
+      "types": {
+        "refund": "환불",
+        "purchase": "구매",
+        "dispute": "분쟁"
+      },
+      "columns": {
+        "time": "시각",
+        "type": "종류",
+        "amount": "금액",
+        "status": "상태",
+        "origin": "처리 방식",
+        "conversation": "대화",
+        "actions": "작업"
+      },
+      "origin": {
+        "auto": "자동",
+        "approval": "수동 승인"
+      },
+      "orderStatus": {
+        "created": "결제 시작",
+        "approved": "결제 처리 중",
+        "captured": "결제 완료",
+        "expired": "결제 취소됨",
+        "failed": "결제 거절됨",
+        "partially_refunded": "일부 환불됨",
+        "refunded": "환불됨",
+        "reversed": "결제 회수됨"
+      },
+      "open": "열기",
+      "showRecord": "상세",
+      "hideRecord": "닫기",
+      "confirm": {
+        "approve": "{amount} 환불을 승인할까요?",
+        "approveBare": "이 환불을 승인할까요?",
+        "reject": "{amount} 환불을 거절할까요?",
+        "rejectBare": "이 환불 요청을 거절할까요?",
+        "yes": "확인",
+        "no": "취소"
+      },
+      "decided": "저장했습니다. 상태: {status}",
+      "alreadyDecided": "다른 사람이 이미 결정했습니다. 최신 상태를 보여 줍니다.",
+      "demoOff": "예시 데이터라 승인·거절은 꺼져 있습니다.",
+      "record": {
+        "title": "실행 기록",
+        "call": "PayPal 호출",
+        "callRefund": "결제 환불",
+        "callDispute": "분쟁 청구 수락",
+        "sent": "보낸 금액",
+        "result": "PayPal 결과",
+        "notSent": "PayPal 로 보낸 것 없음",
+        "dispute": "분쟁 번호",
+        "reference": "PayPal 참조 번호",
+        "reason": "구매자 요청",
+        "error": "오류",
+        "timeline": "진행",
+        "requested": "요청",
+        "approved": "승인",
+        "rejected": "거절",
+        "expired": "만료",
+        "executed": "PayPal 로 전송",
+        "accepted": "수락",
+        "failed": "실패",
+        "by": "{name}",
+        "you": "나",
+        "teammate": "팀원",
+        "orderId": "PayPal 주문 번호",
+        "captureId": "결제 번호",
+        "product": "상품",
+        "quantity": "수량",
+        "created": "주문 생성",
+        "paid": "결제 완료",
+        "refundedAmount": "환불된 금액",
+        "refundRecorded": "환불 기록"
+      }
+    }
   }
 }

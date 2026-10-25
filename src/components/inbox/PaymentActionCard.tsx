@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { PaymentActionView } from '@/lib/paypal/action-view';
 import { dynamicT } from '@/i18n/dynamic';
+import { ACTION_STATUS_TONE } from '@/lib/paypal/action-status-tone';
 
 export type PaymentDecision = 'approve' | 'reject';
 
@@ -21,16 +22,6 @@ export interface PaymentActionCardProps {
   /** The practice (logged-out) screen never calls the server. */
   disabled?: boolean;
 }
-
-const STATUS_TONE: Record<PaymentActionView['status'], string> = {
-  pending: 'bg-brand-subtle text-brand-strong',
-  executing: 'bg-muted text-muted-foreground',
-  unknown: 'bg-muted text-muted-foreground',
-  executed: 'bg-emerald-50 text-emerald-700',
-  failed: 'bg-destructive/10 text-destructive',
-  rejected: 'bg-muted text-muted-foreground',
-  expired: 'bg-muted text-muted-foreground',
-};
 
 /**
  * One decision in flight at a time. The card never keeps its own copy of the row: the parent owns the
@@ -85,7 +76,7 @@ export function PaymentActionCard({ action, onDecide, disabled }: PaymentActionC
           <StatusIcon status={current.status} />
           <span className="font-semibold">{t('title', { amount: current.amount ?? '?' })}</span>
         </div>
-        <span className={cn('rounded-full px-2 py-0.5 text-[12.5px] font-semibold', STATUS_TONE[current.status])}>
+        <span className={cn('rounded-full px-2 py-0.5 text-[12.5px] font-semibold', ACTION_STATUS_TONE[current.status])}>
           {t(`status.${current.status}`)}
         </span>
       </div>

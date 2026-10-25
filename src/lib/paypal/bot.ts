@@ -34,6 +34,25 @@ interface BotPayPalRow {
   paypal_webhook_id: string | null;
 }
 
+/**
+ * "Is this bot PayPal-connected?" without decrypting anything — for screens (the dashboard) that
+ * only need the yes/no. Same rule as `toPayPalBot`: not paused, and either its own saved keys or
+ * the demo bot's env keys. One difference by design: a saved secret that no longer decrypts counts
+ * as connected here (keys are saved) while `toPayPalBot` says not_connected — only a real call can
+ * tell, and the settings screen's OAuth check is where that shows up.
+ *
+ * Live mode: a bot with saved keys and `paypal_env='live'` (demo or not) counts as connected here, but
+ * `toPayPalBot` throws for it unless PAYPAL_ALLOW_LIVE=1 (`assertLiveAllowed`). The settings route keeps
+ * `paypal_env` at sandbox, so this only matters if someone flips the column by hand. A demo bot WITHOUT
+ * saved keys ignores `paypal_env` — the deployment env (PAYPAL_ENVIRONMENT) decides sandbox vs live.
+ */
+export function isPayPalConnected(
+  row: Pick<BotPayPalRow, 'status' | 'is_demo' | 'paypal_client_id' | 'paypal_secret_encrypted'>,
+): boolean {
+  if (row.status === 'paused') return false;
+  return Boolean(row.paypal_client_id && row.paypal_secret_encrypted) || row.is_demo;
+}
+
 /** Pure decision, exported for tests. */
 export function toPayPalBot(row: BotPayPalRow, opts: { fetch?: FetchLike } = {}): PayPalBotResult {
   if (row.status === 'paused') return { ok: false, reason: 'not_found' };
@@ -49,7 +68,9 @@ export function toPayPalBot(row: BotPayPalRow, opts: { fetch?: FetchLike } = {})
         id: row.id,
         isDemo: row.is_demo,
         sandbox,
-        webhookId: row.paypal_webhook_id ?? (row.is_demo ? envWebhookId() : null),
+        // Own keys = own PayPal app: the deployment's PAYPAL_WEBHOOK_ID belongs to another app and
+        // would never verify its events, so a demo bot with its own keys does not borrow it.
+        webhookId: row.paypal_webhook_id,
         client: new PayPalClient({
           clientId: row.paypal_client_id,
           clientSecret: secret,

@@ -11,20 +11,11 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { PayPalApiError, paypalClientFromEnv } from '../src/lib/paypal/client';
+import { PAYPAL_WEBHOOK_EVENT_TYPES } from '../src/lib/paypal/settings';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-const EVENT_TYPES = [
-  'CHECKOUT.ORDER.APPROVED',
-  'PAYMENT.CAPTURE.COMPLETED',
-  'PAYMENT.CAPTURE.DENIED',
-  'PAYMENT.CAPTURE.DECLINED',
-  'PAYMENT.CAPTURE.REFUNDED',
-  'PAYMENT.CAPTURE.REVERSED',
-  'CUSTOMER.DISPUTE.CREATED',
-  'CUSTOMER.DISPUTE.UPDATED',
-  'CUSTOMER.DISPUTE.RESOLVED',
-];
+const EVENT_TYPES = PAYPAL_WEBHOOK_EVENT_TYPES;
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);

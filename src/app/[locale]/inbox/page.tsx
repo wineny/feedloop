@@ -27,6 +27,8 @@ import { scopedUrl } from '@/lib/scope/scope';
 import { ScopeNote } from '@/components/layout/BotScopeSelect';
 import { PaymentActionCard, type PaymentDecision } from '@/components/inbox/PaymentActionCard';
 import { interpretDecisionResponse, type PaymentActionView } from '@/lib/paypal/action-view';
+import { PaymentActivityPanel } from '@/components/inbox/PaymentActivityPanel';
+import type { LedgerResponse, LedgerRow } from '@/lib/paypal/ledger';
 import Link from 'next/link';
 import { Loader2, Clock, CornerDownLeft, UserRound, ExternalLink, ChevronRight } from 'lucide-react';
 
@@ -62,6 +64,8 @@ interface DemoInbox {
   contexts?: Record<string, Record<string, unknown>>;
   /** 대화 id → 메시지 id → 예시 화면(정적 자산) */
   shots?: Record<string, Record<string, PickedShotView>>;
+  /** 대화 id → 승인 카드(버튼은 꺼짐)와 결제 내역 줄. 대시보드 예시 장부와 같은 행이다. */
+  payments?: Record<string, { actions: PaymentActionView[]; rows: LedgerRow[] }>;
 }
 
 type Filter = 'all' | 'unread';
@@ -248,6 +252,12 @@ export default function InboxPage() {
   const [convStatus, setConvStatus] = useState<string>('open');
   // 결제 행(환불 요청 → 승인 카드, 3단계). 운영자 라우트만 준다; 연습용 화면엔 없다.
   const [paymentActions, setPaymentActions] = useState<PaymentActionView[]>([]);
+  // 이 대화의 결제 내역(5단계 6번) — 장부 라우트를 대화로 거른 것. 읽기 전용. 못 읽으면 칸을 숨긴다.
+  const [paymentRows, setPaymentRows] = useState<LedgerRow[]>([]);
+  // 늦게 온 응답이 다른 대화의 칸을 덮지 않게, 지금 열린 대화 id 를 들고 있는다.
+  const openedRef = useRef<string | null>(null);
+  // 같은 대화를 두 번 읽을 때(승인 뒤 다시 읽기) 먼저 보낸 요청의 늦은 응답이 새 응답을 덮지 않게 한다.
+  const paymentRowsSeq = useRef(0);
   // 이 봇에서 내가 소유자인지 승인자인지(3단계 6/6). 승인자는 환불 카드만 누를 수 있다 —
   // 답장 칸과 「대화 닫기」는 숨긴다(라우트도 403 으로 거절하지만, 안 되는 버튼을 보여 주지 않는다).
   const [role, setRole] = useState<'owner' | 'approver'>('owner');
@@ -343,9 +353,23 @@ export default function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstId, selected, list0, botId, loading, demo.isDemo]);
 
+  const loadPaymentRows = async (id: string) => {
+    const seq = ++paymentRowsSeq.current;
+    const current = () => openedRef.current === id && paymentRowsSeq.current === seq;
+    try {
+      const res = await fetch(`/api/payments/ledger?conversationId=${encodeURIComponent(id)}`);
+      const json = res.ok ? ((await res.json()) as LedgerResponse) : null;
+      if (current()) setPaymentRows(json?.rows ?? []);
+    } catch {
+      if (current()) setPaymentRows([]);
+    }
+  };
+
   const handleOpenConversation = async (id: string) => {
     setSelected(id);
     setNotice(null);
+    if (openedRef.current !== id) setPaymentRows([]);
+    openedRef.current = id;
 
     if (demo.isDemo) {
       setTimeline(demo.data.timelines[id] ?? []);
@@ -353,17 +377,23 @@ export default function InboxPage() {
       setShots(demo.data.shots?.[id] ?? {});
       setOrigin(null);
       setDeskUrl(null);
-      setPaymentActions([]);
+      setPaymentActions(demo.data.payments?.[id]?.actions ?? []);
+      setPaymentRows(demo.data.payments?.[id]?.rows ?? []);
       setRole('owner');
       // 닫아 둔 대화는 닫힌 채로 다시 연다 — 늘 'open' 으로 되돌리면 [대화 닫기]가 안 먹은 것처럼 보인다.
       setConvStatus(demo.data.closedIds?.includes(id) ? 'closed' : 'open');
       return;
     }
 
+    void loadPaymentRows(id);
     try {
       const res = await fetch(`/api/inbox/${id}`);
       if (!res.ok) throw new Error(t('errors.api', { status: res.status }));
       const json = await res.json();
+      // 열었으니 읽음 — 목록의 점을 즉시 끈다(서버는 이미 기록했다)
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false } : c)));
+      // 그 사이 다른 대화를 열었으면 이 응답으로 화면을 덮지 않는다
+      if (openedRef.current !== id) return;
       setTimeline(json.items ?? []);
       setContexts(json.contexts && typeof json.contexts === 'object' ? json.contexts : {});
       setShots(json.shots && typeof json.shots === 'object' ? json.shots : {});
@@ -372,8 +402,6 @@ export default function InboxPage() {
       setConvStatus(json.conversation?.status ?? 'open');
       setPaymentActions(Array.isArray(json.paymentActions) ? json.paymentActions : []);
       setRole(json.role === 'approver' ? 'approver' : 'owner');
-      // 열었으니 읽음 — 목록의 점을 즉시 끈다(서버는 이미 기록했다)
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false } : c)));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errors.open'));
     }
@@ -432,6 +460,8 @@ export default function InboxPage() {
       const next = effect.action;
       setPaymentActions((prev) => prev.map((a) => (a.id === actionId ? next : a)));
     }
+    // 결제 내역 칸도 서버 기준으로 다시 — 누가 결정했는지·PayPal 결과까지.
+    void loadPaymentRows(selected);
     if (effect.escalationCleared) {
       setConversations((prev) => prev.map((c) => (c.id === selected ? { ...c, escalated: false } : c)));
     }
@@ -705,6 +735,13 @@ export default function InboxPage() {
                   ))}
                 </div>
               )}
+
+              {/* 결제 내역(5단계 6번) — 이 대화의 환불·구매, 장부와 같은 실행 기록. 읽기 전용, 없으면 안 보인다 */}
+              <PaymentActivityPanel
+                key={current.id}
+                rows={paymentRows}
+                hasCard={(actionId) => !demo.isDemo && paymentActions.some((a) => a.id === actionId && a.decidable)}
+              />
 
               <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-5 py-5 sm:px-6">
                 {timeline.map((it) => (

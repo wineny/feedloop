@@ -288,6 +288,37 @@ export class PayPalClient {
     );
     return res?.items ?? [];
   }
+
+  /** Registers a webhook listener on this app. PayPal answers 400 WEBHOOK_URL_ALREADY_EXISTS for a known URL. */
+  createWebhook(url: string, eventTypes: readonly string[]): Promise<PayPalWebhook> {
+    return this.request('POST', '/v1/notifications/webhooks', {
+      body: { url, event_types: eventTypes.map((name) => ({ name })) },
+    });
+  }
+
+  /** All webhooks registered on this app (PayPal allows at most 10, so there is no paging). */
+  async listWebhooks(): Promise<PayPalWebhook[]> {
+    const res = await this.request<{ webhooks?: PayPalWebhook[] }>('GET', '/v1/notifications/webhooks');
+    return res?.webhooks ?? [];
+  }
+
+  /** Replaces a webhook's event list (JSON Patch on /event_types). */
+  async updateWebhookEvents(id: string, eventTypes: readonly string[]): Promise<void> {
+    await this.request('PATCH', `/v1/notifications/webhooks/${encodeURIComponent(id)}`, {
+      body: [{ op: 'replace', path: '/event_types', value: eventTypes.map((name) => ({ name })) }],
+    });
+  }
+
+  /** Removes a webhook. PayPal answers 204; a 404 (already gone) surfaces as PayPalApiError for the caller to ignore. */
+  async deleteWebhook(id: string): Promise<void> {
+    await this.request('DELETE', `/v1/notifications/webhooks/${encodeURIComponent(id)}`);
+  }
+}
+
+export interface PayPalWebhook {
+  id: string;
+  url: string;
+  event_types?: { name: string }[];
 }
 
 function abortError(signal: AbortSignal): Error {

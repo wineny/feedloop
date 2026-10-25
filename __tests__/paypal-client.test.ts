@@ -167,3 +167,45 @@ describe('PayPalClient', () => {
     expect(err.message).not.toContain(SECRET);
   });
 });
+
+describe('PayPalClient webhooks', () => {
+  it('createWebhook posts the url and event types', async () => {
+    const { client, calls } = makeClient(() => json({ id: 'WH-1', url: 'https://x.test/h' }, 201));
+    const created = await client.createWebhook('https://x.test/h', ['A.B', 'C.D']);
+    expect(created.id).toBe('WH-1');
+    const call = calls[1];
+    expect(call.url).toBe('https://api-m.sandbox.paypal.com/v1/notifications/webhooks');
+    expect(call.init.method).toBe('POST');
+    expect(JSON.parse(String(call.init.body))).toEqual({
+      url: 'https://x.test/h',
+      event_types: [{ name: 'A.B' }, { name: 'C.D' }],
+    });
+  });
+
+  it('listWebhooks returns the webhooks array (empty when PayPal sends none)', async () => {
+    const { client } = makeClient(() => json({ webhooks: [{ id: 'WH-1', url: 'u' }] }));
+    expect(await client.listWebhooks()).toEqual([{ id: 'WH-1', url: 'u' }]);
+    const empty = makeClient(() => json({}));
+    expect(await empty.client.listWebhooks()).toEqual([]);
+  });
+
+  it('updateWebhookEvents PATCHes /event_types with a JSON Patch replace', async () => {
+    const { client, calls } = makeClient(() => json({ id: 'WH-1' }));
+    await client.updateWebhookEvents('WH-1', ['A.B']);
+    expect(calls[1].init.method).toBe('PATCH');
+    expect(calls[1].url).toBe('https://api-m.sandbox.paypal.com/v1/notifications/webhooks/WH-1');
+    expect(JSON.parse(String(calls[1].init.body))).toEqual([{ op: 'replace', path: '/event_types', value: [{ name: 'A.B' }] }]);
+  });
+
+  it('deleteWebhook sends DELETE to the encoded id and surfaces 404 as PayPalApiError', async () => {
+    const { client, calls } = makeClient(() => new Response(null, { status: 204 }));
+    await client.deleteWebhook('WH/1');
+    expect(calls[1].init.method).toBe('DELETE');
+    expect(calls[1].url).toBe('https://api-m.sandbox.paypal.com/v1/notifications/webhooks/WH%2F1');
+
+    const gone = makeClient(() => json({ name: 'INVALID_RESOURCE_ID', message: 'not found' }, 404));
+    const err = await gone.client.deleteWebhook('WH-2').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PayPalApiError);
+    expect((err as PayPalApiError).status).toBe(404);
+  });
+});

@@ -10,7 +10,7 @@ beforeEach(() => {
   const result = results.shift() ?? { data: [], count: 0, error: null };
   const call = { table, methods: [] as [string, ...unknown[]][] }; calls.push(call);
   const query = { then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve) } as Record<string, unknown>;
-  for (const method of ['select', 'in', 'eq', 'not', 'is', 'lte', 'lt', 'order', 'limit']) query[method] = (...args: unknown[]) => { call.methods.push([method, ...args]); return query; };
+  for (const method of ['select', 'in', 'eq', 'not', 'is', 'lte', 'lt', 'gte', 'order', 'limit']) query[method] = (...args: unknown[]) => { call.methods.push([method, ...args]); return query; };
   return query;
  });
 });

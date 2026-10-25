@@ -227,7 +227,8 @@
       "appearance": "Widget appearance",
       "knowledge": "Knowledge",
       "key": "API key",
-      "github": "GitHub connection"
+      "github": "GitHub connection",
+      "paypal": "PayPal"
     },
     "demo": {
       "rona": {
@@ -276,6 +277,130 @@
       "overviewTitle": "Connect your bot",
       "overviewDescription": "These are the ways feedback reaches {name} right now.",
       "chooserDescription": "Set up the feedback channel that receives feedback for {name}."
+    },
+    "paypal": {
+      "title": "PayPal",
+      "description": "Connect {name} to a PayPal sandbox app and choose which refunds happen without you.",
+      "back": "Back to Bots"
+    }
+  },
+  "paypal": {
+    "cancel": "Cancel",
+    "env": {
+      "sandbox": "Sandbox",
+      "live": "Live"
+    },
+    "connection": {
+      "title": "Connection",
+      "notConnected": "This bot isn't connected to PayPal. Add the keys of a PayPal sandbox app to take payments and handle refunds.",
+      "demoDefault": "This demo bot uses the shared sandbox account. You can switch it to your own sandbox app.",
+      "botPaused": "This bot is paused, so payments and refunds are off until you turn it back on.",
+      "failedInvalid": "PayPal no longer accepts the saved keys. Enter them again.",
+      "failedOther": "The last check with PayPal failed. Enter your keys again.",
+      "status": "Status",
+      "statusConnected": "Connected",
+      "statusFailed": "Keys rejected",
+      "clientId": "Client ID",
+      "secret": "Secret",
+      "secretStored": "Saved",
+      "verifiedAt": "Checked",
+      "help": "In the <link>PayPal Developer Dashboard</link>, open Apps & Credentials, pick Sandbox, create or open an app, and copy its Client ID and Secret.",
+      "save": "Check and save",
+      "checking": "Checking your keys with PayPal…",
+      "sandboxNote": "Sandbox only. No real money moves. The Secret is stored encrypted and never shown again.",
+      "saved": "Connected. PayPal accepted your keys.",
+      "replace": "Replace keys",
+      "useOwn": "Use my own keys",
+      "disconnect": "Disconnect",
+      "confirmDisconnect": "Disconnect PayPal",
+      "disconnectNote": "Removes the keys and the webhook. Your refund limits and switches stay.",
+      "disconnected": "Disconnected."
+    },
+    "webhook": {
+      "title": "Webhook",
+      "intro": "PayPal tells Feedloop about payments, refunds and disputes through this webhook.",
+      "registered": "Registered",
+      "notRegistered": "Not registered",
+      "notRegisteredHelp": "PayPal can't send payment events to this bot yet. Press Retry.",
+      "keptNote": "Kept the saved webhook without checking it again. {reason}",
+      "retry": "Retry",
+      "retried": "Webhook registered.",
+      "reasons": {
+        "https_required": "PayPal only sends events to https addresses. Deploy first, then press Retry.",
+        "no_base_url": "The app's public address isn't set, so PayPal can't send events yet. Contact the app operator.",
+        "invalid_credentials": "PayPal rejected the saved keys. Enter them again.",
+        "webhook_limit_reached": "Your PayPal app has reached its webhook limit. Delete one you don't use in the PayPal Developer Dashboard, then press Retry.",
+        "paypal_unreachable": "Couldn't reach PayPal. Press Retry in a minute.",
+        "paypal_error": "PayPal couldn't register the webhook. Press Retry."
+      },
+      "checkAgain": "Check again"
+    },
+    "limits": {
+      "title": "Refund limits",
+      "intro": "Refunds inside these limits happen automatically. Anything above them waits for your approval in the Inbox.",
+      "save": "Save limits",
+      "saved": "Limits saved.",
+      "fields": {
+        "refundAutoMaxCents": {
+          "label": "Auto-refund up to",
+          "unit": "per refund",
+          "hint": "Larger refunds wait for approval."
+        },
+        "refundAutoDays": {
+          "label": "Only within",
+          "unit": "days of purchase",
+          "hint": "0 to 180. 0 means no automatic refunds."
+        },
+        "refundDailyCapCents": {
+          "label": "Daily total cap",
+          "unit": "per day (UTC)",
+          "hint": "Refunds that would go over this wait for approval."
+        },
+        "refundPerCustomer30d": {
+          "label": "Refunds per buyer",
+          "unit": "per 30 days",
+          "hint": "0 to 100. More than this waits for approval."
+        }
+      },
+      "errors": {
+        "money": "Enter an amount like 25 or 25.50.",
+        "whole": "Enter a whole number.",
+        "range": "Enter a value from {min} to {max}."
+      }
+    },
+    "switches": {
+      "title": "Switches",
+      "paused": {
+        "label": "Pause automatic refunds",
+        "help": "A temporary stop. Refunds wait for your approval until you turn this off. Purchases still work."
+      },
+      "proposeOnly": {
+        "label": "Suggest only",
+        "help": "The bot never refunds on its own. Every refund becomes an approval request."
+      }
+    },
+    "errors": {
+      "invalid_credentials": "PayPal didn't accept these keys. Check the Client ID and Secret of your sandbox app.",
+      "paypal_unreachable": "Couldn't reach PayPal to check your keys. Try again in a minute.",
+      "too_many_checks": "Too many tries. Wait a minute, then try again.",
+      "client_id_invalid": "That Client ID doesn't look right. Copy it again from your sandbox app.",
+      "secret_invalid": "That Secret doesn't look right. Copy it again from your sandbox app.",
+      "live_not_allowed": "Only sandbox keys can be used here.",
+      "env_invalid": "Only sandbox keys can be used here.",
+      "unknown_field": "This setting can't be changed here.",
+      "invalid_value": "Enter a valid number.",
+      "out_of_range": "This value is out of range.",
+      "nothing_to_change": "Nothing changed.",
+      "bad_request": "The request couldn't be read. Reload the page and try again.",
+      "server_error": "Something went wrong on our side. Try again later.",
+      "bot_not_found": "This bot no longer exists.",
+      "save_failed": "Couldn't save. Try again.",
+      "not_connected": "Connect your own PayPal keys first.",
+      "secret_unreadable": "The saved Secret can't be read anymore. Enter your keys again.",
+      "unauthorized": "Your session ended. Log in again.",
+      "forbidden": "Only the bot owner can change PayPal settings.",
+      "network": "Couldn't reach Feedloop. Check your connection and try again.",
+      "unknown": "Something went wrong. Try again."
     }
   }
 }

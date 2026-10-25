@@ -97,16 +97,23 @@
       "expired": "Expired"
     },
     "checks": {
-      "amount_within_max": "Amount within auto limit",
-      "within_days": "Within refund window",
-      "no_prior_refund": "No earlier refund on this payment",
-      "currency_matches": "Currency matches the store",
-      "daily_cap_ok": "Daily refund cap not exceeded",
-      "customer_known": "Buyer identified",
-      "customer_cap_ok": "Buyer refund cap not exceeded",
-      "no_dispute": "No open dispute",
-      "not_propose_only": "Store allows automatic refunds",
-      "not_paused": "Automatic refunds not paused"
+      "amount_within_max": "Over the auto-refund limit",
+      "within_days": "Past the auto-refund window",
+      "no_prior_refund": "This payment was already refunded",
+      "currency_matches": "Currency differs from the store's",
+      "daily_cap_ok": "Would go over today's refund cap",
+      "customer_known": "Buyer couldn't be identified",
+      "customer_cap_ok": "Buyer reached the 30-day refund limit",
+      "no_dispute": "This payment has an open dispute",
+      "not_propose_only": "Suggest only is on",
+      "not_paused": "Automatic refunds are paused"
     }
+  },
+  "activity": {
+    "title": "Payment activity",
+    "count": "{count, plural, one {# entry} other {# entries}}",
+    "show": "Show",
+    "hide": "Hide",
+    "decideAbove": "Approve or reject it in the approval card above."
   }
 }
