@@ -97,16 +97,16 @@
       "expired": "만료됨"
     },
     "checks": {
-      "amount_within_max": "금액이 자동 한도 이내",
-      "within_days": "결제 후 기간 이내",
-      "no_prior_refund": "이 결제의 이전 환불 없음",
-      "currency_matches": "상점 통화와 일치",
-      "daily_cap_ok": "하루 환불 한도 이내",
-      "customer_known": "고객 확인됨",
-      "customer_cap_ok": "고객별 환불 한도 이내",
-      "no_dispute": "진행 중인 분쟁 없음",
-      "not_propose_only": "상점이 자동 환불을 허용",
-      "not_paused": "자동 환불이 중지되지 않음"
+      "amount_within_max": "자동 환불 한도를 넘음",
+      "within_days": "자동 환불 기간이 지남",
+      "no_prior_refund": "이미 환불된 결제",
+      "currency_matches": "상점 통화와 다름",
+      "daily_cap_ok": "오늘 환불 한도를 넘게 됨",
+      "customer_known": "구매자를 확인하지 못함",
+      "customer_cap_ok": "구매자가 30일 환불 횟수 한도에 닿음",
+      "no_dispute": "진행 중인 분쟁이 있음",
+      "not_propose_only": "「제안만」이 켜져 있음",
+      "not_paused": "자동 환불이 멈춰 있음"
     }
   },
   "activity": {

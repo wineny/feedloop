@@ -18,7 +18,7 @@ const action: PaymentActionView = {
   reason: 'Item not as described',
   captureId: 'CAPTURE123',
   checks: [
-    { key: 'amount_within_max', label: 'Amount within auto limit', passed: false },
+    { key: 'amount_within_max', label: 'Over the auto-refund limit', passed: false },
     { key: 'no_dispute', label: 'No open dispute', passed: true },
     { key: 'brand_new_check', label: 'Server label for a key the dictionary lacks', passed: false },
   ],
@@ -40,7 +40,7 @@ describe('PaymentActionCard (approval card)', () => {
     expect(html).toContain('Approve $29.50');
     expect(html).toContain('Reject');
     expect(html).toContain('Why this needs your approval');
-    expect(html).toContain('Amount within auto limit');
+    expect(html).toContain('Over the auto-refund limit');
     expect(html).not.toContain('No open dispute'); // passed checks are not listed
     expect(html).toContain('Server label for a key the dictionary lacks'); // unknown key falls back to the server label
     expect(html).not.toMatch(/[가-힣]/);

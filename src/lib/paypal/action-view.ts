@@ -26,19 +26,19 @@ export interface PaymentActionView {
   decidable: boolean;
 }
 
-/** Operator-facing names for the guardrail checks the RPC records (20261019_01, 20261021_01). */
+/** Operator-facing names for the guardrail checks the RPC records (20261019_01, 20261021_01). Phrased as the problem: only FAILED checks are ever listed to a person. */
 // 이메일(승인 요청 메일)이 쓰는 영어 라벨. 화면은 사전 `inbox.payment.checks` 를 쓰고, 두 쪽이 같은지는 `__tests__/i18n-lib-dictionary.test.ts` 가 본다.
 export const CHECK_LABELS: Record<string, string> = {
-  amount_within_max: 'Amount within auto limit',
-  within_days: 'Within refund window',
-  no_prior_refund: 'No earlier refund on this payment',
-  currency_matches: 'Currency matches the store',
-  daily_cap_ok: 'Daily refund cap not exceeded',
-  customer_known: 'Buyer identified',
-  customer_cap_ok: 'Buyer refund cap not exceeded',
-  no_dispute: 'No open dispute',
-  not_propose_only: 'Store allows automatic refunds',
-  not_paused: 'Automatic refunds not paused',
+  amount_within_max: 'Over the auto-refund limit',
+  within_days: 'Past the auto-refund window',
+  no_prior_refund: 'This payment was already refunded',
+  currency_matches: "Currency differs from the store's",
+  daily_cap_ok: "Would go over today's refund cap",
+  customer_known: "Buyer couldn't be identified",
+  customer_cap_ok: 'Buyer reached the 30-day refund limit',
+  no_dispute: 'This payment has an open dispute',
+  not_propose_only: 'Suggest only is on',
+  not_paused: 'Automatic refunds are paused',
 };
 
 const CHECK_ORDER = Object.keys(CHECK_LABELS);

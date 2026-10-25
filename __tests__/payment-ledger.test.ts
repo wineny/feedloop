@@ -263,7 +263,8 @@ describe('execution record', () => {
   });
 
   it('pending refund: shows why it waits; an approver sees «a team member», never a name', () => {
-    expect(render(actionToLedgerRow(actionSource()))).toContain('Amount within auto limit');
+    expect(render(actionToLedgerRow(actionSource()))).toContain('Over the auto-refund limit');
+    expect(render(actionToLedgerRow(actionSource()))).not.toContain('within auto limit');
     const decided = actionToLedgerRow(actionSource({ status: 'rejected', decided_at: '2026-10-22T10:30:00.000Z', decided_by: 'u' }), () => ({ self: false, name: null }));
     expect(render(decided)).toContain('by a team member');
   });
