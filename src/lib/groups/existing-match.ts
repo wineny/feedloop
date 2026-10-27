@@ -374,7 +374,10 @@ export async function closeLoopForRejoins(
           pr_url: run.pr_url,
           pr_number: run.pr_number,
           merged_at: run.merged_at,
-          title: groupRow?.title || '요청하신 내용',
+          // 제목이 없을 때의 대체 글자는 다른 호출처(loop-closed 크론·run-access)와 같은 'Requested change' —
+          // 묶음 제목은 사업자 언어(en)라 영어로 둔다. 본문 언어는 `buildLoopClosedBody` 가 대화 언어로 고르고,
+          // 한국어 대화에는 이 영어 글자 대신 방문자 자신의 말을 인용한다.
+          title: groupRow?.title || 'Requested change',
           merge_commit_sha: run.merge_commit_sha,
         },
         // 메일은 «안» 붙인다(보안 리뷰 HIGH). 아래 주석 참고.

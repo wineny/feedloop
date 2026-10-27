@@ -35,7 +35,7 @@ export type AppearanceValues = Partial<Record<AppearanceField, string | null>> &
 
 export type AppearanceResult =
   | { ok: true; values: AppearanceValues }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code: string; vars?: Record<string, string | number> };
 
 const LIMITS: Record<AppearanceField, number> = {
   display_name: 40,
@@ -59,6 +59,17 @@ const LABELS: Record<AppearanceField, string> = {
   visitor_bubble_color: '내 말풍선색',
 };
 
+/** 오류 문구의 입력칸 이름 — 사전 `errors.fields.<키>`(`apiValidation` 이 `vars.field` 를 이 이름으로 바꿔 끼운다). */
+const FIELD_KEYS: Record<AppearanceField, string> = {
+  display_name: 'displayName',
+  status_text: 'statusText',
+  greeting: 'greeting',
+  operator_display_name: 'operatorDisplayName',
+  profile_image_url: 'profileImageUrl',
+  accent_color: 'accentColor',
+  visitor_bubble_color: 'visitorBubbleColor',
+};
+
 /**
  * PATCH body 를 위젯 모양 값으로 정규화한다.
  *
@@ -69,7 +80,7 @@ const LABELS: Record<AppearanceField, string> = {
  */
 export function validateAppearanceInput(body: unknown): AppearanceResult {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return { ok: false, error: '잘못된 요청 형식입니다' };
+    return { ok: false, error: '잘못된 요청 형식입니다', code: 'badRequest' };
   }
 
   const input = body as Record<string, unknown>;
@@ -84,7 +95,7 @@ export function validateAppearanceInput(body: unknown): AppearanceResult {
       continue;
     }
     if (typeof raw !== 'string') {
-      return { ok: false, error: `${LABELS[field]} 은(는) 문자열이어야 합니다` };
+      return { ok: false, error: `${LABELS[field]} 은(는) 문자열이어야 합니다`, code: 'notString', vars: { field: FIELD_KEYS[field] } };
     }
 
     const trimmed = raw.trim();
@@ -104,18 +115,25 @@ export function validateAppearanceInput(body: unknown): AppearanceResult {
         return {
           ok: false,
           error: `${LABELS[field]} 은(는) #RRGGBB 형식의 색상 코드여야 합니다`,
+          code: 'colorFormat',
+          vars: { field: FIELD_KEYS[field] },
         };
       }
       values[field] = hex;
       continue;
     }
     if (trimmed.length > LIMITS[field]) {
-      return { ok: false, error: `${LABELS[field]} 은(는) ${LIMITS[field]}자까지 입력할 수 있습니다` };
+      return {
+        ok: false,
+        error: `${LABELS[field]} 은(는) ${LIMITS[field]}자까지 입력할 수 있습니다`,
+        code: 'tooLong',
+        vars: { field: FIELD_KEYS[field], max: LIMITS[field] },
+      };
     }
     if (field === 'profile_image_url' && !isHttpsUrl(trimmed)) {
       // 위젯은 대부분 https 사이트에 붙는다. http 이미지는 혼합 콘텐츠로 차단돼
       // 저장은 됐는데 방문자 화면에는 안 보이는 상태가 된다 — 여기서 막는다.
-      return { ok: false, error: '프로필 이미지는 https:// 로 시작하는 주소만 넣을 수 있습니다' };
+      return { ok: false, error: '프로필 이미지는 https:// 로 시작하는 주소만 넣을 수 있습니다', code: 'profileImageHttps' };
     }
 
     values[field] = trimmed;
@@ -134,13 +152,13 @@ export function validateAppearanceInput(body: unknown): AppearanceResult {
     // 불리언 컬럼에는 「비우겠다」는 상태가 없다 — 다른 필드에서 null 이 「폴백을 쓰겠다」인
     // 것과 규칙이 다르다. 통일하려다 null 을 통과시키면 NOT NULL 제약에 걸려 500 이 된다.
     if (typeof input.starter_faq_fallback !== 'boolean') {
-      return { ok: false, error: '시작 질문 자동 채우기는 true/false 여야 합니다' };
+      return { ok: false, error: '시작 질문 자동 채우기는 true/false 여야 합니다', code: 'starterFallbackBoolean' };
     }
     values.starter_faq_fallback = input.starter_faq_fallback;
   }
 
   if (Object.keys(values).length === 0) {
-    return { ok: false, error: '변경할 항목이 없습니다' };
+    return { ok: false, error: '변경할 항목이 없습니다', code: 'nothingToChange' };
   }
 
   return { ok: true, values };

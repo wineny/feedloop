@@ -121,6 +121,27 @@ describe('가이드 데모 — 영어판에 한국어가 없다', () => {
   it('영어 연습용 데이터(getDemoData)에 한국어가 없다', () => {
     expect(hangul(JSON.stringify(getDemoData('en')))).toBe(0);
   });
+
+  it('「화면에서 선택하기」 예시 화면은 언어마다 그 언어로 찍은 화면이다', () => {
+    type Inbox = {
+      shots: Record<string, Record<string, { url: string }>>;
+      contexts: Record<string, Record<string, { url: string; target: { rect: unknown; url: string } }>>;
+    };
+    const pick = (l: 'en' | 'ko') => {
+      const inbox = getDemoData(l).inbox as Inbox;
+      return { shot: inbox.shots['demo-conv-4']['d4-1'].url, ctx: inbox.contexts['demo-conv-4']['d4-1'] };
+    };
+    const en = pick('en');
+    const ko = pick('ko');
+    expect(en.shot).toBe('/demo/picked-shot.webp');
+    expect(en.ctx.url).toBe('https://nullnul-tour-demo.vercel.app/en/spots/gyeongbokgung');
+    expect(en.ctx.target.url).toBe(en.ctx.url);
+    expect(en.ctx.target.rect).toEqual({ x: 804, y: 378, w: 107, h: 44 });
+    expect(ko.shot).toBe('/demo/picked-shot.ko.webp');
+    expect(ko.ctx.url).toBe('https://nullnul-tour-demo.vercel.app/spots/gyeongbokgung');
+    expect(ko.ctx.target.rect).toEqual({ x: 828, y: 371, w: 84, h: 44 });
+    for (const f of [en.shot, ko.shot]) expect(fs.existsSync(path.resolve(__dirname, `../public${f}`)), f).toBe(true);
+  });
 });
 
 describe('가이드 데모 — 한국어판은 그대로 한국어다', () => {
