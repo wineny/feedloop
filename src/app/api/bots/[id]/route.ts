@@ -14,14 +14,9 @@ import { resolveOwnedBots } from '@/lib/auth/ownership';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { invalidateBotCache } from '@/lib/bot/core';
 import { apiText } from '@/lib/http/api-text';
+import { ACTIVE_RUN_STATUSES } from '@/lib/auto-dev/run-status';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * 삭제를 막는 실행 상태. DB 의 활성 유니크 인덱스(`auto_dev_active_group`)와 같은 집합이다 —
- * 엔진이 리스를 쥔 채 봇 행이 사라지면 결과 저장이 실패하고 GitHub 에 브랜치·PR 이 고아로 남는다.
- */
-const ACTIVE_RUN_STATUSES = ['running', 'in_progress'] as const;
 
 // ── 서비스 삭제 (I-25, 2026-09-16 ny 결정: 하드 삭제) ──────────
 //
