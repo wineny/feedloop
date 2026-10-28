@@ -33,12 +33,17 @@ describe('toPayPalBot', () => {
     vi.stubEnv('PAYPAL_WEBHOOK_ID', 'WH-ENV');
     const r = toPayPalBot(row({ is_demo: true }));
     expect(r.ok && r.bot).toMatchObject({ isDemo: true, sandbox: true, webhookId: 'WH-ENV' });
+    // The toolkit lookups use the same keys as the client.
+    expect(r.ok && r.bot.credentials()).toEqual({ clientId: 'cid', clientSecret: 'sec' });
   });
 
   it('saved credentials win, and a live bot is refused unless PAYPAL_ALLOW_LIVE=1', () => {
     const secret = 'enc:ok';
     const ok = toPayPalBot(row({ paypal_client_id: 'own', paypal_secret_encrypted: secret, paypal_webhook_id: 'WH-OWN' }));
     expect(ok.ok && ok.bot).toMatchObject({ sandbox: true, webhookId: 'WH-OWN' });
+    expect(ok.ok && ok.bot.credentials()).toEqual({ clientId: 'own', clientSecret: 'per-bot-secret' });
+    // A function, so it adds no serializable copy of the secret (the client holds its own).
+    expect(JSON.stringify(ok.ok && { ...ok.bot, client: null })).not.toContain('per-bot-secret');
     expect(() => toPayPalBot(row({ paypal_client_id: 'own', paypal_secret_encrypted: secret, paypal_env: 'live' }))).toThrow(/live/);
   });
 

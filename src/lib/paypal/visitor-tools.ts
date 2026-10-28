@@ -1,5 +1,5 @@
-// The four tools a website visitor's payment agent gets (design v2 §2). Wrappers only — never the
-// PayPal toolkit's own tools. Each one is scoped to (bot, conversation) by the server, so the model
+// The tools a website visitor's payment agent gets (design v2 §2). Wrappers only — never a raw
+// PayPal toolkit tool. Each one is scoped to (bot, conversation) by the server, so the model
 // cannot name another conversation, another bot's order, or an amount the price table does not say.
 //
 //   find_my_payment(order_id, email)   both must match → recorded as this conversation's verified payment
@@ -7,13 +7,20 @@
 //   create_checkout(product_id, qty)   a PayPal order at the product's listed price (stage-2 createCheckout)
 //   request_refund(amount?, reason)    guardrail decision → auto refund or approval card (./refund.ts)
 //
+// When the bot's PayPal Agent Toolkit is passed in (`toolkit`, sandbox only), two read-only lookups
+// are added. They run the toolkit's own get_order / get_refund, but only behind the verified-payment
+// guard (see `guardedToolkitTools`): a visitor can read the payment they proved they own, nothing else.
+//
+//   paypal_get_order(order_id)         toolkit get_order, only for the verified order id
+//   paypal_get_refund(refund_id?)      toolkit get_refund, only for a refund we recorded on the verified capture
+//
 // No list_* tool: PayPal's transaction search has no payer filter and would show a visitor the
 // seller's whole month. The owner's dashboard is where those live.
 //
 // Tool results are plain data for the model to relay. The sentences the visitor finally reads for a
 // money outcome (refunded / waiting / declined) are server-fixed and come with the card in task 5/6.
 
-import { tool, type ToolSet } from 'ai';
+import { tool, type Tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { PaymentToolTrace } from './agent';
 import { ORDER_ID_RE, readCaptureFacts } from './capture';
@@ -22,6 +29,7 @@ import type { PayPalClient } from './client';
 import { formatMoney } from './money';
 import { isStuckAction, reconcileAction, requestRefund } from './refund';
 import { checkoutLine } from './sentences';
+import { parseToolkitResult } from './toolkit';
 import { isCapturedOrLater, type OrderStatus, type PaymentActionRow, type PaymentsStore, type ProductRow, type VerificationRow } from './store';
 
 /**
@@ -43,6 +51,9 @@ interface ToolCallOptions {
 
 export const VISITOR_TOOL_NAMES = ['find_my_payment', 'get_payment_status', 'create_checkout', 'request_refund'] as const;
 
+/** The guarded PayPal Agent Toolkit lookups, present only when the caller passes `toolkit`. */
+export const TOOLKIT_VISITOR_TOOL_NAMES = ['paypal_get_order', 'paypal_get_refund'] as const;
+
 export interface VisitorToolDeps {
   botId: string;
   conversationId: string;
@@ -56,6 +67,12 @@ export interface VisitorToolDeps {
    * failures are the hook's to log — the visitor's answer does not depend on it.
    */
   onPendingApproval?: (action: PaymentActionRow) => void | Promise<void>;
+  /**
+   * The bot's PayPal Agent Toolkit tools (toolkit.ts toolkitToolsForBot), or null/absent when the bot
+   * has none. Only get_order and get_refund are used, and only through the guard; nothing in this
+   * object is handed to the model as is.
+   */
+  toolkit?: Record<string, Tool> | null;
 }
 
 /** One answer for "wrong id", "wrong email" and "someone else's order": no hint which part failed. */
@@ -388,7 +405,235 @@ export function createVisitorTools(deps: VisitorToolDeps): ToolSet {
     return refreshed;
   }
 
-  return { find_my_payment, get_payment_status, create_checkout, request_refund };
+  /**
+   * The verified-payment guard for toolkit lookups. The toolkit tools themselves accept ANY id, and the
+   * visitor is anonymous: an unguarded get_order would show anyone's payer email and amounts for a typed
+   * id. So the rule is checked here, on the server, before the toolkit is called:
+   *  - nothing verified in this conversation (find_my_payment)        → not_verified, no PayPal call
+   *  - order id ≠ the verified order id                                → not_your_payment, no PayPal call
+   *  - refund id not one we recorded on the verified capture           → not_your_payment, no PayPal call
+   * The toolkit is then called with the server's id, never the model's text, and only a short summary
+   * of the answer goes back (no payee / fee breakdown / payer account fields).
+   */
+  function guardedToolkitTools(toolkit: Record<string, Tool>): ToolSet {
+    const out: ToolSet = {};
+    const getOrder = toolkitExecute(toolkit.get_order);
+    const getRefund = toolkitExecute(toolkit.get_refund);
+    // One PayPal fetch per id per turn (this closure lives for one agent turn): parallel or repeated
+    // calls by the model share the first call's promise.
+    const orderLookups = new Map<string, Promise<unknown>>();
+    const refundLookups = new Map<string, Promise<unknown>>();
+
+    if (getOrder) {
+      out.paypal_get_order = tool({
+        description:
+          "PayPal Agent Toolkit lookup of the verified payment's PayPal order: order status, when it was created and paid, what was bought, and each capture and refund with its status, amount and time. Only works for the order id verified with find_my_payment in this conversation. Use it for detail questions (\"when did I pay?\", \"what did I buy?\"); get_payment_status stays the first answer for \"is it paid / refunded?\".",
+        inputSchema: z.object({
+          order_id: z.string().min(8).max(32).describe('The verified PayPal order id'),
+        }),
+        execute: async ({ order_id }, options) => {
+          try {
+            const v = await store.latestVerification(conversationId);
+            if (!v || v.bot_id !== botId || isToolkitVerificationExpired(v)) return TOOLKIT_NOT_VERIFIED;
+            if (order_id.trim().toUpperCase() !== v.order_id) return TOOLKIT_REFUSED;
+            if (options?.abortSignal?.aborted) return TOOLKIT_UNAVAILABLE;
+            // Only server-side values go to the toolkit: it puts ids into the URL path unencoded.
+            let lookup = orderLookups.get(v.order_id);
+            if (!lookup) {
+              lookup = getOrder({ id: v.order_id }, options);
+              orderLookups.set(v.order_id, lookup);
+            }
+            const raw = await untilAborted(lookup, options?.abortSignal);
+            if (raw === ABORTED) return TOOLKIT_UNAVAILABLE;
+            const order = parseToolkitResult(raw);
+            if (!order || order.id !== v.order_id) return TOOLKIT_UNAVAILABLE;
+            return { ok: true as const, source: 'paypal_agent_toolkit' as const, ...summarizeToolkitOrder(order) };
+          } catch (err) {
+            console.error('[paypal] paypal_get_order failed', { message: errorText(err) });
+            return TOOLKIT_UNAVAILABLE;
+          }
+        },
+      });
+    }
+
+    if (getRefund) {
+      out.paypal_get_refund = tool({
+        description:
+          "PayPal Agent Toolkit lookup of a refund on the verified payment: its PayPal status (COMPLETED / PENDING / FAILED / CANCELLED), amount and when it was created and last updated. Leave refund_id empty for the latest refund. Only refunds made through this chat on the verified payment can be read. Call find_my_payment first if nothing is verified yet.",
+        inputSchema: z.object({
+          refund_id: z.string().min(8).max(32).optional().describe('A refund id from an earlier refund result. Omit for the latest refund.'),
+        }),
+        execute: async ({ refund_id }, options) => {
+          try {
+            const stored = await store.latestVerification(conversationId);
+            // Age is checked on the stored row BEFORE refreshVerification, which rewrites verified_at.
+            if (!stored || stored.bot_id !== botId || isToolkitVerificationExpired(stored)) return TOOLKIT_NOT_VERIFIED;
+            const v = await refreshVerification(stored, options?.abortSignal);
+            const refs = v.capture_id ? await store.listRefundRefs(botId, v.capture_id) : [];
+            const wanted = refund_id?.trim().toUpperCase();
+            const refundId = wanted === undefined || wanted === '' ? refs[0] : refs.find((r) => r.toUpperCase() === wanted);
+            if (!refundId) return wanted ? TOOLKIT_REFUSED : { ok: false as const, reason: 'no_refund' as const };
+            if (options?.abortSignal?.aborted) return TOOLKIT_UNAVAILABLE;
+            // Only server-side values go to the toolkit: it puts ids into the URL path unencoded.
+            let lookup = refundLookups.get(refundId);
+            if (!lookup) {
+              lookup = getRefund({ refund_id: refundId }, options);
+              refundLookups.set(refundId, lookup);
+            }
+            const raw = await untilAborted(lookup, options?.abortSignal);
+            if (raw === ABORTED) return TOOLKIT_UNAVAILABLE;
+            const refund = parseToolkitResult(raw);
+            if (!refund || refund.id !== refundId) return TOOLKIT_UNAVAILABLE;
+            return { ok: true as const, source: 'paypal_agent_toolkit' as const, ...summarizeToolkitRefund(refund) };
+          } catch (err) {
+            console.error('[paypal] paypal_get_refund failed', { message: errorText(err) });
+            return TOOLKIT_UNAVAILABLE;
+          }
+        },
+      });
+    }
+    return out;
+  }
+
+  return {
+    find_my_payment,
+    get_payment_status,
+    create_checkout,
+    request_refund,
+    ...(deps.toolkit ? guardedToolkitTools(deps.toolkit) : {}),
+  };
+}
+
+const TOOLKIT_NOT_VERIFIED = { ok: false as const, reason: 'not_verified' as const };
+/** Same answer whether the id exists for someone else or not at all. */
+const TOOLKIT_REFUSED = { ok: false as const, reason: 'not_your_payment' as const };
+const TOOLKIT_UNAVAILABLE = { ok: false as const, reason: 'unavailable' as const };
+
+/**
+ * How long a find_my_payment verification unlocks the toolkit lookups. Only these two tools check it;
+ * the other visitor tools keep their behaviour.
+ *
+ * Measured from `verified_at`. payment_verifications has no other timestamp, and refreshVerification
+ * (and a repeat find_my_payment) rewrites verified_at. A repeat find_my_payment is a fresh proof, so
+ * that is fine. refreshVerification rewrites it at most once per verification, when a payment
+ * verified before capture is found captured (it returns early once capture_id is set). So the window
+ * can stretch by the verify → capture gap. A strict "from the first proof" needs a first_verified_at
+ * column.
+ */
+export const TOOLKIT_VERIFICATION_TTL_MS = 24 * 60 * 60_000;
+
+function isToolkitVerificationExpired(v: VerificationRow, now = Date.now()): boolean {
+  const at = Date.parse(v.verified_at);
+  // An unreadable timestamp counts as expired: refuse rather than guess.
+  return !Number.isFinite(at) || now - at > TOOLKIT_VERIFICATION_TTL_MS;
+}
+
+const ABORTED = Symbol('aborted');
+
+/**
+ * Waits for `work` or the tool's abort signal, whichever comes first. The toolkit's ai@4 wrapper drops
+ * the AI SDK's abortSignal and its axios calls have no timeout, so without this a hung PayPal read
+ * would hold the tool past toolMs / totalMs. On abort the request itself is NOT cancelled; the socket
+ * stays open until PayPal answers or the function ends. That is harmless for a read, so no global
+ * axios timeout is set for it.
+ */
+function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T | typeof ABORTED> {
+  if (!signal) return work;
+  if (signal.aborted) return Promise.resolve(ABORTED);
+  return new Promise((resolve, reject) => {
+    const onAbort = () => resolve(ABORTED);
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
+/** Message only, never a stack or the raw DB / PayPal error object. */
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+type ToolkitExecute = (input: unknown, options: unknown) => Promise<unknown>;
+
+function toolkitExecute(t: Tool | undefined): ToolkitExecute | null {
+  const run = (t as { execute?: ToolkitExecute } | undefined)?.execute;
+  return typeof run === 'function' ? run : null;
+}
+
+type Json = Record<string, unknown>;
+
+function asObject(v: unknown): Json | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : null;
+}
+
+function asArray(v: unknown): Json[] {
+  return Array.isArray(v) ? v.flatMap((x) => (asObject(x) ? [x as Json] : [])) : [];
+}
+
+function str(v: unknown): string | null {
+  return typeof v === 'string' && v !== '' ? v : null;
+}
+
+/** PayPal's `{ value, currency_code }` as "29.00 USD", or null. */
+function money(v: unknown): string | null {
+  const m = asObject(v);
+  const value = str(m?.value);
+  const currency = str(m?.currency_code);
+  return value && currency ? `${value} ${currency}` : null;
+}
+
+/**
+ * The parts of a PayPal order a buyer would see on their own receipt. Left out on purpose: payee
+ * (merchant email / id), seller_receivable_breakdown (fees, net), seller_protection, custom_id,
+ * payer / payment_source account fields, links.
+ */
+export function summarizeToolkitOrder(order: Json): Json {
+  return {
+    order_id: str(order.id),
+    status: str(order.status),
+    created_at: str(order.create_time),
+    updated_at: str(order.update_time),
+    purchases: asArray(order.purchase_units).map((pu) => {
+      const payments = asObject(pu.payments);
+      return {
+        description: str(pu.description),
+        amount: money(pu.amount),
+        items: asArray(pu.items).map((i) => ({ name: str(i.name), quantity: str(i.quantity), unit_amount: money(i.unit_amount) })),
+        captures: asArray(payments?.captures).map((c) => ({
+          status: str(c.status),
+          amount: money(c.amount),
+          created_at: str(c.create_time),
+          updated_at: str(c.update_time),
+        })),
+        refunds: asArray(payments?.refunds).map((r) => ({
+          status: str(r.status),
+          amount: money(r.amount),
+          created_at: str(r.create_time),
+          updated_at: str(r.update_time),
+        })),
+      };
+    }),
+  };
+}
+
+/** A PayPal refund without seller_payable_breakdown (fees), payer / merchant ids, invoice or custom ids, links. */
+export function summarizeToolkitRefund(refund: Json): Json {
+  return {
+    refund_id: str(refund.id),
+    status: str(refund.status),
+    status_reason: str(asObject(refund.status_details)?.reason),
+    amount: money(refund.amount),
+    created_at: str(refund.create_time),
+    updated_at: str(refund.update_time),
+  };
 }
 
 /**

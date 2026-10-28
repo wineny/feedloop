@@ -18,6 +18,12 @@ export interface PayPalBot {
   /** Needed to verify webhook signatures. null = webhooks for this bot are rejected. */
   webhookId: string | null;
   client: PayPalClient;
+  /**
+   * The same keys `client` uses, for the PayPal Agent Toolkit's read-only lookups (toolkit.ts
+   * toolkitToolsForBot). A function, not a plain field, so it adds no serializable copy of the
+   * secret next to the one `client` already holds.
+   */
+  credentials: () => { clientId: string; clientSecret: string };
 }
 
 export type PayPalBotResult =
@@ -62,6 +68,7 @@ export function toPayPalBot(row: BotPayPalRow, opts: { fetch?: FetchLike } = {})
     if (!secret) return { ok: false, reason: 'not_connected' };
     const sandbox = row.paypal_env !== 'live';
     assertLiveAllowed(sandbox);
+    const clientId = row.paypal_client_id;
     return {
       ok: true,
       bot: {
@@ -77,19 +84,22 @@ export function toPayPalBot(row: BotPayPalRow, opts: { fetch?: FetchLike } = {})
           baseUrl: sandbox ? PAYPAL_SANDBOX_BASE_URL : PAYPAL_LIVE_BASE_URL,
           fetch: opts.fetch,
         }),
+        credentials: () => ({ clientId, clientSecret: secret }),
       },
     };
   }
 
   if (row.is_demo) {
+    const env = readPayPalEnv();
     return {
       ok: true,
       bot: {
         id: row.id,
         isDemo: true,
-        sandbox: readPayPalEnv().sandbox,
+        sandbox: env.sandbox,
         webhookId: row.paypal_webhook_id ?? envWebhookId(),
         client: paypalClientFromEnv({ fetch: opts.fetch }),
+        credentials: () => ({ clientId: env.clientId, clientSecret: env.clientSecret }),
       },
     };
   }

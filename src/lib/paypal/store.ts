@@ -264,6 +264,11 @@ export interface PaymentsStore {
   markSent(actionId: string): Promise<SendGate>;
   /** The most recent refund action for a capture, any status, or null. */
   latestRefundAction(botId: string, captureId: string): Promise<PaymentActionRow | null>;
+  /**
+   * PayPal refund ids we recorded for a capture (payment_actions.paypal_ref), newest first. The
+   * visitor agent's toolkit refund lookup may only read these (visitor-tools.ts paypal_get_refund).
+   */
+  listRefundRefs(botId: string, captureId: string): Promise<string[]>;
   getAction(actionId: string, botId: string): Promise<PaymentActionRow | null>;
   /** Every action of a conversation, newest first — the inbox's approval cards. */
   listActionsForConversation(conversationId: string): Promise<PaymentActionRow[]>;
@@ -546,6 +551,20 @@ export function supabasePaymentsStore(db: SupabaseClient = getServiceRoleClient(
         .maybeSingle();
       if (error) fail('latestRefundAction', error);
       return (data as PaymentActionRow | null) ?? null;
+    },
+
+    async listRefundRefs(botId, captureId) {
+      const { data, error } = await db
+        .from('payment_actions')
+        .select('paypal_ref')
+        .eq('bot_id', botId)
+        .eq('kind', 'refund')
+        .eq('target_id', captureId)
+        .not('paypal_ref', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) fail('listRefundRefs', error);
+      return ((data as { paypal_ref: string | null }[] | null) ?? []).flatMap((r) => (r.paypal_ref ? [r.paypal_ref] : []));
     },
 
     async getAction(actionId, botId) {

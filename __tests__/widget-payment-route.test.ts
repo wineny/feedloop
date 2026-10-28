@@ -173,7 +173,10 @@ beforeEach(() => {
   h.applyInsightWrite.mockResolvedValue(null);
   h.listExtendableInsights.mockResolvedValue([]);
   h.checkWidgetWriteRate.mockResolvedValue({ ok: true });
-  h.resolvePayPalBot.mockResolvedValue({ ok: true, bot: { id: BOT_ID, client: {} } });
+  h.resolvePayPalBot.mockResolvedValue({
+    ok: true,
+    bot: { id: BOT_ID, sandbox: true, client: {}, credentials: () => ({ clientId: 'x', clientSecret: 'y' }) },
+  });
   h.hasOpenPaymentAction.mockResolvedValue(false);
   h.getRecentTurns.mockResolvedValue([]);
   h.runPaymentAgent.mockResolvedValue({
@@ -206,10 +209,12 @@ describe('payment route', () => {
     const input = h.runPaymentAgent.mock.calls[0][0];
     expect(input.prompt).toContain("Visitor's message:\nI want a refund for my order");
     expect(input.system).toContain('payment assistant for Feedloop');
-    // The four visitor wrappers, nothing from the toolkit, no list_* tool.
+    // The four visitor wrappers plus the two guarded PayPal Agent Toolkit lookups — no raw toolkit
+    // tool (get_order, list_disputes, …), no write tool, no list_* tool.
     expect(Object.keys(input.tools as Record<string, unknown>).sort()).toEqual(
-      ['create_checkout', 'find_my_payment', 'get_payment_status', 'request_refund'],
+      ['create_checkout', 'find_my_payment', 'get_payment_status', 'paypal_get_order', 'paypal_get_refund', 'request_refund'],
     );
+    expect(input.system).toContain('PayPal lookup tools');
 
     expect(saved()).toMatchObject({
       responseType: PAYMENT_AGENT_RESPONSE_TYPE,
@@ -218,6 +223,19 @@ describe('payment route', () => {
     expect(h.markConversationEscalated).not.toHaveBeenCalled();
     const json = await res.json();
     expect(json.notice).toBeNull();
+  });
+
+  it('a live (non-sandbox) bot gets no toolkit lookups and no mention of them', async () => {
+    h.resolvePayPalBot.mockResolvedValue({
+      ok: true,
+      bot: { id: BOT_ID, sandbox: false, client: {}, credentials: () => ({ clientId: 'x', clientSecret: 'y' }) },
+    });
+    await post('I want a refund for my order');
+    const input = h.runPaymentAgent.mock.calls[0][0];
+    expect(Object.keys(input.tools as Record<string, unknown>).sort()).toEqual(
+      ['create_checkout', 'find_my_payment', 'get_payment_status', 'request_refund'],
+    );
+    expect(input.system).not.toContain('PayPal lookup tools');
   });
 
   it('wires onPendingApproval: a pending refund mails the owner once (the badge is raised by the RPC, not here)', async () => {
