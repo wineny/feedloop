@@ -121,9 +121,13 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
   const paymentConvRows = ledger.filter((r) => r.conversationId === DEMO_PAYMENT_CONV);
   const pendingRefund = paymentConvRows.find((r): r is LedgerActionRow => r.type === 'refund' && r.status === 'pending');
   // 「화면에서 선택하기」 예시(I-55) — 데모 사이트 경복궁 페이지에서 「쿠폰 받기」를 짚는 순간 찍은 화면(1280×800).
-  // 정적 자산이라 서명 URL 이 아니다. 좌표는 그 화면에서 실측한 값이다.
+  // 정적 자산이라 서명 URL 이 아니다. 좌표는 그 화면에서 실측한 값이다. 언어마다 찍은 화면이 달라
+  // (영어판 `/en/spots/...` 는 버튼 글자가 길다) 화면 파일·주소·좌표를 같이 바꾼다.
+  const pickPageUrl = l === 'ko'
+    ? 'https://nullnul-tour-demo.vercel.app/spots/gyeongbokgung'
+    : 'https://nullnul-tour-demo.vercel.app/en/spots/gyeongbokgung';
   const DEMO_PICK_CONTEXT = {
-    url: 'https://nullnul-tour-demo.vercel.app/spots/gyeongbokgung',
+    url: pickPageUrl,
     viewport: '1280x800',
     user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36',
     target: {
@@ -131,12 +135,12 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
       tag: 'button',
       selector: 'section:nth-of-type(3) > div:nth-of-type(1) > button',
       text: c.couponButton,
-      rect: { x: 828, y: 371, w: 84, h: 44 },
-      url: 'https://nullnul-tour-demo.vercel.app/spots/gyeongbokgung',
+      rect: l === 'ko' ? { x: 828, y: 371, w: 84, h: 44 } : { x: 804, y: 378, w: 107, h: 44 },
+      url: pickPageUrl,
       shot: '00000000-0000-4000-8000-00000000d1c0',
     },
   };
-  const DEMO_PICK_SHOT = { url: '/demo/picked-shot.webp', width: 1280, height: 800 };
+  const DEMO_PICK_SHOT = { url: l === 'ko' ? '/demo/picked-shot.ko.webp' : '/demo/picked-shot.webp', width: 1280, height: 800 };
   const DEMO_PICKED: PickedShotData = {
     label: c.pickLabel,
     selector: DEMO_PICK_CONTEXT.target.selector,

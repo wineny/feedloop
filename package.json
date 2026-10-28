@@ -16,6 +16,7 @@
     "db:schema": "scripts/build-schema.sh",
     "db:dry-run": "scripts/schema-dry-run.sh supabase/tests/guardrail_refund.sql",
     "db:seed-demo": "tsx scripts/seed-demo.ts",
+    "db:reset-demo": "tsx scripts/reset-demo.ts",
     "paypal:smoke": "tsx scripts/paypal-smoke.ts",
     "paypal:webhook": "tsx scripts/paypal-register-webhook.ts"
   },

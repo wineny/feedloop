@@ -254,6 +254,12 @@ export function memoryStore(initial: { products?: ProductRow[]; orders?: OrderRo
       const mine = store.actions.filter((a) => a.bot_id === botId && a.kind === 'refund' && a.target_id === captureId);
       return mine.length ? { ...mine[mine.length - 1] } : null;
     },
+    async listRefundRefs(botId, captureId) {
+      return store.actions
+        .filter((a) => a.bot_id === botId && a.kind === 'refund' && a.target_id === captureId && a.paypal_ref)
+        .sort((x, y) => y.created_at.localeCompare(x.created_at))
+        .map((a) => a.paypal_ref as string);
+    },
     async getAction(actionId, botId) {
       const a = store.actions.find((r) => r.id === actionId && r.bot_id === botId);
       return a ? { ...a } : null;

@@ -144,6 +144,9 @@
     "nothingToChange": "Nothing to change",
     "notString": "{field} must be text",
     "tooLong": "{field} can be up to {max} characters",
+    "colorFormat": "{field} must be a color code in #RRGGBB format",
+    "profileImageHttps": "The profile image address must start with https://",
+    "starterFallbackBoolean": "Auto-filling starter questions must be true or false",
     "required": "{field} is required",
     "channelSlugFormat": "The channel address can use lowercase letters, numbers and hyphens only",
     "webhookTokenFormat": "The webhook token is 8 to 128 characters: letters, numbers, hyphens and underscores. Paste the value Channel Talk shows you as it is",
@@ -174,7 +177,14 @@
     "channelSlug": "Channel address",
     "channelId": "Channel ID",
     "botName": "Bot name",
-    "webhookToken": "Webhook token"
+    "webhookToken": "Webhook token",
+    "displayName": "Display name",
+    "statusText": "Status text",
+    "greeting": "First greeting",
+    "operatorDisplayName": "Reply name",
+    "profileImageUrl": "Profile image URL",
+    "accentColor": "Accent color",
+    "visitorBubbleColor": "Your bubble color"
   },
   "llmFailure": {
     "key_rejected": "The key was rejected",

@@ -13,6 +13,7 @@
 
 import { tool, type Tool } from 'ai';
 import { PayPalAgentToolkit } from '@paypal/agent-toolkit/ai-sdk';
+import type { PayPalBot } from './bot';
 import { assertLiveAllowed, readPayPalEnv } from './env';
 
 /**
@@ -95,4 +96,43 @@ export function toolkitFromEnv(): Record<string, Tool> {
     clientSecret: env.clientSecret,
     sandbox: env.sandbox,
   });
+}
+
+/**
+ * The toolkit tools a bot's visitor agent gets, built from the bot's own PayPal keys (per-bot keys,
+ * or the deployment's PAYPAL_* keys for the demo bot — same resolution as `bot.client`).
+ *
+ * These are RAW lookups: any order or refund id. They must never reach the model directly — the
+ * visitor tools (visitor-tools.ts) wrap get_order / get_refund behind the verified-payment guard.
+ * Sandbox only: a live bot gets none (null), and so does a bot whose toolkit cannot be built — the
+ * agent then answers with its own four tools, as before.
+ */
+export function toolkitToolsForBot(bot: Pick<PayPalBot, 'id' | 'sandbox' | 'credentials'>): Record<string, Tool> | null {
+  if (!bot.sandbox) return null;
+  try {
+    return createPayPalTools({ ...bot.credentials(), sandbox: true });
+  } catch (err) {
+    console.error('[paypal] toolkit unavailable for bot', { botId: bot.id, message: (err as Error).message });
+    return null;
+  }
+}
+
+/**
+ * Reads what a toolkit tool returned. The toolkit's `run()` never throws. On failure it returns a
+ * JSON string: `{"error": ...}`, or a serialized LlmError `{"ok":false,"status":404,"code":...,"message":...}`
+ * (no `error` key). Returns the parsed object on success, null on anything else (either error shape,
+ * a non-object, unparsable text). Callers still check the object is the record they asked for.
+ */
+export function parseToolkitResult(raw: unknown): Record<string, unknown> | null {
+  let value: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if ('error' in value || (value as { ok?: unknown }).ok === false) return null;
+  return value as Record<string, unknown>;
 }

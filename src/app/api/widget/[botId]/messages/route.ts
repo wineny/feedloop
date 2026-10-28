@@ -16,8 +16,8 @@ import { getSystemPrompt } from '@/lib/bot/prompts';
 // 하면 callLlm 대신 결제 에이전트(generateText + tools)로 간다. callLlm 은 카카오·텔레그램도
 // 쓰므로 건드리지 않는다 — 갈라지는 자리는 이 라우트 하나다.
 import { resolveModel, type ResolvedModel } from '@/lib/llm/provider';
-import { resolvePayPalBot } from '@/lib/paypal/bot';
-import type { PayPalClient } from '@/lib/paypal/client';
+import { resolvePayPalBot, type PayPalBot } from '@/lib/paypal/bot';
+import { toolkitToolsForBot } from '@/lib/paypal/toolkit';
 import { hasOpenPaymentAction } from '@/lib/paypal/actions';
 import { NO_PAYMENT_ROUTE, routePayment } from '@/lib/paypal/router';
 import { paymentAgentPrompt, paymentAgentSystemPrompt, runPaymentAgent } from '@/lib/paypal/agent';
@@ -409,11 +409,13 @@ export async function POST(
    * null 폴백은 한국어 안내(HOLDING_NOTICE)라 결제 화면엔 맞지 않고, escalate 가 받은편지함 배지를
    * 켜 사람이 이어받게 한다. 키 실패 4분류 기록은 callLlm 과 같은 함수(recordLlmFailure)로 남긴다.
    *
-   * 도구는 방문자 도구 4개(lib/paypal/visitor-tools.ts)뿐이다 — 이 (봇, 대화) 에 묶인 래퍼라
+   * 도구는 방문자 도구(lib/paypal/visitor-tools.ts)뿐이다 — 이 (봇, 대화) 에 묶인 래퍼라
    * 모델이 남의 주문·남의 봇·상품표에 없는 금액을 말할 길이 없다. 툴킷 원형은 주지 않는다.
+   * 샌드박스 봇이면 PayPal Agent Toolkit 의 읽기 도구 2개(get_order·get_refund)를 «검증된 결제만»
+   * 가드로 감싸 더한다(paypal_get_order·paypal_get_refund). 키는 bot.client 와 같은 봇 키다.
    * 상품 목록은 프롬프트에 싣는다(create_checkout 의 product_id 를 모델이 고르게).
    */
-  const replyWithPaymentAgent = async (cfg: BotConfig, paypalClient: PayPalClient): Promise<WidgetLlmResult> => {
+  const replyWithPaymentAgent = async (cfg: BotConfig, paypal: PayPalBot): Promise<WidgetLlmResult> => {
     let resolved: ResolvedModel | null = null;
     try {
       const store = supabasePaymentsStore();
@@ -423,14 +425,16 @@ export async function POST(
         return [];
       });
       resolved = await resolveModel(cfg);
+      const toolkit = toolkitToolsForBot(paypal);
       const outcome = await runPaymentAgent({
         model: resolved.model,
         tools: createVisitorTools({
           botId,
           conversationId: conversation.id,
           store,
-          paypal: paypalClient,
+          paypal: paypal.client,
           origin: appOrigin,
+          toolkit,
           // A refund the guardrail would not run: one mail to the owner (design §4), after the response.
           // The inbox badge is NOT set here — the guardrail RPC raises escalated_at in the same
           // transaction that writes the pending row (20261021_02), so "pending exists" and "badge up"
@@ -446,7 +450,11 @@ export async function POST(
             );
           },
         }),
-        system: paymentAgentSystemPrompt({ serviceName: bot.service_name, productList: formatProductList(products) }),
+        system: paymentAgentSystemPrompt({
+          serviceName: bot.service_name,
+          productList: formatProductList(products),
+          toolkitLookups: toolkit !== null,
+        }),
         prompt: paymentAgentPrompt({
           text: bodyText,
           recentTurns: timeline,
@@ -486,10 +494,10 @@ export async function POST(
   // 부르지 않은 호출을 시도로 세면 시간당 상한이 일일 예산을 대신 태운다.
   // 결제 경로도 같은 예산 안이다 — 도구 루프는 메시지당 provider 호출이 최대 4번이라 더 비싸다.
   // paypalBot.ok 는 paymentRoute.route 의 전제라 여기서 다시 좁히기만 한다(TS 가 둘의 관계를 모른다).
-  const paypalClient = paypalBot?.ok ? paypalBot.bot.client : null;
+  const paypalReady = paypalBot?.ok ? paypalBot.bot : null;
   const budget = config && !rateHold
     ? await withReplyBudget(botId, config, (): Promise<WidgetLlmResult> =>
-        paymentRoute.route && paypalClient ? replyWithPaymentAgent(config, paypalClient) : (async () => {
+        paymentRoute.route && paypalReady ? replyWithPaymentAgent(config, paypalReady) : (async () => {
           // 같은 예산을 SDK 안쪽까지 밀어 넣는다. 아래 Promise.race 는 «기다리기»만
           // 멈출 뿐 provider 요청은 계속 돈다 — 그 요청도 결국 운영자 돈이고,
           // 끝날 때까지 서버리스 함수가 정리되지 못한다.

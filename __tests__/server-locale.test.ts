@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { explicitWidgetLocale, localeFromAcceptLanguage, localeFromHeaders, localeFromRequest } from '../src/i18n/server-locale';
 import { apiText, apiValidation } from '../src/lib/http/api-text';
+import { validateAppearanceInput } from '../src/lib/bot/appearance';
 import { loadMessages } from './helpers/intl';
 
 const req = (url: string, headers: Record<string, string> = {}) => new Request(`https://x.test${url}`, { headers });
@@ -99,6 +100,33 @@ describe('apiText / apiValidation', () => {
       expect(en, code).not.toMatch(/[가-힣]/);
       expect(apiValidation(req('/x', { cookie: 'NEXT_LOCALE=ko' }), { error: '한국어 폴백', code, vars: { max: 500, count: 3, allowed: 'a, b' } }), code).toMatch(/[가-힣]/);
     }
+  });
+  it('위젯 모양 검증 오류는 영어 요청에 한국어가 섞이지 않는다(입력칸 이름까지)', () => {
+    const bad: unknown[] = [
+      [],
+      { display_name: 1 },
+      { greeting: 'x'.repeat(301) },
+      { accent_color: 'red' },
+      { visitor_bubble_color: 'rgb(1,2,3)' },
+      { profile_image_url: 'http://x.test/a.png' },
+      { starter_faq_fallback: 'false' },
+      { starter_questions: 'x' },
+      {},
+    ];
+    for (const body of bad) {
+      const r = validateAppearanceInput(body);
+      expect(r.ok, JSON.stringify(body)).toBe(false);
+      if (r.ok) continue;
+      const en = apiValidation(req('/x'), r);
+      expect(en, JSON.stringify(body)).not.toMatch(/[가-힣]/);
+      expect(apiValidation(req('/x', { cookie: 'NEXT_LOCALE=ko' }), r), JSON.stringify(body)).toBe(r.error);
+    }
+    const color = validateAppearanceInput({ accent_color: 'red' });
+    expect(color.ok).toBe(false);
+    if (!color.ok) expect(apiValidation(req('/x'), color)).toBe('Accent color must be a color code in #RRGGBB format');
+    const long = validateAppearanceInput({ display_name: 'x'.repeat(41) });
+    expect(long.ok).toBe(false);
+    if (!long.ok) expect(apiValidation(req('/x'), long)).toBe('Display name can be up to 40 characters');
   });
 });
 

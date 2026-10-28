@@ -1,8 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateText, type ToolSet } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { PayPalAgentToolkit } from '@paypal/agent-toolkit/ai-sdk';
-import { PAYPAL_TOOL_ALLOWLIST, PAYPAL_WRITE_TOOL_NAMES, createPayPalTools } from '@/lib/paypal/toolkit';
+import {
+  PAYPAL_TOOL_ALLOWLIST,
+  PAYPAL_WRITE_TOOL_NAMES,
+  createPayPalTools,
+  parseToolkitResult,
+  toolkitToolsForBot,
+} from '@/lib/paypal/toolkit';
 
 type SentTool = { name: string; inputSchema?: { properties?: Record<string, unknown> } };
 
@@ -95,5 +101,50 @@ describe('createPayPalTools', () => {
     expect(() => createPayPalTools({ clientId: 'x', clientSecret: 'y', sandbox: false })).toThrow(
       /PAYPAL_ALLOW_LIVE/,
     );
+  });
+});
+
+describe('parseToolkitResult', () => {
+  it('returns the object for a successful JSON string or object', () => {
+    expect(parseToolkitResult('{"id":"ORDER0000001","status":"COMPLETED"}')).toEqual({ id: 'ORDER0000001', status: 'COMPLETED' });
+    expect(parseToolkitResult({ id: 'R1' })).toEqual({ id: 'R1' });
+  });
+
+  it.each([
+    ['the toolkit error string', '{"error":{"message":"RESOURCE_NOT_FOUND","type":"paypal_error"}}'],
+    // run() serializes its LlmError as is: no `error` key, only ok:false.
+    ['a serialized LlmError', '{"ok":false,"status":404,"code":"PAYPAL_API_HTTP_ERROR","message":"x"}'],
+    ['unparsable text', 'Request failed with status code 404'],
+    ['an array', '[1,2]'],
+    ['null', 'null'],
+    ['a number', 42],
+    ['undefined', undefined],
+  ])('returns null for %s', (_label, raw) => {
+    expect(parseToolkitResult(raw)).toBeNull();
+  });
+});
+
+describe('toolkitToolsForBot', () => {
+  const credentials = () => ({ clientId: 'x', clientSecret: 'y' });
+
+  it("builds the allowlisted read tools from the bot's own keys in sandbox", () => {
+    const tools = toolkitToolsForBot({ id: 'b', sandbox: true, credentials });
+    expect(Object.keys(tools ?? {}).sort()).toEqual(['get_dispute', 'get_order', 'get_refund', 'list_disputes']);
+  });
+
+  it('gives a live bot nothing, without reading its keys', () => {
+    const read = vi.fn(credentials);
+    expect(toolkitToolsForBot({ id: 'b', sandbox: false, credentials: read })).toBeNull();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('returns null (agent keeps its own tools) when the keys cannot be read', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const broken = () => {
+      throw new Error('Missing PayPal environment variables: PAYPAL_CLIENT_ID');
+    };
+    expect(toolkitToolsForBot({ id: 'b', sandbox: true, credentials: broken })).toBeNull();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
