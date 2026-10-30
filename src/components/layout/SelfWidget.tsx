@@ -1,6 +1,7 @@
 'use client';
 
 import Script from 'next/script';
+import { useLocale } from 'next-intl';
 import { usePathname } from '@/i18n/navigation';
 import { isPricingPath } from '@/lib/pricing/paths';
 
@@ -16,11 +17,13 @@ import { isPricingPath } from '@/lib/pricing/paths';
  * 버튼이 둘 뜬다. 숨기는 규칙은 globals.css 의 `body.gd-demo-open [data-feedloop-widget]`.
  *
  * `/pricing` 아래(PayPal 데모 가게)는 데모 봇 위젯(`DemoWidget`)이 대신 붙으므로 여기서 빠진다.
+ * `data-locale` 로 페이지 언어에 고정한다 — 없으면 브라우저 언어를 따라가 /en 에서도 한국어 위젯이 뜬다.
  */
 export const SELF_BOT_ID = '8f0c0182-741a-42a3-825e-94550ca6a677';
 
 export function SelfWidget() {
   const pathname = usePathname();
+  const locale = useLocale();
   if (isPricingPath(pathname)) return null;
-  return <Script src="/widget.js" data-feedloop={SELF_BOT_ID} strategy="afterInteractive" />;
+  return <Script src="/widget.js" data-feedloop={SELF_BOT_ID} data-locale={locale} strategy="afterInteractive" />;
 }
