@@ -21,6 +21,7 @@ import { listAccessibleBots } from '@/lib/auth/ownership';
 import { APPROVER_BOT_COLUMNS, toApproverView, type ApproverBotView } from '@/lib/bot/bot-list';
 import { TryDemoBotButton } from './TryDemoBotButton';
 import { dynamicT } from '@/i18n/dynamic';
+import { ExternalLink } from '@/components/demo/ExternalLink';
 
 // 「챗봇 설정」 — 등록 단위는 봇이 아니라 피드백을 받을 서비스다.
 // 이름은 2026-09-20 에 「연결 서비스」에서 옮겼다. 이 화면이 실제로 하는 일이 «그 서비스에 붙인
@@ -711,14 +712,12 @@ export default async function BotsPage({ searchParams }: { searchParams: Promise
                         레포 URL 은 등록 뒤 고치는 화면이 아직 없다(제품 공백) — 그래서 「없음」 안내만 하고 코랄 링크를 만들지 않는다 */}
                     <Cell title={t('cell.repo')}>
                       {bot.github_repo_url ? (
-                        <a
+                        <ExternalLink
                           href={bot.github_repo_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           className="truncate text-sm font-medium hover:underline"
                         >
                           {repoLabel(bot.github_repo_url)}
-                        </a>
+                        </ExternalLink>
                       ) : (
                         <Hint>{t('noRepo')}</Hint>
                       )}

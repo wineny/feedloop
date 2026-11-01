@@ -1,12 +1,12 @@
 {
   "sandboxBadge": "PayPal sandbox · no real money moves",
   "title": "Pick a plan, pay once",
-  "intro": "Feedloop is a support agent that settles payments with PayPal. Buy a plan below with a PayPal sandbox buyer account, then ask the chat in the corner about your payment — for example, a refund.",
+  "intro": "Buy a plan with a PayPal sandbox buyer account, then ask the chat in the corner about your payment, such as a refund. The AI checks that you really paid and refunds small amounts within the store's limits.",
   "demoStore": "This is Feedloop's own demo store. Purchases run in the PayPal sandbox, and the plans aren't real products.",
   "canceled": "Checkout canceled. Nothing was charged.",
-  "notSetUp": "The demo shop isn't set up yet. Run <code>npm run db:seed-demo</code> to add the demo bot and its products.",
+  "notSetUp": "The demo store isn't available right now. Please check back later.",
   "oneTime": "one-time",
-  "footnote": "Payments run in the PayPal sandbox during the PayPal AI Hackathon. Prices are placeholders and no real money moves.",
+  "footnote": "Prices are placeholders. Everything here runs in the PayPal sandbox, and no real money moves.",
   "buy": {
     "button": "Buy with PayPal",
     "aria": "Buy {name} with PayPal",
@@ -16,7 +16,7 @@
   "receipt": {
     "captured": {
       "title": "Payment received",
-      "body": "Thank you! Your plan is paid."
+      "body": "Thank you! Your payment went through."
     },
     "approved": {
       "title": "Payment processing",
@@ -36,7 +36,7 @@
     },
     "partially_refunded": {
       "title": "Partially refunded",
-      "body": "Part of this payment went back to the payer through PayPal. The rest of the payment still stands. Refunds usually show up in the payer's PayPal account within a few days."
+      "body": "Part of this payment went back to you through PayPal. The rest still stands. Refunds usually reach your PayPal account within a few days."
     },
     "refunded": {
       "title": "Payment refunded",
@@ -44,13 +44,13 @@
     },
     "reversed": {
       "title": "Payment reversed",
-      "body": "PayPal reversed this payment (for example, after a dispute), and the money went back to the payer. This plan is no longer paid."
+      "body": "PayPal reversed this payment (for example, after a dispute), and the money went back to you. This plan is no longer paid."
     },
     "item": "Item",
     "total": "Total",
     "orderId": "PayPal order ID",
     "transactionId": "Transaction ID",
-    "paidWith": "Paid with",
+    "paidWith": "PayPal account",
     "date": "Date",
     "refundedAmount": "Refunded",
     "reversedAmount": "Reversed",

@@ -9,7 +9,7 @@
     "faqAnswerPlaceholder": "Write the answer you would like the bot to give.",
     "faqQuestionPlaceholder": "e.g. Until when can I get a refund?",
     "faqEmpty": "None yet. Add the first one below.",
-    "faqHint": "Writing questions and answers separately helps the bot find them much better.",
+    "faqHint": "Keeping each question and answer separate helps the AI find the right one.",
     "faqTitle": "Frequently asked questions",
     "textTitle": "What the bot should know",
     "errors": {
@@ -17,7 +17,7 @@
       "save": "Couldn't save"
     },
     "saved": "Saved. Replies use this content from now on.",
-    "emptyNote": "While knowledge is empty, the bot doesn't answer factual questions (policies, prices, quantities) and hands off with “{holding}”. It still replies to feedback as usual. Add knowledge here and it answers within that range right away.",
+    "emptyNote": "With no knowledge added, the AI won't answer factual questions (policies, prices) and hands off with “{holding}”. It still replies to feedback. Add knowledge to answer within that range.",
     "count": "{count, number} / {max, number} chars",
     "textPlaceholder": "Paste what the bot needs to know about {name}: how to use it, pricing, shipping and refund rules, common situations.",
     "textNote": "You can paste what you already wrote in Notion or a README as is. Anything not here, the bot doesn't make up. It hands off with “{holding}”.",
@@ -66,7 +66,7 @@
       "network": "Couldn't save because of a network error",
       "save": "Couldn't save"
     },
-    "saved": "Saved. It reaches the visitor widget within a few minutes.",
+    "saved": "Saved. The visitor widget updates within a few minutes.",
     "starterExample1": "How many coupons can I get per day?",
     "starterExample2": "Is the crowd level live?",
     "startersHelp": "One per line, up to {max} (each up to {chars} characters). They appear under the greeting, and when a visitor taps one it is sent right away and answered on the spot.",
@@ -81,14 +81,14 @@
     }
   },
   "defaults": {
-    "statusText": "Usually replies in a few minutes",
-    "greeting": "Hi! Tell us anything that bothered you or anything you'd like while using {name}. Our team reads and answers every message.",
+    "statusText": "Usually replies within a few minutes",
+    "greeting": "Hi! Tell us what bothers you or what you'd like to see in {name}.",
     "operatorName": "{name} team"
   },
   "new": {
     "loginToRegister": "Log in to register",
     "cancel": "Cancel",
-    "prAutoBody": "Every day at 09:00 a fix PR is opened for the largest new group. A person still decides what ships. You can change this later on the Bots screen.",
+    "prAutoBody": "Every day at 00:00 UTC a fix PR is opened for the largest new group. A person still decides what ships. You can change this later on the Bots screen.",
     "prAuto": "Create automatically",
     "prApproveBody": "For each group, click [Create fix PR] in the dashboard. A person checks first that the AI fix is right.",
     "prApprove": "Create PR after approval",
@@ -150,7 +150,7 @@
     "approve": "Create PR after approval",
     "approveHint": "You have to click [Create fix PR] in the dashboard",
     "auto": "Create automatically",
-    "autoHint": "Every day at 09:00 a fix PR is opened for the largest new group"
+    "autoHint": "Every day at 00:00 UTC a fix PR is opened for the largest new group"
   },
   "scoped": {
     "zero": "0 bots",
@@ -322,7 +322,7 @@
       "registered": "Registered",
       "notRegistered": "Not registered",
       "notRegisteredHelp": "PayPal can't send payment events to this bot yet. Press Retry.",
-      "keptNote": "Kept the saved webhook without checking it again. {reason}",
+      "keptNote": "Couldn't re-check the webhook, so the saved one stays. {reason}",
       "retry": "Retry",
       "retried": "Webhook registered.",
       "reasons": {
@@ -352,8 +352,8 @@
           "hint": "0 to 180. 0 means no automatic refunds."
         },
         "refundDailyCapCents": {
-          "label": "Daily total cap",
-          "unit": "per day (UTC)",
+          "label": "Daily limit",
+          "unit": "total per day (UTC)",
           "hint": "Refunds that would go over this wait for approval."
         },
         "refundPerCustomer30d": {
@@ -375,8 +375,8 @@
         "help": "A temporary stop. Refunds wait for your approval until you turn this off. Purchases still work."
       },
       "proposeOnly": {
-        "label": "Suggest only",
-        "help": "The bot never refunds on its own. Every refund becomes an approval request."
+        "label": "Ask me before every refund",
+        "help": "The AI never refunds on its own. Every refund waits for your approval."
       }
     },
     "errors": {

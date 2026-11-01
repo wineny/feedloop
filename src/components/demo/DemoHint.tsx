@@ -45,7 +45,8 @@ export function DemoHint({ show = true, label, placement = 'top' }: DemoHintProp
           className={
             placement === 'top'
               ? 'pointer-events-none absolute -top-3 left-3 z-10 -translate-y-full whitespace-nowrap rounded-full bg-[#D13A2D] px-2.5 py-1 text-[12px] font-bold text-white shadow-[0_4px_12px_rgba(209,58,45,.35)]'
-              : 'pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-10 -translate-y-1/2 whitespace-nowrap rounded-full bg-[#D13A2D] px-2.5 py-1 text-[12px] font-bold text-white shadow-[0_4px_12px_rgba(209,58,45,.35)]'
+              // 폰 폭(<640px)엔 오른쪽 자리가 없어 말풍선이 화면 밖으로 잘린다(375px 에서 21px) → 그때만 위에 붙인다
+              : 'pointer-events-none absolute -top-3 left-3 z-10 -translate-y-full sm:left-[calc(100%+10px)] sm:top-1/2 sm:-translate-y-1/2 whitespace-nowrap rounded-full bg-[#D13A2D] px-2.5 py-1 text-[12px] font-bold text-white shadow-[0_4px_12px_rgba(209,58,45,.35)]'
           }
           style={{ animation: 'demoHintPulse 1.6s ease-in-out infinite' }}
         >

@@ -45,7 +45,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
 
       {!shop || shop.products.length === 0 ? (
         <p className="rounded-xl border border-border bg-background px-4 py-6 text-sm text-muted-foreground">
-          {t.rich('notSetUp', { code: (chunks) => <code>{chunks}</code> })}
+          {t('notSetUp')}
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-3 md:gap-6">

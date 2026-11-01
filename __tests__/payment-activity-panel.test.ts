@@ -64,7 +64,7 @@ describe('PaymentActivityPanel', () => {
     // No decision buttons here — the approval card above has them.
     expect(html).not.toMatch(/>Approve</);
     expect(html).not.toMatch(/>Reject</);
-    expect(html).toContain('Approve or reject it in the approval card above.');
+    expect(html).toContain('Approve or reject it in the refund request above.');
     // Toggles name what they open.
     expect(html).toMatch(/aria-controls="[^"]+"/);
   });

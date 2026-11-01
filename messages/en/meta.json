@@ -1,8 +1,8 @@
 {
   "title": "Feedloop — Turn customer feedback into reviewed fix PRs",
-  "description": "Feedloop sorts customer feedback, opens a fix pull request for you to review, and tells the sender when it ships. Setup takes five minutes.",
+  "description": "Feedloop answers customers, opens fix pull requests for you to review, and handles PayPal order questions, refunding small amounts within limits you set.",
   "pricingTitle": "Pricing — Feedloop",
-  "pricingDescription": "Feedloop plans, paid once with PayPal. Support for every purchase runs through the Feedloop widget.",
+  "pricingDescription": "Demo plans paid once with a PayPal sandbox account. Payment questions and refunds are handled in the Feedloop chat.",
   "receiptTitle": "Receipt — Feedloop",
   "loginTitle": "Log in — Feedloop"
 }

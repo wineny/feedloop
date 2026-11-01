@@ -205,7 +205,7 @@ describe('PayPalSettingsPanel render', () => {
     expect(html).toContain('value="25"');
     expect(html).toContain('value="200"');
     expect(html).toContain('Pause automatic refunds');
-    expect(html).toContain('Suggest only');
+    expect(html).toContain('Ask me before every refund');
   });
 
   it('connected: client id, masked secret, replace/disconnect, webhook registered, never the secret', () => {
@@ -237,7 +237,7 @@ describe('PayPalSettingsPanel render', () => {
     };
     const html = render(view);
     expect(html).toContain('Registered');
-    expect(html).toContain('Kept the saved webhook without checking it again.');
+    expect(html).toContain('Couldn&#x27;t re-check the webhook, so the saved one stays.');
     expect(html).not.toContain('Not registered');
   });
 

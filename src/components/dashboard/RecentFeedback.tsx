@@ -9,6 +9,7 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { SectionTitle } from '@/components/layout/SectionTitle';
 import { ChevronRight, CornerDownLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ExternalLink } from '@/components/demo/ExternalLink';
 import { useChannelLabels } from '@/lib/channel/useChannelLabels';
 
 export interface FeedbackItem {
@@ -102,9 +103,9 @@ export function RecentFeedback({ feedbacks, limit = 6 }: RecentFeedbackProps) {
                   {f.pr && (
                     <>
                       <span>·</span>
-                      <a href={f.pr.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+                      <ExternalLink href={f.pr.url} className="hover:text-foreground">
                         PR #{f.pr.number}
-                      </a>
+                      </ExternalLink>
                     </>
                   )}
                   {(f.returnedAt || f.returnQueuedAt) && (

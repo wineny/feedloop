@@ -7,8 +7,8 @@ import { Link } from '@/i18n/navigation';
 
 /**
  * 히어로 — 제출용 대표 이미지(`docs/15-제출/cover/hero.html`)의 디자인을 그대로 가져왔다.
- * 딥 코랄 지면 위에 흰 글자, 「코드」만 속을 비운 테두리, 루프 네 단계를 한 줄로,
- * 오른쪽에 살짝 기운 폰 한 대. 커버와 랜딩이 같은 얼굴을 갖는다.
+ * 딥 코랄 지면 위에 흰 글자, 루프 네 단계를 한 줄로, 오른쪽에 살짝 기운 폰 한 대.
+ * 2026-11-01 헤드라인을 「Feedback in. Fixes out.」으로 바꿨다(ny). 링크 미리보기 og.png 도 같이 다시 찍는다.
  *
  * 커버에 없던 것 — 나브·CTA·부제는 페이지에 필요해서 같은 언어로 더했다.
  * 커버에만 있던 워드마크는 나브가 이미 갖고 있어 뺐다.
@@ -44,27 +44,18 @@ export function HeroSection() {
       <div /* 위 여백 = 나브 높이 + 원래 여백. 나브는 sticky·h-0 이라 흐름에서 자리를 안 차지한다 */
         className="relative mx-auto grid max-w-[1200px] gap-12 px-6 pb-16 pt-[calc(var(--nav-h)+24px)] lg:grid-cols-[minmax(0,1fr)_540px] lg:items-center lg:gap-10 lg:pb-[104px] lg:pt-[calc(var(--nav-h)+32px)]">
         <div>
-          <h1
-            className="font-extrabold"
-            style={{
-              fontSize: 'clamp(34px, 6.4vw, 82px)',
-              lineHeight: 1.12,
-              letterSpacing: '-0.045em',
-              ...fadeUp(0.15),
-            }}
-          >
-            {t('hero.line1')}
-            <br />
-            {t.rich('hero.line2', { em })}
-            <br />
-            {t('hero.line3')}
+          {/* 줄바꿈은 문구 안의 <br> 가 정한다 — en 2줄, ko 3줄. 크기는 `.hero-title`
+              (globals.css)이 맡는다: 가장 긴 줄이 왼쪽 칸 폭 안에 들도록 1024px 이상에선
+              vw 를 낮춰, 긴 줄이 저절로 접혀 5줄이 되던 문제를 막는다. */}
+          <h1 className="hero-title font-extrabold" style={fadeUp(0.15)}>
+            {t.rich('hero.title', { em, br: () => <br /> })}
           </h1>
 
           {/* 제품이 무엇인지 히어로에서 말하는 유일한 줄이다 (ny 결정 2026-09-18).
-              h1 은 제출용 커버와 같은 얼굴이라 손대지 않고, 구체는 이 한 줄이 맡는다.
+              h1 은 짧은 구호라, 무엇을 하는지(답장·PR·PayPal 환불)는 이 한 줄이 맡는다.
               이 줄이 없으면 랜딩은 «무엇을 붙이는지»를 세 번째 섹션까지 말하지 않는다. */}
           <p
-            className="mt-5 max-w-[30ch] font-medium text-white/90 lg:mt-6 lg:max-w-[34ch]"
+            className="mt-5 max-w-[36ch] font-medium text-white/90 lg:mt-6 lg:max-w-[40ch]"
             style={{
               fontSize: 'clamp(15px, 1.45vw, 20px)',
               lineHeight: 1.6,
@@ -80,13 +71,14 @@ export function HeroSection() {
 
           <div className="mt-6 h-1.5 w-[110px] rounded-full bg-white/85 lg:mt-7" style={fadeUp(0.3)} />
           <div
-            className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-semibold text-white/92 lg:mt-5 lg:gap-x-4"
+            className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 font-semibold text-white/92 sm:gap-x-3 lg:mt-5 lg:gap-x-4"
             style={{ fontSize: 'clamp(15px, 1.5vw, 21px)', ...fadeUp(0.3) }}
           >
             {STEP_KEYS.map((key, i) => (
-              <span key={key} className="flex items-center gap-x-3 lg:gap-x-4">
-                {i > 0 && <i className="not-italic text-[#ffd9cf]">→</i>}
+              <span key={key} className="flex items-center gap-x-2 sm:gap-x-3 lg:gap-x-4">
+                {/* 화살표를 단계 «뒤»에 붙인다 — 폰 폭에서 줄이 접혀도 새 줄이 화살표로 시작하지 않는다 */}
                 {t(`steps.${key}.title`)}
+                {i < STEP_KEYS.length - 1 && <i className="not-italic text-[#ffd9cf]" aria-hidden="true">→</i>}
               </span>
             ))}
           </div>

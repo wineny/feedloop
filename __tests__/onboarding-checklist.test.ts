@@ -122,11 +122,11 @@ describe('첫 사용 체크리스트 — 화면', () => {
   const render = (facts: OnboardingFacts, locale: 'en' | 'ko' = 'en') =>
     renderWithIntl(React.createElement(OnboardingChecklist, { steps: onboardingSteps(facts, 'bot-1') }), locale);
 
-  it('마지막 줄이 「Connect PayPal (optional)」이고 PayPal 탭으로 간다', () => {
+  it('마지막 줄이 「Optional: connect PayPal」이고 PayPal 탭으로 간다', () => {
     const html = render(NEW_BOT);
-    expect(html).toContain('Connect PayPal (optional)');
+    expect(html).toContain('Optional: connect PayPal');
     expect(html).toContain('href="/bots/bot-1/paypal"');
-    expect(html.indexOf('First fix PR')).toBeLessThan(html.indexOf('Connect PayPal (optional)'));
+    expect(html.indexOf('First fix PR')).toBeLessThan(html.indexOf('Optional: connect PayPal'));
     expect(render(NEW_BOT, 'ko')).toContain('PayPal 연결 (선택)');
   });
 
