@@ -65,13 +65,13 @@
     "reply": "Couldn't send the reply",
     "noConversation": "No conversation is open.",
     "decisionFailed": "The decision failed ({status}).",
-    "alreadyDecided": "This request was already decided by someone else. The card shows the current state.",
+    "alreadyDecided": "Someone else already decided this request. The refund request shows the current status.",
     "notCompleted": "The decision was saved but couldn't be completed ({status})."
   },
   "notices": {
     "deepLinkMissing": "Couldn't find the conversation from your email in the list. Please pick it from the list.",
-    "demoClosed": "Conversation closed. This is a practice screen, so nothing is actually closed. Reload to reset.",
-    "demoReplied": "Reply sent. This is a practice screen, so it isn't delivered. Reload to reset.",
+    "demoClosed": "Conversation closed. This is a sample screen, so nothing is actually closed. Reload to reset.",
+    "demoReplied": "Reply sent. This is a sample screen, so it isn't delivered. Reload to reset.",
     "closed": "Conversation closed."
   },
   "payment": {
@@ -101,11 +101,11 @@
       "within_days": "Past the auto-refund window",
       "no_prior_refund": "This payment was already refunded",
       "currency_matches": "Currency differs from the store's",
-      "daily_cap_ok": "Would go over today's refund cap",
+      "daily_cap_ok": "Would go over today's refund limit",
       "customer_known": "Buyer couldn't be identified",
       "customer_cap_ok": "Buyer reached the 30-day refund limit",
       "no_dispute": "This payment has an open dispute",
-      "not_propose_only": "Suggest only is on",
+      "not_propose_only": "“Ask me before every refund” is on",
       "not_paused": "Automatic refunds are paused"
     }
   },
@@ -114,6 +114,6 @@
     "count": "{count, plural, one {# entry} other {# entries}}",
     "show": "Show",
     "hide": "Hide",
-    "decideAbove": "Approve or reject it in the approval card above."
+    "decideAbove": "Approve or reject it in the refund request above."
   }
 }

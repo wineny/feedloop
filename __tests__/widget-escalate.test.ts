@@ -159,7 +159,7 @@ describe('POST /api/widget/[botId]/escalate — 말을 남기는 경로', () => 
     const n = savedNotice();
     expect(n.body).toBe(
       '"How do I get a refund?" was passed to a person.' +
-        ' Usually replies in a few minutes. We\'ll let you know here when they reply 🙏',
+        ' Usually replies within a few minutes. We\'ll let you know here when they reply 🙏',
     );
   });
 

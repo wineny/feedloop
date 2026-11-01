@@ -94,7 +94,7 @@
     "s3Title": "Reply in the Inbox",
     "hlEyebrow": "💬 Feedloop Inbox",
     "hlLead": "Do not reply to this email. Reply in the Feedloop Inbox.",
-    "hlBody": "Only replies sent there reach the visitor's widget and stay on record. Replying also clears the \"Needs a person\" badge.",
+    "hlBody": "Only replies sent there reach the visitor's widget and stay on record. Replying also clears the \"Needs reply\" badge.",
     "cta": "Reply in the Inbox →",
     "footerLink": "Feedloop Inbox",
     "footer": "This mail goes to the owner of the {service} bot when a visitor asks for a person. · Feedloop",
@@ -130,7 +130,7 @@
     "s2Title": "Continue in the Inbox",
     "hlEyebrow": "💬 Feedloop Inbox",
     "hlLead": "To reply, use the Feedloop Inbox. A reply to this email does not reach the visitor.",
-    "hlBody": "If the AI cannot answer, the \"Needs a person\" badge turns on. If the visitor presses \"Talk to a person\", you get a separate mail.",
+    "hlBody": "If the AI can't answer, the \"Needs reply\" badge turns on. If the visitor presses \"Talk to a person\", you get a separate email.",
     "cta": "Open the conversation →",
     "footerLink": "Feedloop Inbox",
     "footer": "This mail goes to the owner of the {service} bot when a new conversation opens. One mail per conversation. · Feedloop",
@@ -165,7 +165,7 @@
     "s3Eyebrow": "03 · Decide",
     "s3Title": "Approve or reject in the inbox",
     "hlEyebrow": "💬 Feedloop inbox",
-    "hlLead": "Open the conversation and use the Approve / Reject buttons on the refund card.",
+    "hlLead": "Open the conversation and use the Approve / Reject buttons on the refund request.",
     "hlBody": "Approving sends the refund to PayPal with the exact amount above. Rejecting tells the visitor in the widget. Either way this request can only be decided once.",
     "cta": "Open the conversation →",
     "footerLink": "Feedloop inbox",
@@ -180,6 +180,6 @@
     "textRequested": "Requested: {at}",
     "textChecks": "[Checks that did not pass]",
     "textDecide": "Decide in the inbox: {url}",
-    "textNothing": "Nothing has been sent to PayPal. Approve or reject on the refund card in the Feedloop inbox."
+    "textNothing": "Nothing has been sent to PayPal. Approve or reject the refund request in the Feedloop Inbox."
   }
 }

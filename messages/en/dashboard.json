@@ -21,7 +21,7 @@
     "none": "No shipped fixes yet",
     "deferred": "{count, plural, one {# notification} other {# notifications}} will be sent next time",
     "skipped": "{count, plural, one {# run} other {# runs}} will be checked next time",
-    "demo": "Checked whether fixes shipped. Nothing new shipped (this is a practice screen, so the examples stay as they are)."
+    "demo": "Checked whether fixes shipped. Nothing new shipped (this is a sample screen, so the examples stay as they are)."
   },
   "errors": {
     "api": "API error: {status}",
@@ -35,7 +35,7 @@
   "runClassify": "Run AI triage",
   "stuck": "Some feedback is stuck in classification",
   "stuckCta": "Check and recover ›",
-  "modeNote": "<b>Fix PR mode: you approve each PR.</b> Fix PRs are prepared and a person ships them. Once a fix is confirmed shipped, everyone who raised that problem gets a notification.",
+  "modeNote": "<b>Fix PR mode: you approve each PR.</b> The AI prepares each fix PR and you decide whether to merge it. When a fix ships, everyone who reported it is notified.",
   "channels": {
     "title": "Feedback channels",
     "settings": "Bots",
@@ -116,7 +116,7 @@
         "action": "View fix PRs"
       },
       "paypal": {
-        "label": "Connect PayPal (optional)",
+        "label": "Optional: connect PayPal",
         "action": "Connect PayPal"
       }
     }
@@ -166,7 +166,7 @@
       "busy": "Already grouping automatically. Reloading shortly",
       "deferred": "Processing was put on hold. {count, plural, one {# item} other {# items}} left.",
       "grouped": "Grouped {count, plural, one {# item} other {# items}}",
-      "dismissed": "Group closed. This is a practice screen, so it comes back when you reload."
+      "dismissed": "Group closed. This is a sample screen, so it comes back when you reload."
     },
     "errors": {
       "group": "Grouping failed",
@@ -175,9 +175,9 @@
       "spec": "Couldn't create the spec draft"
     },
     "title": "Feedback groups",
-    "sub": "People who raised the same problem are bundled into one fix PR. A group forms by itself 1–2 minutes after a report.",
+    "sub": "People who raised the same problem are grouped into one fix PR. A group forms by itself 1–2 minutes after a report.",
     "tryThis": "Try this first",
-    "empty": "No groups yet. People who raised the same problem are gathered into one PR — feedback classified as bug, UX or feature request is grouped by itself within 1–2 minutes of the report.",
+    "empty": "No groups yet. Bug, UX and feature-request feedback is grouped automatically 1–2 minutes after it arrives.",
     "order": "Sorted by: unfixed first, then most people affected",
     "core": "Core flow",
     "followUp": "Follow-up check · linked to an existing group. No new PR until deploy and resolution are confirmed.",

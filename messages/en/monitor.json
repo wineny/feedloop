@@ -35,7 +35,7 @@
     "minutesSeconds": "{minutes}m {seconds}s"
   },
   "merge": {
-    "demo": "Checked whether fixes shipped. Nothing new shipped (this is a practice screen, so the examples stay as they are).",
+    "demo": "Checked whether fixes shipped. Nothing new shipped (this is a sample screen, so the examples stay as they are).",
     "slow": "Checking PRs on GitHub one by one. This can take up to 2 minutes.",
     "failed": "{count, plural, one {# PR} other {# PRs}} failed to check · open the run details to find the cause and retry",
     "delivered": "Sent {count, plural, one {# notification} other {# notifications}} to the people who reported",
@@ -271,7 +271,7 @@
     "buildFailedHelp": "Check the <log>build log</log>. If it can't be fixed, choose “{reason}” under “{action}”. The button unlocks once the build passes again.",
     "pollStopped": "It's been over 30 minutes, so automatic checking stopped. <retry>Check again</retry>",
     "polling": "Checking again every minute.",
-    "shipSummary": "Ship PR #{number} to the service and send a notification to {people, plural, one {# reporter} other {# reporters}}. Deployment success and problem resolution are checked separately. Check email delivery results in the follow-up records. The GitHub ship record is attributed to the connected account.",
+    "shipSummary": "Merges PR #{number} on GitHub and notifies {people, plural, one {# reporter} other {# reporters}}. Deployment and resolution are checked separately.",
     "close": {
       "title": "Don't ship",
       "desc": "Pick one reason and you'll see which mistakes the AI repeats. Nobody who left feedback is notified, and PR #{number} on GitHub is closed.",
@@ -313,15 +313,15 @@
   "closeReason": {
     "hallucinated_path": {
       "label": "Invented a path or symbol that doesn't exist",
-      "hint": "References a nonexistent file, function or translation key, so the build breaks or a useless file appears (PR #1·#5 type)"
+      "hint": "References a nonexistent file, function or translation key, so the build breaks or a useless file appears"
     },
     "wrong_causality": {
       "label": "Fix with the wrong cause",
-      "hint": "Changed a real file, but it has nothing to do with the symptom or can never run (PR #6 type)"
+      "hint": "Changed a real file, but it has nothing to do with the symptom or can never run"
     },
     "duplicate": {
       "label": "Duplicate PR",
-      "hint": "A PR for the same problem already existed (PR #4 type)"
+      "hint": "A PR for the same problem already existed"
     },
     "superseded": {
       "label": "Replaced by another PR",

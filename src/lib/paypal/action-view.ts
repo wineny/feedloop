@@ -33,11 +33,11 @@ export const CHECK_LABELS: Record<string, string> = {
   within_days: 'Past the auto-refund window',
   no_prior_refund: 'This payment was already refunded',
   currency_matches: "Currency differs from the store's",
-  daily_cap_ok: "Would go over today's refund cap",
+  daily_cap_ok: "Would go over today's refund limit",
   customer_known: "Buyer couldn't be identified",
   customer_cap_ok: 'Buyer reached the 30-day refund limit',
   no_dispute: 'This payment has an open dispute',
-  not_propose_only: 'Suggest only is on',
+  not_propose_only: '“Ask me before every refund” is on',
   not_paused: 'Automatic refunds are paused',
 };
 

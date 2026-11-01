@@ -42,7 +42,9 @@ export function AuthButton() {
       className="gap-2 font-semibold"
     >
       <GoogleMark />
-      {t('startWithGoogle')}
+      {/* 폰 폭(<640px)은 머리줄 오른쪽이 «화면 − 로고 140px» 뿐이라 긴 문구가 넘친다(375px 에서 37px) → 짧게 */}
+      <span className="sm:hidden">{t('startWithGoogleShort')}</span>
+      <span className="hidden sm:inline">{t('startWithGoogle')}</span>
     </Button>
   );
 }

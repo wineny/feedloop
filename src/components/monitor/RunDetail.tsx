@@ -24,6 +24,7 @@ import { TerminalLog, type CompletionData } from '@/components/monitor/TerminalL
 import { RunBadge, runState } from '@/components/monitor/RunBadge';
 import { PrReviewPanel } from '@/components/monitor/PrReviewPanel';
 import type { RunItem, RunReturn } from '@/app/api/auto-dev/runs/route';
+import { ExternalLink } from '@/components/demo/ExternalLink';
 
 // 배포 확인이 「모름」인 이유 코드(`checkDeployment`, lib/auto-dev/loop-closed.ts)는 사전 `monitor.detail.deployReason.<코드>` 로 사람 말로 옮긴다.
 // 내부 식별자를 심사자 화면에 그대로 두지 않는다. 모르는 값이 오면 원래 문자열을 그대로 보여준다 — 조용히 숨기면 새 사유가 생겼을 때 아무 말도 안 하는 화면이 된다.
@@ -287,15 +288,13 @@ export function RunDetail({
         </h2>
         {run.pr && (
           // 부속 링크다 — 검토·행동은 이 화면 안에서 끝난다. GitHub 는 확인용
-          <a
+          <ExternalLink
             href={run.pr.url}
-            target="_blank"
-            rel="noopener noreferrer"
             className="inline-flex items-center gap-0.5 whitespace-nowrap text-[12.5px] font-semibold text-muted-foreground hover:underline sm:mt-1.5"
           >
             {t('detail.viewOnGithub', { number: run.pr.number })}
             <ChevronRight className="h-3 w-3" aria-hidden />
-          </a>
+          </ExternalLink>
         )}
       </div>
 
@@ -399,7 +398,7 @@ export function RunDetail({
               {run.returns.map((r) => (
                 <li
                   key={r.conversationId}
-                  className="grid grid-cols-[36px_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-border py-3.5 first:border-t-0"
+                  className="grid grid-cols-[36px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 border-t border-border py-3.5 first:border-t-0 sm:grid-cols-[36px_minmax(0,1fr)_auto_auto] sm:gap-3"
                 >
                   <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
                     {r.name.slice(0, 1)}
@@ -408,7 +407,8 @@ export function RunDetail({
                     <span className="truncate">{r.name}</span>
                     <ChannelChip source={r.source} />
                   </span>
-                  <span className="whitespace-nowrap text-[12.5px] text-muted-foreground tabular-nums">
+                  {/* 폰 폭은 이름 아래 줄(둘째 칸)로 내려간다 — 한 줄에 넷을 두면 「Not delivered」가 잘렸다 */}
+                  <span className="col-start-2 text-[12.5px] text-muted-foreground tabular-nums sm:col-start-auto sm:whitespace-nowrap">
                     {r.deliveredAt ? (
                       <>
                         <b className="font-semibold text-foreground">{t('detail.notify.delivered')}</b> · {fmt(r.deliveredAt, true)}
@@ -420,7 +420,9 @@ export function RunDetail({
                     {emailNote(r)}
                     {r.emailError && <span className="block max-w-md whitespace-normal break-words text-[12.5px] text-destructive">{r.emailError.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').slice(0, 160)}</span>}
                   </span>
-                  <Confirmation r={r} />
+                  <span className="col-start-2 sm:col-start-auto">
+                    <Confirmation r={r} />
+                  </span>
                 </li>
               ))}
             </ul>

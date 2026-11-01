@@ -21,6 +21,7 @@ import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { useBotScope } from '@/lib/scope/BotScopeProvider';
 import { scopedBody } from '@/lib/scope/scope';
 import { dynamicT } from '@/i18n/dynamic';
+import { ExternalLink } from '@/components/demo/ExternalLink';
 
 export interface GroupSummary {
   id: string;
@@ -429,15 +430,13 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                           {t('prOpen')}
                         </span>
                       )}
-                      <a
+                      <ExternalLink
                         href={g.pr.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         className="inline-flex items-center gap-0.5 text-sm font-semibold text-brand-strong hover:underline"
                       >
                         {t('viewPr', { number: g.pr.number })}
                         <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                      </a>
+                      </ExternalLink>
                     </>
                   ) : (
                     <>

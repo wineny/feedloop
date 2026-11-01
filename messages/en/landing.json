@@ -13,15 +13,13 @@
     "paypalDemo": "PayPal demo"
   },
   "hero": {
-    "line1": "Customer feedback",
-    "line2": "comes back as <em>code</em>",
-    "line3": "you can review",
-    "sub": "Add one chat snippet to your product. Feedloop's AI sorts what customers tell you and opens a pull request with the fix.",
+    "title": "Feedback in.<br></br><em>Fixes</em> out.",
+    "sub": "Feedloop answers your visitors, opens pull requests that fix what they report, and refunds small PayPal orders within limits you set. Bigger refunds wait for your one-tap approval.",
     "watchDemo": "Watch demo",
     "setupNote": "One script tag · 5-minute setup",
     "screensNote": "Real product screens · sample data",
     "paypalTag": "New",
-    "paypalLine": "An AI support agent that settles refunds with PayPal — try the demo store"
+    "paypalLine": "Try the PayPal demo store"
   },
   "steps": {
     "feedback": {
@@ -30,20 +28,20 @@
     },
     "classify": {
       "title": "AI triage",
-      "desc": "Sorted into bug, UX issue, feature request, or question. Similar reports are grouped with one click."
+      "desc": "Sorted into bug, UX issue, feature request, or question. Similar reports are grouped automatically."
     },
     "fix": {
       "title": "Fix PR",
-      "desc": "It reads your repository, writes the fix as code, and opens a pull request. A person approves what ships."
+      "desc": "It reads your repository, writes the fix, and opens a pull request. A person reviews and merges it."
     },
     "notify": {
       "title": "Notification",
-      "desc": "The sender gets \"It's fixed.\" By email too, if they left one."
+      "desc": "The person who reported it gets \"Fixed.\" By email too, if they left one."
     }
   },
   "phone": {
     "botName": "Daily Market",
-    "botStatus": "Usually replies in a few minutes",
+    "botStatus": "Usually replies within a few minutes",
     "greeting": "Hi! Tell us anything that bothers you or anything you'd like to see.",
     "visitorMessage": "My cart empties when I press Back on the checkout page",
     "time": "2:14 PM",
@@ -106,7 +104,7 @@
       },
       "github": {
         "title": "Connect GitHub",
-        "desc": "Choose a GitHub App install, your own token, or a shared account. Only two permissions are needed: Contents and Pull requests."
+        "desc": "Choose a GitHub App install, your own token, or a shared account. It needs write access to Contents and Pull requests; build-status read access is optional."
       }
     }
   },
@@ -116,20 +114,20 @@
     "lead": "The seven questions we get most.",
     "items": {
       "noBot": {
-        "q": "I don't have a chat bot running. How do I collect feedback?",
-        "a": "Feedloop builds one for you. Enter your product name and URL to get your bot, then paste one script line and it starts taking customer messages right there. There is nothing else to prepare."
+        "q": "I don't have a support chat. How do I collect feedback?",
+        "a": "Feedloop gives you one. Enter your product name and URL, paste one script line, and the chat widget starts taking messages."
       },
       "noDev": {
         "q": "Do I need to know how to code?",
-        "a": "If you can paste one script line into your site, you are set. Without a connected repository, everything from receiving messages to AI triage and customer notifications still runs. Fix PRs are the step for teams that connect a repository."
+        "a": "If you can paste one script line into your site, you're set. Receiving messages and AI triage work without a repository. Fix PRs need a connected repository."
       },
       "codeSafety": {
         "q": "Does the AI change our code on its own?",
-        "a": "No. Feedloop stops at opening a pull request. A person reviews it and decides whether to merge. The only GitHub permissions it asks for are Contents and Pull requests."
+        "a": "No. Feedloop stops at opening a pull request. A person reviews it and decides whether to merge. It needs write access to Contents and Pull requests; read access to deployments and build status is optional."
       },
       "price": {
         "q": "How much does it cost?",
-        "a": "Feedloop is free during the beta. If you add your own API key there is no daily limit, and the only cost is the API fees on that key. Without a key, up to 100 messages a day run on ours. The Starter, Pro, and Agency plans on the pricing page belong to a PayPal sandbox demo store built for the hackathon: they show the payment agent at work, and no real money moves."
+        "a": "Free during the beta. With your own API key there's no daily limit and you pay only that key's API fees. Without a key, up to 100 messages a day run on ours. The Starter, Pro and Agency plans on the pricing page are a PayPal sandbox demo store for the hackathon. No real money moves."
       },
       "wrongAnswer": {
         "q": "What if the AI answers wrongly?",
@@ -137,20 +135,20 @@
       },
       "pick": {
         "q": "What does \"Pick on screen\" send?",
-        "a": "Two things. First, details about the element the customer pointed at: its type and visible text, a selector and position that can find it again, an HTML skeleton of tags and attributes with the text removed, screen coordinates, and the page URL at that moment. Emails and token-like strings in these details are masked before saving. Second, when capture succeeds, a picture of the part of the page the customer was looking at. Only the Feedloop widget is left out, so anything else on screen, including values typed into fields, can appear in it. Only your team can view it, through links that expire after 10 minutes. It isn't sent to the AI or put into PRs or emails, and it's deleted after 90 days. If the customer removes the attachment before sending, the screenshot is deleted within two days."
+        "a": "Two things. First, details about the element the customer pointed at: its type and visible text, a selector and position to find it again, an HTML outline with the text removed, and the page URL. Emails and token-like strings are masked before saving. Second, when capture works, a picture of that part of the page. Only the Feedloop widget is hidden, so other things on screen, including typed values, can appear. Only your team can open it, through links that expire after 10 minutes. It never goes to the AI, PRs or emails, and it's deleted after 90 days (within two days if the customer removes it before sending)."
       },
       "channelTalk": {
-        "q": "We already use a support tool like Channel Talk.",
-        "a": "Connect it to Channel Talk as is. You don't need to show a new chat widget: messages that arrive in Channel Talk are triaged the same way, and the notification goes back through Channel Talk when the fix ships."
+        "q": "We already use Channel Talk (a live-chat service).",
+        "a": "Connect Feedloop to Channel Talk. You don't need a new chat widget: messages that arrive in Channel Talk are triaged the same way, and the notification goes back through Channel Talk when the fix ships."
       }
     }
   },
   "final": {
     "kicker": "Get started",
     "title": "Add Feedloop to your product",
-    "lead": "Setup takes five minutes. When a fix ships, the person who reported it is notified."
+    "lead": "Setup takes five minutes. When a fix ships, Feedloop notifies the person who reported it."
   },
   "footer": {
-    "privacy": "To improve the service, we record sessions and screen replays of visitors who aren't logged in, using PostHog. Input fields and the support widget are masked in recordings."
+    "privacy": "To improve the service, we record sessions of logged-out visitors with PostHog. Input fields and the support widget are masked."
   }
 }
