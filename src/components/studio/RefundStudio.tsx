@@ -6,7 +6,7 @@
 // Always the sample store (`lib/studio/sample.ts`): it reads and writes nothing in the database, logged in or not.
 // Layout edits live only in this browser tab; Reset puts the built-in report back.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AgStudio, AgStudioProvider, createWidgets } from 'ag-studio-react';
 import { AgStudioAiModule, enableStudioDevValidations, type AgDataSourcesDefinition, type AgDefaultRegistry, type AgReportState, type AgStudioApi, type AgStudioMode, type AgWidgetsConfig } from 'ag-studio';
 import { buildSampleStore } from '@/lib/studio/sample';
@@ -34,7 +34,11 @@ export function resetStudio(api: AgStudioApi) {
   api.clearHistory();
 }
 
+/** Entering edit mode opens Studio's compose and data panels; start with just the AI chat beside the canvas. */
+const CHAT_FIRST_PANELS = { filters: { collapsed: true }, edit: { collapsed: true }, data: { collapsed: true } };
+
 export default function RefundStudio({ licenseKey, aiEnabled, mode, onApi }: RefundStudioProps) {
+  const apiRef = useRef<AgStudioApi | null>(null);
   const store = useMemo(() => buildSampleStore(), []);
   // Data and report state are registry-generic; ours only adds the Reason → Fix widget type.
   const data = useMemo(() => buildStudioData(store) as unknown as AgDataSourcesDefinition<StudioRegistry>, [store]);
@@ -48,6 +52,15 @@ export default function RefundStudio({ licenseKey, aiEnabled, mode, onApi }: Ref
       }),
     [],
   );
+  // Studio ignores collapsed panels from initial state when the mode switches to edit; setting them after the
+  // switch works (checked in the browser, AG Studio 3.0.0).
+  useEffect(() => {
+    const api = apiRef.current;
+    if (mode !== 'edit' || !api) return;
+    const id = window.setTimeout(() => api.setState({ ...api.getState(), panels: CHAT_FIRST_PANELS }), 0);
+    return () => window.clearTimeout(id);
+  }, [mode]);
+
   // `ai` is read once, when Studio is created.
   const ai = useMemo(() => (aiEnabled ? buildStudioAi(store) : undefined), [aiEnabled, store]);
 
@@ -63,7 +76,13 @@ export default function RefundStudio({ licenseKey, aiEnabled, mode, onApi }: Ref
         ai={ai}
         initialState={initialState}
         mode={mode}
-        onApiReady={(event) => onApi?.(event.api as AgStudioApi)}
+        onApiReady={(event) => {
+          const api = event.api as AgStudioApi;
+          apiRef.current = api;
+          // Development only: lets the browser console read Studio state (`__refundStudio.getState()`).
+          if (process.env.NODE_ENV !== 'production') (window as unknown as { __refundStudio?: AgStudioApi }).__refundStudio = api;
+          onApi?.(api);
+        }}
       />
     </AgStudioProvider>
   );

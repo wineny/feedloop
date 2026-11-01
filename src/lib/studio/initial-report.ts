@@ -23,7 +23,7 @@ const kpi = (text: string, value: { id: string; aggregation?: 'sum' | 'countd' }
 export function initialReport(): AgReportState {
   return {
     selectedPageId: STUDIO_PAGE_ID,
-    // The filters panel would say "No filters available" beside the canvas — start it collapsed.
+    // Filters would say "No filters available" beside the canvas. Edit-mode panels are set in RefundStudio.
     panels: { filters: { collapsed: true } },
     pages: [
       {

@@ -66,8 +66,9 @@ export function RefundStudioPage({ licenseKey, aiEnabled }: RefundStudioPageProp
                 {t('reset')}
               </Button>
             )}
-            <Button variant={mode === 'edit' ? 'default' : 'outline'} onClick={() => setMode(mode === 'edit' ? 'view' : 'edit')}>
-              {mode === 'edit' ? t('done') : t('edit')}
+            {/* AG Studio shows its AI panel in edit mode only, so asking the agent and editing are one mode here. */}
+            <Button variant={mode === 'edit' ? 'outline' : 'default'} onClick={() => setMode(mode === 'edit' ? 'view' : 'edit')}>
+              {mode === 'edit' ? t('done') : aiEnabled ? t('ask') : t('edit')}
             </Button>
           </div>
         }
