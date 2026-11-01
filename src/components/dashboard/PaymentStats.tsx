@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { DashboardPayments } from '@/app/api/dashboard/route';
 import { APPROVALS_HREF, autoRefundAmount, paymentsLayout } from '@/lib/dashboard/payments';
+import { RefundReasons } from '@/components/dashboard/RefundReasons';
 
 // 대시보드 PayPal 줄 — 숫자 3칸(결제 문의·자동 환불·승인 대기) 또는 「PayPal 연결하기」 카드.
 // 무엇을 그릴지는 `paymentsLayout`(lib/dashboard/payments.ts)이 고른다.
@@ -119,6 +120,9 @@ export function PaymentStats({ payments, placement, ledger, checklistVisible }: 
           href={pending !== null && pending > 0 ? APPROVALS_HREF : undefined}
         />
       </div>
+
+      {/* 환불 사유 — 숫자 바로 아래, 장부 위. 필드가 없는 응답(예전 모양)이면 그리지 않는다. */}
+      {payments.refundReasons !== undefined && <RefundReasons data={payments.refundReasons} />}
 
       {/* 장부(환불 + 구매 주문, 최신순) — 숫자 바로 아래. */}
       {ledger}

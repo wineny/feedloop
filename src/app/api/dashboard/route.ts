@@ -22,6 +22,7 @@ import {
 } from '@/lib/dashboard/confirmation';
 import { isPayPalConnected } from '@/lib/paypal/bot';
 import { PAYMENT_AGENT_RESPONSE_TYPE, PAYMENT_RESPONSE_TYPE } from '@/lib/paypal/response-types';
+import { EMPTY_REFUND_REASONS, refundReasons as aggregateRefundReasons, type RefundReasons } from '@/lib/dashboard/refund-reasons';
 import { serverT } from '@/i18n/server-messages';
 import { localeFromRequest } from '@/i18n/server-locale';
 
@@ -119,6 +120,13 @@ export interface DashboardPayments {
   autoRefunds7d: { count: number; amountCents: number | null; currency: string | null } | null;
   /** 운영자 승인을 기다리는 실행(`payment_actions.status='pending'`). 기간 제한 없음. */
   pendingApprovals: number | null;
+  /**
+   * 환불 사유 카드 — 환불 요청(`payment_actions.kind='refund'`, 상태 무관·기간 제한 없음)을 그 대화에서 나온
+   * 인사이트로 갈래(fix·feature·other·unclassified)를 나누고 많이 나온 사유 3개를 싣는다. 집계 규칙은
+   * `lib/dashboard/refund-reasons.ts`. 다른 숫자와 같이 null = 집계 못 함(조회 실패·상한 도달).
+   * 선택 필드인 이유: 이 필드가 없는 응답(예전 모양·테스트 고정값)은 카드를 그리지 않는다.
+   */
+  refundReasons?: RefundReasons | null;
 }
 
 const EMPTY_PAYMENTS: DashboardPayments = {
@@ -127,6 +135,7 @@ const EMPTY_PAYMENTS: DashboardPayments = {
   inquiries7d: 0,
   autoRefunds7d: { count: 0, amountCents: 0, currency: null },
   pendingApprovals: 0,
+  refundReasons: EMPTY_REFUND_REASONS,
 };
 
 const EMPTY = {
@@ -169,6 +178,18 @@ const SEVEN_DAYS_MS = 7 * 24 * 3_600_000;
 
 /** `.in()` 한 번에 싣는 대화 id 수. 목록이 길어지면 URL 이 서버 상한을 넘겨 414 로 죽는다. */
 const CONVERSATION_CHUNK = 200;
+
+/**
+ * 환불 사유 카드의 `.in()` 한 번에 싣는 id 수(대화·묶음). 대화 하나에 메시지가 여럿이라 한 조회가
+ * `PAYMENT_ROW_LIMIT` 행을 넘기지 않게 작게 잡는다. 그래도 넘치면 숫자를 내지 않는다(null).
+ */
+const REFUND_CHUNK = 50;
+
+function chunked<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
 
 // `?botId=` 로 한 서비스만 본다(I-27). 없으면 종전대로 유저의 봇 전체.
 // req 가 선택인 이유: 테스트가 인자 없이 부른다 — Next 는 늘 넘긴다.
@@ -258,7 +279,8 @@ export async function GET(req?: NextRequest) {
       .limit(RECENT_LIMIT),
     db
       .from('insights')
-      .select('id, message_id, source_message_ids, group_id, category, summary, created_at')
+      // count: 환불 사유 카드가 «잘렸는지» 를 안다(PostgREST 기본 상한 1000). 다른 화면 동작은 그대로다.
+      .select('id, message_id, source_message_ids, group_id, category, summary, created_at', { count: 'exact' })
       .in('bot_id', botIds)
       .order('created_at', { ascending: false }),
     db
@@ -267,7 +289,7 @@ export async function GET(req?: NextRequest) {
       .in('bot_id', botIds),
     db
       .from('auto_dev_runs')
-      .select('id, insight_id, group_id, status, pr_url, pr_number, closed_at, created_at')
+      .select('id, insight_id, group_id, status, pr_url, pr_number, closed_at, created_at', { count: 'exact' })
       .in('bot_id', botIds)
       .order('created_at', { ascending: false }),
   ]);
@@ -420,6 +442,67 @@ export async function GET(req?: NextRequest) {
   if (pendingRes.error) console.error('[dashboard] 승인 대기 집계 실패:', pendingRes.error.message);
   const pendingApprovals = pendingRes.error ? null : (pendingRes.count ?? 0);
 
+  // 환불 사유 카드. 새 AI 호출 없이 이미 있는 행만 읽는다 — 환불 요청 → 그 대화의 메시지 → (위에서 읽은) 인사이트·실행.
+  // ⚠️ 이 블록도 위 조회들 **뒤** 에 온다 — 응답을 순서로 짝짓는 테스트가 어긋나지 않게(`bySource` 주석).
+  //    대화가 없으면 메시지 조회를, 묶음이 없으면 묶음 조회를 아예 하지 않는다.
+  // 어느 재료든 잘렸으면(count > 받은 행) 숫자를 내지 않는다(null) — 틀린 숫자보다 「집계 못 함」이 낫다.
+  const refundRes = await db
+    .from('payment_actions')
+    .select('id, conversation_id, reason, created_at', { count: 'exact' })
+    .in('bot_id', botIds)
+    .eq('kind', 'refund')
+    .order('created_at', { ascending: false })
+    .limit(PAYMENT_ROW_LIMIT);
+  const cut = (res: { count: number | null; data: unknown[] | null }) => (res.count ?? 0) > (res.data?.length ?? 0);
+  let refundReasons: RefundReasons | null = null;
+  if (refundRes.error) console.error('[dashboard] 환불 사유 집계 실패:', refundRes.error.message);
+  else if (cut(refundRes)) console.error('[dashboard] 환불 사유 표본이 상한에 닿았습니다');
+  else if (cut(insightsRes) || cut(runsRes)) console.error('[dashboard] 환불 사유 — 인사이트·실행 목록이 상한에 닿았습니다');
+  else {
+    const refunds = refundRes.data ?? [];
+    const refundConversationIds = [...new Set(refunds.map((r) => r.conversation_id as string | null).filter((id): id is string => Boolean(id)))];
+    const refundMessageRes = await Promise.all(
+      chunked(refundConversationIds, REFUND_CHUNK).map((chunk) =>
+        db
+          .from('messages')
+          .select('id, conversation_id, created_at', { count: 'exact' })
+          .in('bot_id', botIds)
+          .in('conversation_id', chunk)
+          .limit(PAYMENT_ROW_LIMIT),
+      ),
+    );
+    const messageError = refundMessageRes.find((chunk) => chunk.error)?.error;
+    if (messageError) console.error('[dashboard] 환불 대화 메시지 조회 실패:', messageError.message);
+    else if (refundMessageRes.some(cut)) console.error('[dashboard] 환불 대화 메시지가 상한에 닿았습니다');
+    else {
+      const refundMessages = refundMessageRes.flatMap((chunk) => chunk.data ?? []);
+      const refundMessageIds = new Set(refundMessages.map((m) => m.id as string));
+      // 묶음 제목은 환불 대화에 걸린 인사이트의 묶음만 읽는다. 실패해도 숫자는 맞다 — 제목 대신 인사이트 요약을 쓴다.
+      const groupIds = [
+        ...new Set(
+          insights
+            .filter((i) => [i.message_id, ...(i.source_message_ids ?? [])].some((id) => refundMessageIds.has(id)))
+            .map((i) => i.group_id as string | null)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const groupRes = await Promise.all(
+        chunked(groupIds, REFUND_CHUNK).map((chunk) =>
+          db.from('insight_groups').select('id, title').in('bot_id', botIds).in('id', chunk),
+        ),
+      );
+      const groupError = groupRes.find((chunk) => chunk.error)?.error;
+      if (groupError) console.error('[dashboard] 환불 사유 묶음 제목 조회 실패:', groupError.message);
+      refundReasons = aggregateRefundReasons({
+        refunds,
+        messages: refundMessages,
+        insights,
+        runs,
+        groups: groupRes.flatMap((chunk) => chunk.data ?? []),
+      });
+    }
+  }
+
   // `connected` 는 보고 있는 봇 전체, 연결 카드는 «소유한» 봇만 본다(타입 주석).
   // 소유 봇은 `?botId=` 면 role 로, 아니면 ownedBotIds 로 가린다.
   const ownedIds = auth.role ? (auth.role === 'owner' ? botIds : []) : (auth.ownedBotIds ?? []);
@@ -430,6 +513,7 @@ export async function GET(req?: NextRequest) {
     inquiries7d,
     autoRefunds7d,
     pendingApprovals,
+    refundReasons,
   };
 
   const insightByMessage = new Map<string, (typeof insights)[number]>();

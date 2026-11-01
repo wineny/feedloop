@@ -162,6 +162,7 @@ describe('sample-data demo dashboard', () => {
         inquiries7d: 12,
         autoRefunds7d: { count: 3, amountCents: 4700, currency: 'USD' },
         pendingApprovals: 1,
+        refundReasons: expect.any(Object),
       });
       const html = renderAt('numbers', payments, locale);
       expect(html).toContain('>12<');
@@ -192,4 +193,97 @@ describe('onboarding checklist visible — the standalone connect card steps asi
       connectHref: '/bots/bot-2/paypal',
     });
   });
+});
+
+describe('RefundReasons card — under the PayPal numbers', () => {
+  const REASONS: NonNullable<DashboardPayments['refundReasons']> = {
+    total: 3,
+    buckets: { fix: 1, feature: 0, other: 0, unclassified: 2 },
+    top: [
+      { key: 'reason:wrong plan', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false },
+      { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/example/demo/pull/128', external: true },
+    ],
+  };
+
+  it('shows four buckets (zeros included), the top reasons and their links, between the numbers and the ledger', () => {
+    const html = renderWithIntl(
+      React.createElement(PaymentStats, { payments: { ...CONNECTED, refundReasons: REASONS }, placement: 'numbers', ledger: React.createElement('div', null, 'LEDGER') }),
+    );
+    expect(html).toContain('Refund reasons');
+    expect(html).toContain('3 requests');
+    for (const label of ['Bug / UX', 'Feature request', 'Other', 'Not classified yet', 'Goes to a fix PR', 'Goes to a spec']) expect(html).toContain(label);
+    expect(html).toContain('Top reasons');
+    expect(html).toContain('I bought the wrong plan by mistake.');
+    expect(html).toContain('2 requests');
+    expect(html).toContain('href="/inbox?c=conv-b"');
+    expect(html).toContain('Open conversation');
+    expect(html).toMatch(/href="https:\/\/github.com\/example\/demo\/pull\/128" target="_blank" rel="noopener noreferrer"/);
+    expect(html).toContain('View fix PR');
+    expect(html.indexOf('Auto refunds')).toBeLessThan(html.indexOf('Refund reasons'));
+    expect(html.indexOf('Refund reasons')).toBeLessThan(html.indexOf('LEDGER'));
+  });
+
+  it('no refund requests → one muted line, no buckets', () => {
+    const html = render({ ...CONNECTED, refundReasons: { total: 0, buckets: { fix: 0, feature: 0, other: 0, unclassified: 0 }, top: [] } });
+    expect(html).toContain('No refund requests yet.');
+    expect(html).not.toContain('Bug / UX');
+  });
+
+  it('null → «Couldn’t count», never zeros', () => {
+    const html = render({ ...CONNECTED, refundReasons: null });
+    expect(html).toContain('Refund reasons');
+    expect(html.match(/Couldn&#x27;t count/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(html).not.toContain('No refund requests yet.');
+    expect(html).not.toContain('Bug / UX');
+  });
+
+  it('field missing (older response shape) → no card', () => {
+    expect(render(CONNECTED)).not.toContain('Refund reasons');
+  });
+
+  it('ko renders the same card', () => {
+    const html = render({ ...CONNECTED, refundReasons: REASONS }, 'ko');
+    expect(html).toContain('환불 사유');
+    expect(html).toContain('버그 / UX');
+    expect(html).toContain('수정 PR 보기');
+  });
+
+  for (const locale of ['en', 'ko'] as const) {
+    it(`${locale} sample data: the ledger's 5 refunds → bug → PR #128, a feature request, an «other», one unclassified`, () => {
+      const dashboard = getDemoData(locale).dashboard as { payments: DashboardPayments; ledger: { type: string }[] };
+      const reasons = dashboard.payments.refundReasons!;
+      expect(reasons.total).toBe(dashboard.ledger.filter((r) => r.type === 'refund').length);
+      expect(reasons.buckets).toEqual({ fix: 2, feature: 1, other: 1, unclassified: 1 });
+      expect(reasons.top.map((i) => [i.key, i.count, i.bucket, i.href, i.external])).toEqual([
+        ['group:demo-group-1', 2, 'fix', 'https://github.com/example/demo/pull/128', true],
+        ['insight:demo-ins-refund-team', 1, 'other', '/inbox?c=demo-conv-6', false],
+        ['insight:demo-ins-refund-env', 1, 'feature', '/inbox?c=demo-conv-7', false],
+      ]);
+      const html = renderAt('numbers', dashboard.payments, locale);
+      expect(html).toContain('https://github.com/example/demo/pull/128');
+    });
+
+    it(`${locale} sample data: refund links match the inbox and the coupon-bug group stays 3 insights · 3 conversations`, () => {
+      const data = getDemoData(locale);
+      const dashboard = data.dashboard as {
+        ledger: { type: string; at: string; conversationId: string | null }[];
+        groups: { id: string; createdAt: string; insightCount: number; conversationCount: number }[];
+        feedbacks: { createdAt: string; insight: { id: string } | null }[];
+      };
+      const inbox = data.inbox as { conversations: { id: string }[]; timelines: Record<string, unknown[]> };
+      const inboxIds = new Set(inbox.conversations.map((c) => c.id));
+      for (const row of dashboard.ledger) if (row.conversationId) expect(inboxIds.has(row.conversationId)).toBe(true);
+
+      const group = dashboard.groups.find((g) => g.id === 'demo-group-1')!;
+      expect(group).toMatchObject({ insightCount: 3, conversationCount: 3 });
+      // the coupon-bug refunds (conv-4, conv-5) are newer than the first coupon report and the group itself
+      const firstReport = Math.min(...dashboard.feedbacks.filter((f) => ['demo-ins-1', 'demo-ins-6', 'demo-ins-7'].includes(f.insight?.id ?? '')).map((f) => Date.parse(f.createdAt)));
+      const couponRefunds = dashboard.ledger.filter((r) => r.type === 'refund' && ['demo-conv-4', 'demo-conv-5'].includes(r.conversationId ?? ''));
+      expect(couponRefunds).toHaveLength(2);
+      for (const r of couponRefunds) {
+        expect(Date.parse(r.at)).toBeGreaterThan(firstReport);
+        expect(Date.parse(r.at)).toBeGreaterThan(Date.parse(group.createdAt));
+      }
+    });
+  }
 });

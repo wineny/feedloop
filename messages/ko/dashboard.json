@@ -204,6 +204,29 @@
     "notCounted": "집계 못 함",
     "pendingCta": "대화에서 보기",
     "pendingNone": "기다리는 요청 없음",
+    "refundReasons": {
+      "title": "환불 사유",
+      "subtitle": "모든 환불 요청을 고객이 말한 이유로 나눴어요",
+      "total": "{count}건",
+      "empty": "아직 환불 요청이 없어요.",
+      "buckets": {
+        "fix": "버그 / UX",
+        "feature": "기능 요청",
+        "other": "기타",
+        "unclassified": "아직 분류 안 됨"
+      },
+      "hints": {
+        "fix": "수정 PR 로",
+        "feature": "스펙으로",
+        "other": "가격, 기대와 다름",
+        "unclassified": "받은편지함에서 확인"
+      },
+      "topTitle": "많이 나온 이유",
+      "count": "{count}건",
+      "noReason": "이유 없음",
+      "openPr": "수정 PR 보기",
+      "openConversation": "대화 열기"
+    },
     "connect": {
       "title": "PayPal 이 연결되지 않았어요",
       "body": "PayPal 을 연결하면 봇이 결제 문의에 답하고 환불을 처리해요. 큰 금액 환불은 승인을 기다려요.",
