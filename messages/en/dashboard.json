@@ -204,6 +204,29 @@
     "notCounted": "Couldn't count",
     "pendingCta": "Review in Inbox",
     "pendingNone": "Nothing waiting",
+    "refundReasons": {
+      "title": "Refund reasons",
+      "subtitle": "Every refund request, by what the customer said",
+      "total": "{count, plural, one {# request} other {# requests}}",
+      "empty": "No refund requests yet.",
+      "buckets": {
+        "fix": "Bug / UX",
+        "feature": "Feature request",
+        "other": "Other",
+        "unclassified": "Not classified yet"
+      },
+      "hints": {
+        "fix": "Goes to a fix PR",
+        "feature": "Goes to a spec",
+        "other": "Price, expectations",
+        "unclassified": "Read it in the Inbox"
+      },
+      "topTitle": "Top reasons",
+      "count": "{count, plural, one {# request} other {# requests}}",
+      "noReason": "No reason given",
+      "openPr": "View fix PR",
+      "openConversation": "Open conversation"
+    },
     "connect": {
       "title": "PayPal isn't connected",
       "body": "Connect PayPal so your bot can answer payment questions and handle refunds. Large refunds wait for your approval.",

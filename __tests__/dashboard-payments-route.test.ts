@@ -7,13 +7,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 type Row = Record<string, unknown>;
 type Method = [string, ...unknown[]];
 
-const { from, resolveOwnedBots, tables, failing, calls } = vi.hoisted(() => ({
+const { from, resolveOwnedBots, tables, failing, calls, serverMaxRows } = vi.hoisted(() => ({
   from: vi.fn(),
   resolveOwnedBots: vi.fn(),
   tables: {} as Record<string, Record<string, unknown>[]>,
   /** 이 조건에 맞는 조회만 실패시킨다 — 표 전체를 죽이면 앞선 대시보드 조회가 먼저 500 을 낸다. */
   failing: { when: null as null | ((table: string, methods: [string, ...unknown[]][]) => boolean) },
   calls: [] as { table: string; methods: [string, ...unknown[]][] }[],
+  /** PostgREST 의 max-rows 흉내 — limit 을 안 걸어도 서버가 이 수만큼만 준다(count 는 전체). */
+  serverMaxRows: {} as Record<string, number>,
 }));
 vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from }) }));
 vi.mock('@/lib/auth/ownership', () => ({ resolveOwnedBots, resolveAccessibleBots: resolveOwnedBots }));
@@ -42,7 +44,8 @@ function run(table: string, methods: Method[]) {
   const matched = (tables[table] ?? []).filter((row) => methods.every((m) => matches(row, m)));
   // PostgREST 처럼: count 는 limit 전 전체 수, data 는 limit 까지만.
   const limit = methods.find((m) => m[0] === 'limit');
-  const rows = limit ? matched.slice(0, limit[1] as number) : matched;
+  const limited = limit ? matched.slice(0, limit[1] as number) : matched;
+  const rows = serverMaxRows[table] !== undefined ? limited.slice(0, serverMaxRows[table]) : limited;
   const head = methods.some((m) => m[0] === 'select' && (m[2] as { head?: boolean } | undefined)?.head);
   return { data: head ? null : rows, count: matched.length, error: null };
 }
@@ -91,6 +94,7 @@ beforeEach(() => {
   calls.length = 0;
   failing.when = null;
   for (const key of Object.keys(tables)) delete tables[key];
+  for (const key of Object.keys(serverMaxRows)) delete serverMaxRows[key];
   tables.bots = [bot()];
   resolveOwnedBots.mockResolvedValue({ ok: true, botIds: [BOT], ownedBotIds: [BOT] });
   from.mockImplementation((table: string) => {
@@ -188,9 +192,10 @@ describe('잘린 표본', () => {
     const result = await payments();
     expect(result.inquiries7d).toBeNull();
     expect(result.autoRefunds7d).toBeNull();
-    // 두 조회 모두 정확한 count 를 함께 요청한다
+    expect(result.refundReasons).toBeNull();
+    // 결제 문의·자동 환불·환불 사유와 그 재료(인사이트·실행) 모두 정확한 count 를 함께 요청한다
     const counted = calls.filter((c) => c.methods.some((m) => m[0] === 'select' && (m[2] as { count?: string } | undefined)?.count === 'exact' && !(m[2] as { head?: boolean }).head));
-    expect(counted.map((c) => c.table).sort()).toEqual(['payment_actions', 'responses']);
+    expect(counted.map((c) => c.table).sort()).toEqual(['auto_dev_runs', 'insights', 'payment_actions', 'payment_actions', 'responses']);
   });
 
   it('상한과 정확히 같은 수는 잘린 것이 아니다', async () => {
@@ -200,9 +205,86 @@ describe('잘린 표본', () => {
 });
 
 describe('payment_actions 조회 실패', () => {
-  it('자동 환불·승인 대기는 0 이 아니라 null 이다', async () => {
+  it('자동 환불·승인 대기·환불 사유는 0 이 아니라 null 이다', async () => {
     failing.when = (table) => table === 'payment_actions';
-    expect(await payments()).toMatchObject({ autoRefunds7d: null, pendingApprovals: null, connected: true });
+    expect(await payments()).toMatchObject({ autoRefunds7d: null, pendingApprovals: null, refundReasons: null, connected: true });
+  });
+});
+
+describe('환불 사유', () => {
+  it('상태와 기간에 상관없이 환불 요청을 세고, 같은 대화의 인사이트로 갈래를 나눈다 — 다른 봇·분쟁 수락은 빠진다', async () => {
+    tables.payment_actions = [
+      action({ id: 'r-wrong-1', conversation_id: 'conv-a', reason: 'I bought the wrong plan by mistake.', created_at: ago(30) }),
+      action({ id: 'r-wrong-2', conversation_id: 'conv-b', reason: 'I bought the wrong plan by mistake.', status: 'rejected', origin: 'approval', created_at: ago(2) }),
+      action({ id: 'r-bug', conversation_id: 'conv-c', reason: 'Receipt shows the wrong currency', created_at: ago(1) }),
+      action({ id: 'r-dispute', kind: 'accept_dispute', conversation_id: 'conv-d', reason: 'dispute' }),
+      action({ id: 'r-other-bot', bot_id: 'someone-else', conversation_id: 'conv-e', reason: 'elsewhere' }),
+    ];
+    // 환불 턴 = 그 대화에서 환불 직전의 방문자 메시지
+    tables.messages = [
+      { id: 'm-a', bot_id: BOT, conversation_id: 'conv-a', created_at: ago(30.001) },
+      { id: 'm-c', bot_id: BOT, conversation_id: 'conv-c', created_at: ago(1.001) },
+    ];
+    tables.insights = [
+      { id: 'ins-c', bot_id: BOT, message_id: 'm-c', source_message_ids: [], group_id: 'g-1', category: 'bug', summary: 'Currency wrong on receipt', created_at: ago(0.9) },
+    ];
+    tables.insight_groups = [{ id: 'g-1', bot_id: BOT, title: 'Receipt shows the wrong currency' }];
+    tables.auto_dev_runs = [
+      { id: 'run-1', bot_id: BOT, insight_id: null, group_id: 'g-1', status: 'completed', pr_url: 'https://github.com/example/demo/pull/128', pr_number: 128, closed_at: null, created_at: ago(0.5) },
+    ];
+
+    const { refundReasons } = await payments();
+    expect(refundReasons).toEqual({
+      total: 3,
+      buckets: { fix: 1, feature: 0, other: 0, unclassified: 2 },
+      top: [
+        { key: 'reason:i bought the wrong plan by mistake.', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false },
+        { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/example/demo/pull/128', external: true },
+      ],
+    });
+    // 메시지·묶음 조회도 소유 봇으로 좁힌다
+    const messageCall = calls.find((c) => c.table === 'messages' && c.methods.some((m) => m[0] === 'in' && m[1] === 'conversation_id'));
+    expect(messageCall!.methods).toContainEqual(['in', 'bot_id', [BOT]]);
+    const conversationFilter = messageCall!.methods.find((m) => m[0] === 'in' && m[1] === 'conversation_id');
+    expect([...(conversationFilter![2] as string[])].sort()).toEqual(['conv-a', 'conv-b', 'conv-c']);
+    const groupCall = calls.find((c) => c.table === 'insight_groups');
+    expect(groupCall!.methods).toContainEqual(['in', 'bot_id', [BOT]]);
+    expect(groupCall!.methods).toContainEqual(['in', 'id', ['g-1']]);
+  });
+
+  it('환불 대화가 없으면 메시지·묶음 조회를 하지 않는다', async () => {
+    tables.payment_actions = [action({ reason: 'Changed my mind' })];
+    expect((await payments()).refundReasons).toMatchObject({ total: 1, buckets: { unclassified: 1 } });
+    expect(calls.some((c) => c.table === 'messages' && c.methods.some((m) => m[0] === 'in' && m[1] === 'conversation_id'))).toBe(false);
+    expect(calls.some((c) => c.table === 'insight_groups')).toBe(false);
+  });
+
+  it('환불 대화 메시지가 상한에 닿으면(잘렸으면) 틀린 숫자 대신 null 이다', async () => {
+    tables.payment_actions = [action({ conversation_id: 'conv-a', reason: 'x' })];
+    tables.messages = Array.from({ length: 1001 }, (_, i) => ({ id: `m-${i}`, bot_id: BOT, conversation_id: 'conv-a', created_at: ago(2) }));
+    expect((await payments()).refundReasons).toBeNull();
+  });
+
+  it('대화 50개씩 나눠 읽는다 — 한 조회가 상한을 넘기지 않게', async () => {
+    tables.payment_actions = Array.from({ length: 120 }, (_, i) => action({ conversation_id: `conv-${i}`, reason: 'x' }));
+    expect((await payments()).refundReasons).toMatchObject({ total: 120 });
+    const chunks = calls.filter((c) => c.table === 'messages' && c.methods.some((m) => m[0] === 'in' && m[1] === 'conversation_id'));
+    expect(chunks.map((c) => (c.methods.find((m) => m[0] === 'in' && m[1] === 'conversation_id')![2] as string[]).length)).toEqual([50, 50, 20]);
+  });
+
+  it('인사이트 목록이 서버 상한에 잘렸으면 null 이다 — 다른 대시보드 숫자는 그대로', async () => {
+    tables.payment_actions = [action({ conversation_id: 'conv-a', reason: 'x', status: 'pending', origin: 'approval', executed_at: null })];
+    tables.insights = Array.from({ length: 1001 }, (_, i) => ({ id: `i-${i}`, bot_id: BOT, message_id: null, source_message_ids: [], group_id: null, category: 'bug', summary: '', created_at: ago(1) }));
+    serverMaxRows.insights = 1000;
+    const result = await payments();
+    expect(result.refundReasons).toBeNull();
+    expect(result.pendingApprovals).toBe(1);
+  });
+
+  it('환불 대화 메시지 조회가 실패하면 null(집계 못 함)이고, 대시보드는 살아 있다', async () => {
+    tables.payment_actions = [action({ conversation_id: 'conv-a', reason: 'x' })];
+    failing.when = (table, methods) => table === 'messages' && methods.some((m) => m[0] === 'in' && m[1] === 'conversation_id');
+    expect((await payments()).refundReasons).toBeNull();
   });
 });
 
@@ -224,6 +306,7 @@ describe('연결 여부', () => {
       inquiries7d: 0,
       autoRefunds7d: { count: 0, amountCents: 0, currency: 'USD' },
       pendingApprovals: 0,
+      refundReasons: { total: 0, buckets: { fix: 0, feature: 0, other: 0, unclassified: 0 }, top: [] },
     });
   });
 

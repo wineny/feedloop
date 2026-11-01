@@ -67,7 +67,14 @@ export const copy: DemoCopy = {
   bot2Desc: 'Bot for development and testing',
   ledgerReasonAgency: "Our team got smaller, so we don't need the Agency plan anymore. Can I get a refund?",
   ledgerReasonPro: 'I paid for the Pro plan twice by mistake',
-  ledgerReasonStarter: "It's not the feature I expected. I'd like a refund.",
+  ledgerReasonStarter: "Tapping “Get coupon” didn't give me a coupon, so I paid full price. I'd like a refund.",
+  ledgerReasonEnv: "It's not the feature I expected — I thought Pro would sync my Vercel environment variables. I'd like a refund.",
+  // Refund reasons card (sample) — the insight the Agency refund reason became
+  refundReasonTeam: 'Team got smaller — no longer needs the Agency plan',
+  // Second payment conversation (demo-conv-7) — the Pro purchase and its auto refund in the ledger
+  sayBuyPro: "I'd like to buy the Pro plan.",
+  payCheckoutPro: 'Pay with PayPal — $29 · Pro',
+  payRefundDonePro: 'Your $29 refund is done. It can take a few days to show on your statement.',
   sayBuyAgency: "I'd like to buy the Agency plan.",
   payCheckoutAgency: 'Pay with PayPal — $79 · Agency',
   payRefundPending: "Your refund request for $79 is waiting for the store's approval. You'll see the result here.",

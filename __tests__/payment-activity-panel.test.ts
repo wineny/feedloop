@@ -99,8 +99,9 @@ describe('sample-data payment conversation', () => {
         timelines: Record<string, unknown[]>;
         payments: Record<string, { actions: PaymentActionView[]; rows: LedgerRow[] }>;
       };
-      const linked = ledger.filter((r) => r.conversationId !== null);
-      const convId = linked[0]?.conversationId as string;
+      // The pending refund's conversation. Other ledger rows link to their own conversations (checked below).
+      const convId = ledger.find((r) => r.status === 'pending')?.conversationId as string;
+      const linked = ledger.filter((r) => r.conversationId === convId);
       expect(linked.map((r) => [r.type, r.status, r.amountCents])).toEqual([
         ['refund', 'pending', 7900],
         ['purchase', 'captured', 7900],
@@ -119,6 +120,12 @@ describe('sample-data payment conversation', () => {
       expect(payment.actions).toHaveLength(1);
       expect(payment.actions[0]).toMatchObject({ id: pendingRow.id, status: 'pending', amountCents: 7900, amount: '$79', decidable: true });
       expect(payment.actions[0].checks.filter((c) => !c.passed).map((c) => c.key)).toEqual(pendingRow.detail.failedChecks);
+      // Every other linked conversation is in the inbox too, and its panel shows exactly its ledger rows — no card.
+      for (const id of new Set(ledger.map((r) => r.conversationId).filter((x): x is string => x !== null && x !== convId))) {
+        expect(inbox.conversations.some((c) => c.id === id)).toBe(true);
+        expect(inbox.payments[id].rows).toEqual(ledger.filter((r) => r.conversationId === id));
+        expect(inbox.payments[id].actions).toEqual([]);
+      }
       // The dashboard's «1 waiting for approval» is this one.
       const pendingCount = (data.dashboard as { payments: { pendingApprovals: number } }).payments.pendingApprovals;
       expect(ledger.filter((r) => r.status === 'pending')).toHaveLength(pendingCount);

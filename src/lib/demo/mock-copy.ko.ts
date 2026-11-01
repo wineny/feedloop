@@ -65,7 +65,14 @@ export const copy = {
   bot2Desc: '개발/테스트용 봇',
   ledgerReasonAgency: '팀 규모가 줄어서 Agency 플랜이 필요 없어졌어요. 환불 가능할까요?',
   ledgerReasonPro: 'Pro 플랜을 실수로 두 번 결제했어요',
-  ledgerReasonStarter: '기대했던 기능이 아니라서 환불하고 싶어요',
+  ledgerReasonStarter: '「쿠폰 받기」를 눌러도 쿠폰이 안 나와서 정가로 결제했어요. 환불해 주세요',
+  ledgerReasonEnv: '기대했던 기능이 아니에요. Pro 에 Vercel 환경변수 동기화가 있는 줄 알았어요. 환불해 주세요',
+  // 환불 사유 카드 예시 — Agency 환불 사유가 분류된 인사이트
+  refundReasonTeam: '팀 규모가 줄어 Agency 플랜이 필요 없어짐',
+  // 결제 대화 둘째(demo-conv-7) — 장부의 Pro 구매와 그 자동 환불
+  sayBuyPro: 'Pro 플랜을 구매하고 싶어요',
+  payCheckoutPro: 'PayPal로 결제 — $29 · Pro',
+  payRefundDonePro: '$29 환불이 끝났어요. 카드 명세서에 보이기까지 며칠 걸릴 수 있어요.',
   // 결제 대화 예시(demo-conv-6) — 장부의 Agency 구매·$79 승인 대기 환불과 같은 대화
   sayBuyAgency: 'Agency 플랜을 구매하고 싶어요',
   payCheckoutAgency: 'PayPal로 결제 — $79 · Agency',
