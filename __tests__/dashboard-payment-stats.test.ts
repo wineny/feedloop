@@ -201,7 +201,7 @@ describe('RefundReasons card — under the PayPal numbers', () => {
     buckets: { fix: 1, feature: 0, other: 0, unclassified: 2 },
     top: [
       { key: 'reason:wrong plan', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false },
-      { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/example/demo/pull/128', external: true },
+      { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/acme/shop/pull/42', external: true },
     ],
   };
 
@@ -217,7 +217,7 @@ describe('RefundReasons card — under the PayPal numbers', () => {
     expect(html).toContain('2 requests');
     expect(html).toContain('href="/inbox?c=conv-b"');
     expect(html).toContain('Open conversation');
-    expect(html).toMatch(/href="https:\/\/github.com\/example\/demo\/pull\/128" target="_blank" rel="noopener noreferrer"/);
+    expect(html).toMatch(/href="https:\/\/github.com\/acme\/shop\/pull\/42" target="_blank" rel="noopener noreferrer"/);
     expect(html).toContain('View fix PR');
     expect(html.indexOf('Auto refunds')).toBeLessThan(html.indexOf('Refund reasons'));
     expect(html.indexOf('Refund reasons')).toBeLessThan(html.indexOf('LEDGER'));
@@ -260,7 +260,8 @@ describe('RefundReasons card — under the PayPal numbers', () => {
         ['insight:demo-ins-refund-env', 1, 'feature', '/inbox?c=demo-conv-7', false],
       ]);
       const html = renderAt('numbers', dashboard.payments, locale);
-      expect(html).toContain('https://github.com/example/demo/pull/128');
+      // The sample PR does not exist on GitHub, so it renders as inert text, never as a link (ExternalLink).
+      expect(html).not.toContain('href="https://github.com/example/demo/pull/128"');
     });
 
     it(`${locale} sample data: refund links match the inbox and the coupon-bug group stays 3 insights · 3 conversations`, () => {

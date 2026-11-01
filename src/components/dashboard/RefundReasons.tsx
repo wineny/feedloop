@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ExternalLink } from '@/components/demo/ExternalLink';
 import type { RefundBucket, RefundReasonItem, RefundReasons as RefundReasonsData } from '@/lib/dashboard/refund-reasons';
 
 // 환불 사유 카드 — PayPal 숫자 바로 아래. 환불 요청을 고객이 말한 이유로 네 갈래로 나누고(버그·UX → 수정 PR,
@@ -31,10 +32,11 @@ function TopReason({ item }: TopReasonProps) {
         </span>
         {item.href &&
           (item.external ? (
-            <a href={item.href} target="_blank" rel="noopener noreferrer" className={linkClass}>
+            // 견본 PR(`github.com/example/...`)은 없는 주소라 누를 수 없는 글자로만 보인다(ExternalLink).
+            <ExternalLink href={item.href} className={linkClass}>
               {t('openPr')}
               <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </a>
+            </ExternalLink>
           ) : (
             <Link href={item.href} className={linkClass}>
               {t('openConversation')}
