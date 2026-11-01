@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { htmlEscape, safeHttpsUrl, sanitizeSubjectText, textToHtml } from '@/lib/email/html';
-import { formatKst, renderLoopClosedEmail, renderOperatorReplyEmail } from '@/lib/email/templates';
+import { formatKst, formatUtcEnglish, renderLoopClosedEmail, renderOperatorReplyEmail } from '@/lib/email/templates';
 import { formatFrom } from '@/lib/email/postmark';
 
 describe('html 정제', () => {
@@ -136,6 +136,13 @@ describe('formatKst', () => {
   });
 });
 
+describe('formatUtcEnglish', () => {
+  it('영어 메일은 UTC 로 「Mon D, YYYY, HH:mm UTC」 — KST 로 옮기지 않는다', () => {
+    expect(formatUtcEnglish(new Date('2026-09-12T12:21:00Z'))).toBe('Sep 12, 2026, 12:21 UTC');
+    expect(formatUtcEnglish(new Date('2026-01-05T15:05:00Z'))).toBe('Jan 5, 2026, 15:05 UTC');
+  });
+});
+
 describe('메일 껍데기 폭 — 휴대폰에서 줄어든다', () => {
   // 🔴 2026-09-18 ny 「모바일에서 개선 이메일 쪽 깨져보여서 반응형으로 가능할까?」
   //    원인은 `width="600"` 속성이었다. 그 속성은 «고정 폭»이라 390px 화면에서도 600 을 차지해서
@@ -183,7 +190,8 @@ describe('메일 언어 — locale 로 사전을 고른다(기본 en)', () => {
     expect(en.html).toContain('Continue the chat on Nulnul Tours →');
     expect(en.text).toContain('[Reply from Nulnul Tours team]');
     expect(en.text).toContain('This reply arrived on ');
-    expect(en.text).toMatch(/on [A-Z][a-z]{2} \d{1,2}, 2026, .* KST\./);
+    expect(en.text).toMatch(/on [A-Z][a-z]{2} \d{1,2}, 2026, \d{2}:\d{2} UTC\./);
+    expect(en.text).not.toContain('KST');
     expect(/[가-힣]/.test(en.subject + en.html + en.text)).toBe(false);
 
     const ko = renderOperatorReplyEmail({ ...reply, locale: 'ko' });

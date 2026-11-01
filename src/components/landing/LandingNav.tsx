@@ -8,6 +8,7 @@ import { LoginLink, PrimaryCta } from './PrimaryCta';
 import { DemoAnchor, scrollToHash } from './LiveDemo';
 import { LogoMark } from './Logo';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { Link as LocaleLink } from '@/i18n/navigation';
 
 const links = [{ labelKey: 'how', href: '#how' }] as const;
 
@@ -116,6 +117,8 @@ export function LandingNav() {
               </a>
             ))}
             <DemoAnchor className="text-[15px] font-medium" />
+            {/* PayPal 데모 상점 — 심사위원이 랜딩에서 바로 찾게 한다 */}
+            <LocaleLink href="/pricing">{t('nav.paypalDemo')}</LocaleLink>
           </div>
           <div className="flex items-center gap-5">
             <LocaleSwitcher className={fg} />
@@ -182,6 +185,13 @@ export function LandingNav() {
           >
             {t('nav.demo')}
           </a>
+          <LocaleLink
+            href="/pricing"
+            onClick={handleClose}
+            className="block rounded-[10px] px-4 py-3 text-[15px] font-medium text-[var(--ink)]"
+          >
+            {t('nav.paypalDemo')}
+          </LocaleLink>
           <LoginLink
             className="block rounded-[10px] px-4 py-3 text-[15px] font-medium text-[var(--ink)]"
             onNavigate={handleClose}

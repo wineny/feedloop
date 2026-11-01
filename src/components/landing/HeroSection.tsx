@@ -3,6 +3,7 @@ import { useTranslations } from 'next-intl';
 import { HeroPhone } from './HeroPhone';
 import { PrimaryCta } from './PrimaryCta';
 import { DemoAnchor } from './LiveDemo';
+import { Link } from '@/i18n/navigation';
 
 /**
  * 히어로 — 제출용 대표 이미지(`docs/15-제출/cover/hero.html`)의 디자인을 그대로 가져왔다.
@@ -105,6 +106,19 @@ export function HeroSection() {
           <p className="mt-4 text-[14px] text-white/72 lg:text-[15px]" style={fadeUp(0.6)}>
             {t('hero.setupNote')}
           </p>
+          {/* PayPal 쪽 기능이 랜딩에서 안 보이던 것을 한 줄로 드러낸다. 주 CTA 보다 작게 — 보조 진입점이다 */}
+          <Link
+            href="/pricing"
+            className="mt-5 inline-flex max-w-full items-start gap-2 rounded-2xl bg-white/12 px-3.5 py-2 text-[13px] font-semibold leading-snug text-white ring-1 ring-white/30 transition-colors hover:bg-white/20 lg:text-[14px]"
+            style={fadeUp(0.6)}
+          >
+            <span className="shrink-0 rounded-full bg-white px-2 py-px text-[11px] font-bold uppercase tracking-wide text-[#b92e25] lg:text-[12px]">
+              {t('hero.paypalTag')}
+            </span>
+            <span>
+              {t('hero.paypalLine')} <span aria-hidden="true">→</span>
+            </span>
+          </Link>
         </div>
 
         <div className="flex flex-col items-center lg:items-end" style={fadeUp(0.6)}>

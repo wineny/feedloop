@@ -79,13 +79,19 @@ export function formatKst(d: Date): string {
   return `${p.year}년 ${Number(p.month)}월 ${Number(p.day)}일 ${p.hour}:${p.minute}`;
 }
 
-/** "Oct 21, 2026, 22:00 KST" — 영어 메일은 시간대(KST)는 유지하되 표기만 영어로. */
-function formatKstEnglish(d: Date): string {
-  return `${new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(d)} KST`;
+/** "Oct 21, 2026, 13:00 UTC" — 영어 메일 독자는 한국에 있지 않을 수 있어 UTC 로 쓴다. 한국어 메일만 KST. */
+const UTC_ENGLISH = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'UTC',
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  hourCycle: 'h23',
+});
+export function formatUtcEnglish(d: Date): string {
+  return `${UTC_ENGLISH.format(d)} UTC`;
 }
 
 function formatMailTime(d: Date, locale: Locale | undefined): string {
-  return locale === 'ko' ? formatKst(d) : formatKstEnglish(d);
+  return locale === 'ko' ? formatKst(d) : formatUtcEnglish(d);
 }
 
 function linkHtml(href: string, label: string): string {

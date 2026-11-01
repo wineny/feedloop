@@ -76,6 +76,17 @@ describe('PayPalClient', () => {
     expect(ids.filter(Boolean)).toEqual(['req-order', 'req-capture', 'req-refund']);
   });
 
+  it('puts brand_name in payment_source.paypal.experience_context only (no application_context)', async () => {
+    const { client, calls } = makeClient(() => json({ id: 'O1', status: 'PAYER_ACTION_REQUIRED' }));
+    const base = { amountValue: '1.00', currencyCode: 'USD', returnUrl: 'https://a/r', cancelUrl: 'https://a/c', requestId: 'r' };
+    await client.createOrder({ ...base, brandName: 'Feedloop' });
+    await client.createOrder(base);
+    const [withBrand, without] = calls.slice(1).map((c) => JSON.parse(String(c.init.body)));
+    expect(withBrand.payment_source.paypal.experience_context.brand_name).toBe('Feedloop');
+    expect(withBrand.application_context).toBeUndefined();
+    expect(without.payment_source.paypal.experience_context).not.toHaveProperty('brand_name');
+  });
+
   it('always includes an explicit amount in the refund body', async () => {
     const { client, calls } = makeClient(() => json({ id: 'R1', status: 'COMPLETED' }));
     await client.refundCapture('C1', { amountValue: '2.50', currencyCode: 'USD', requestId: 'r' });

@@ -101,6 +101,8 @@ export interface CreateOrderInput {
   requestId: string;
   /** PayPal page language, e.g. en-US. Without it PayPal guesses from the buyer's IP. */
   locale?: string;
+  /** Merchant name shown on the PayPal approval page (experience_context.brand_name, 1–127 chars). */
+  brandName?: string;
   /** NO_SHIPPING for digital goods — the buyer is not asked for an address. */
   shippingPreference?: 'NO_SHIPPING' | 'GET_FROM_FILE' | 'SET_PROVIDED_ADDRESS';
   /** Caller's cancellation (the agent's tool signal). Absent for the pricing page. */
@@ -233,6 +235,7 @@ export class PayPalClient {
               return_url: input.returnUrl,
               cancel_url: input.cancelUrl,
               user_action: 'PAY_NOW',
+              ...(input.brandName ? { brand_name: input.brandName } : {}),
               ...(input.locale ? { locale: input.locale } : {}),
               ...(input.shippingPreference ? { shipping_preference: input.shippingPreference } : {}),
             },

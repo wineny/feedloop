@@ -9,7 +9,8 @@
     "menuOpen": "Open menu",
     "menuClose": "Close menu",
     "login": "Log in",
-    "myDashboard": "My dashboard"
+    "myDashboard": "My dashboard",
+    "paypalDemo": "PayPal demo"
   },
   "hero": {
     "line1": "Customer feedback",
@@ -18,7 +19,9 @@
     "sub": "Add one chat snippet to your product. Feedloop's AI sorts what customers tell you and opens a pull request with the fix.",
     "watchDemo": "Watch demo",
     "setupNote": "One script tag · 5-minute setup",
-    "screensNote": "Real product screens · sample data"
+    "screensNote": "Real product screens · sample data",
+    "paypalTag": "New",
+    "paypalLine": "An AI support agent that settles refunds with PayPal — try the demo store"
   },
   "steps": {
     "feedback": {
@@ -126,7 +129,7 @@
       },
       "price": {
         "q": "How much does it cost?",
-        "a": "Feedloop is free during the beta. If you add your own API key there is no limit, and the only cost is the API fees on that key. Without a key, up to 100 messages a day run on ours."
+        "a": "Feedloop is free during the beta. If you add your own API key there is no daily limit, and the only cost is the API fees on that key. Without a key, up to 100 messages a day run on ours. The Starter, Pro, and Agency plans on the pricing page belong to a PayPal sandbox demo store built for the hackathon: they show the payment agent at work, and no real money moves."
       },
       "wrongAnswer": {
         "q": "What if the AI answers wrongly?",
@@ -134,7 +137,7 @@
       },
       "pick": {
         "q": "What does \"Pick on screen\" send?",
-        "a": "You receive the type and text of the element the customer pointed at, a selector and position that can find it again, an HTML skeleton with only tags and classes, screen coordinates, and the page URL at that moment. Screenshots, the actual content inside the element, and values typed into inputs aren't sent, and tokens, emails, and phone numbers are removed before saving."
+        "a": "Two things. First, details about the element the customer pointed at: its type and visible text, a selector and position that can find it again, an HTML skeleton of tags and attributes with the text removed, screen coordinates, and the page URL at that moment. Emails and token-like strings in these details are masked before saving. Second, when capture succeeds, a picture of the part of the page the customer was looking at. Only the Feedloop widget is left out, so anything else on screen, including values typed into fields, can appear in it. Only your team can view it, through links that expire after 10 minutes. It isn't sent to the AI or put into PRs or emails, and it's deleted after 90 days. If the customer removes the attachment before sending, the screenshot is deleted within two days."
       },
       "channelTalk": {
         "q": "We already use a support tool like Channel Talk.",

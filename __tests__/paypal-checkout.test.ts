@@ -86,7 +86,11 @@ describe('createCheckout', () => {
     expect(body.purchase_units[0].amount).toEqual({ value: '58.00', currency_code: 'USD' });
     expect(body.payment_source.paypal.experience_context.return_url).toBe(`${ORIGIN}/api/paypal/return/${BOT}`);
     expect(body.payment_source.paypal.experience_context.cancel_url).toBe(`${ORIGIN}/api/paypal/cancel/${BOT}`);
-    expect(body.payment_source.paypal.experience_context).toMatchObject({ locale: 'en-US', shipping_preference: 'NO_SHIPPING' });
+    expect(body.payment_source.paypal.experience_context).toMatchObject({
+      brand_name: 'Feedloop',
+      locale: 'en-US',
+      shipping_preference: 'NO_SHIPPING',
+    });
 
     expect(store.orders).toHaveLength(1);
     expect(store.orders[0]).toMatchObject({

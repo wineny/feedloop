@@ -111,6 +111,8 @@ export async function createCheckout(deps: CheckoutDeps, input: CheckoutInput): 
       cancelUrl,
       // English for judges (design v2 §10); every product here is digital, so no address step.
       locale: 'en-US',
+      // Without it the approval page shows the sandbox business account's name, not ours.
+      brandName: 'Feedloop',
       shippingPreference: 'NO_SHIPPING',
       requestId: (deps.newRequestId ?? randomUUID)(),
       signal,
