@@ -10,6 +10,8 @@ import { catchUpAutoGrouping, readGroupingStatus } from '@/lib/groups/auto-group
 import { groupPriority, compareGroupPriority, type GroupPriority } from '@/lib/groups/priority';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { apiText } from '@/lib/http/api-text';
+import { isSampleVisitor } from '@/lib/demo/sample-marker';
+import { TRIAGE_VALUES, type Triage } from '@/lib/groups/triage';
 
 // 응답은 짧지만 after() 의 밀린 자동 묶기(catch-up)가 최대 100초 돈다.
 export const maxDuration = 120;
@@ -30,6 +32,11 @@ export interface GroupSummary {
   /** 기능 요청 묶음의 스펙 초안(마크다운). 아직 안 만들었으면 null. */
   specDraft: string | null;
   followUpPending?: boolean;
+  /** F2 label only. Absent when not set or when the triage columns are not migrated yet. */
+  triage?: Triage;
+  triageReason?: string;
+  /** Every conversation of this group is seeded sample data. */
+  sample?: boolean;
 }
 
 export async function GET(req: NextRequest) {
@@ -68,7 +75,7 @@ export async function GET(req: NextRequest) {
 
     // 묶음에 속한 인사이트 → 그 인사이트의 메시지가 속한 대화 수까지 센다.
     // "몇 건이 아니라 몇 명" 이 시연에서 더 중요한 숫자다.
-    const [insightsRes, runsRes] = await Promise.all([
+    const [insightsRes, runsRes, triageRes] = await Promise.all([
       db
         .from('insights')
         .select('id, group_id, message_id, messages(conversation_id)')
@@ -78,7 +85,21 @@ export async function GET(req: NextRequest) {
         .select('group_id, pr_url, pr_number, merged_at, closed_at, status, created_at')
         .in('group_id', groupIds)
         .order('created_at', { ascending: false }),
+      // Separate and tolerant: the main select is explicit, so adding these columns there would
+      // 500 the list on a database that has not applied 20261102_01 yet. On error: no badge.
+      db.from('insight_groups').select('id, triage, triage_reason').in('id', groupIds),
     ]);
+    const triageOf = new Map<string, { triage: Triage; reason: string | null }>();
+    if (triageRes.error) {
+      console.warn('[groups] triage read failed:', triageRes.error.message);
+    } else {
+      for (const r of triageRes.data ?? []) {
+        const v = (r as { triage?: string | null }).triage;
+        if (v && (TRIAGE_VALUES as readonly string[]).includes(v)) {
+          triageOf.set((r as { id: string }).id, { triage: v as Triage, reason: (r as { triage_reason?: string | null }).triage_reason ?? null });
+        }
+      }
+    }
 
     if (insightsRes.error || runsRes.error) return NextResponse.json({ error: apiText(req, 'groupsReadFailed') }, { status: 500 });
     const insightCount = new Map<string, number>();
@@ -103,13 +124,15 @@ export async function GET(req: NextRequest) {
     // 조회가 실패해도 폴백이 대화 id 라 숫자가 지금보다 나빠지지는 않는다.
     const allConvIds = [...new Set([...conversations.values()].flatMap((set) => [...set]))];
     const personKey = new Map<string, string>();
+    const sampleConv = new Set<string>();
     if (allConvIds.length > 0) {
       const { data: convs } = await db
         .from('conversations')
-        .select('id, channel_person_id')
+        .select('id, channel_person_id, external_user_id')
         .in('id', allConvIds);
       for (const c of convs ?? []) {
         personKey.set(c.id as string, (c.channel_person_id as string | null) ?? (c.id as string));
+        if (isSampleVisitor(c.external_user_id as string | null | undefined)) sampleConv.add(c.id as string);
       }
     }
 
@@ -117,6 +140,11 @@ export async function GET(req: NextRequest) {
       const ids = conversations.get(gid);
       if (!ids) return 0;
       return new Set([...ids].map((id) => personKey.get(id) ?? id)).size;
+    }
+
+    function isSampleGroup(gid: string): boolean {
+      const ids = conversations.get(gid);
+      return !!ids && ids.size > 0 && [...ids].every((id) => sampleConv.has(id));
     }
 
     // 묶음마다 가장 최근 성공 run 하나를 대표로.
@@ -142,6 +170,10 @@ export async function GET(req: NextRequest) {
       pr: prOf.get(g.id) ?? null,
       specDraft: g.spec_draft ?? null,
       followUpPending: g.follow_up_pending ?? false,
+      ...(triageOf.has(g.id)
+        ? { triage: triageOf.get(g.id)!.triage, ...(triageOf.get(g.id)!.reason ? { triageReason: triageOf.get(g.id)!.reason! } : {}) }
+        : {}),
+      ...(isSampleGroup(g.id) ? { sample: true } : {}),
     })));
     if (groups.length < 50) break;
   }

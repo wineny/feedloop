@@ -187,6 +187,8 @@ interface Recorded {
   dismissLinks: string[];
   /** 호출된 RPC 이름과 인자. */
   rpc: { fn: string; args: Record<string, unknown> }[];
+  /** F2 — `insight_groups.update(...)` calls: which group id got which payload. */
+  triageUpdates: { id?: string; update: Record<string, unknown> }[];
 }
 
 interface SnapshotSeed {
@@ -199,9 +201,9 @@ interface SnapshotSeed {
 function installClient(
   seed: SeedInsight[],
   snapshots: Record<string, SnapshotSeed> = {},
-  opts: { dismissQueryError?: string; commitError?: string } = {},
+  opts: { dismissQueryError?: string; commitError?: string; triageError?: string } = {},
 ): Recorded {
-  const rec: Recorded = { dismissInserts: [], dismissLinks: [], rpc: [] };
+  const rec: Recorded = { dismissInserts: [], dismissLinks: [], rpc: [], triageUpdates: [] };
   let seq = 0;
 
   // 자동 닫힘 조회가 실제로 보는 행. 라우트가 `.not('category','in',…)` 로 좁히므로
@@ -244,7 +246,10 @@ function installClient(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chain.then = (resolve: any, reject: any) => {
         let value: unknown;
-        if (table === 'insight_groups') {
+        if (table === 'insight_groups' && ctx.update) {
+          rec.triageUpdates.push({ id: ctx.id, update: ctx.update });
+          value = { error: opts.triageError ? { message: opts.triageError } : null };
+        } else if (table === 'insight_groups') {
           rec.dismissInserts.push(ctx.insert ?? {});
           value = { data: { id: `g${++seq}` }, error: null };
         } else if (ctx.update) {
@@ -647,5 +652,62 @@ describe('runGrouping — 기존 묶음 대조', () => {
     await mod.runGrouping([BOT]);
 
     expect(h.rejoins).toEqual([]);
+  });
+});
+
+describe('F2 triage — label only', () => {
+  const ins = [{ id: 'a1', category: 'bug', summary: 'x' }];
+
+  it('prompt defines the three verdicts and asks for a one-line reason in the owner language', () => {
+    const prompt = mod.buildGroupingPrompt(ins);
+    expect(prompt).toContain('fix | wont_fix | needs_decision');
+    expect(prompt).toMatch(/\*\*fix\*\* = .*broken or bad to use.*worth fixing now/);
+    expect(prompt).toMatch(/\*\*wont_fix\*\* = .*as intended.*out of scope/);
+    expect(prompt).toMatch(/\*\*needs_decision\*\* = .*trade-off.*owner must decide/);
+    expect(prompt).toContain('"triage": "fix"');
+    expect(prompt).toContain('triage_reason is one line');
+  });
+
+  it('validateGroups keeps a valid verdict and drops an invalid one', () => {
+    const known = new Set(['a1', 'a2']);
+    const out = mod.validateGroups(
+      [
+        { title: 't1', summary: 's', category: 'bug', insight_ids: ['a1'], triage: 'needs_decision', triage_reason: ' owner  decides\nprice ' } as never,
+        { title: 't2', summary: 's', category: 'bug', insight_ids: ['a2'], triage: 'maybe', triage_reason: 'r' } as never,
+      ],
+      known,
+    );
+    expect(out[0]).toMatchObject({ triage: 'needs_decision', triage_reason: 'owner decides price' });
+    expect(out[1]).not.toHaveProperty('triage');
+    expect(out[1]).not.toHaveProperty('triage_reason');
+  });
+
+  function stubTwoGroups() {
+    h.callLlm = vi.fn(async () => JSON.stringify({ groups: [
+      { title: 'A', summary: 's', category: 'bug', triage: 'fix', triage_reason: 'broken', insight_ids: ['a1'] },
+      { title: 'B', summary: 's', category: 'bug', insight_ids: ['a2'] },
+      { title: 'C', summary: 's', category: 'bug', triage: 'wont_fix', triage_reason: 'as intended', insight_ids: ['a3'] },
+    ] }));
+  }
+  const seed3 = { [BOT]: { insights: ['a1', 'a2', 'a3'].map((id) => ({ id, category: 'bug', summary: id })) } };
+
+  it('writes triage by receipt index after commit, skipping groups without a verdict', async () => {
+    const rec = installClient([], seed3);
+    stubTwoGroups();
+    const out = await mod.runGrouping([BOT]);
+    expect(out.failures).toEqual([]);
+    expect(rec.triageUpdates).toEqual([
+      { id: 'cg1', update: { triage: 'fix', triage_reason: 'broken' } },
+      { id: 'cg3', update: { triage: 'wont_fix', triage_reason: 'as intended' } },
+    ]);
+  });
+
+  it('a failing triage update does not fail grouping', async () => {
+    const rec = installClient([], seed3, { triageError: 'column "triage" does not exist' });
+    stubTwoGroups();
+    const out = await mod.runGrouping([BOT]);
+    expect(rec.triageUpdates).toHaveLength(2);
+    expect(out.grouped).toBe(3);
+    expect(out.failures).toEqual([]);
   });
 });

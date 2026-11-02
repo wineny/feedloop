@@ -36,6 +36,11 @@ export interface GroupSummary {
   /** 기능 요청 묶음의 스펙 초안. 아직 안 만들었으면 null. */
   specDraft?: string | null;
   followUpPending?: boolean;
+  /** F2 label only (no automatic action). Optional: older responses and demo data have none. */
+  triage?: 'fix' | 'wont_fix' | 'needs_decision';
+  triageReason?: string;
+  /** Seeded sample data: shows a Sample chip and turns the PR button off. */
+  sample?: boolean;
   /**
    * 우선순위. score = 사람 수×3 + 건수 + (핵심 흐름이 막혔으면 +20). 목록은 서버가 이미 이 순서로 준다 —
    * 화면에서 다시 정렬하지 않는다. core 는 결제·구매·예약·가입·로그인이 막혔나에 대한 AI 판단(null = 판단 전).
@@ -380,8 +385,19 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                     </span>
                     {/* 핵심 흐름이 막힌 묶음만 잉크로 채운다 — 잉크·코랄·회색 세 가지 안에서 가장 진한 칸. */}
                     {g.priority?.core && <span className={`${BADGE} bg-foreground text-background`}>{t('core')}</span>}
+                    {g.triage && (
+                      <span className={`${BADGE} border border-border-strong text-foreground`} title={g.triageReason ?? t('triage.label')}>
+                        {t(`triage.${g.triage}`)}
+                      </span>
+                    )}
+                    {g.sample && <span className={`${BADGE} bg-muted text-muted-foreground`}>{t('sample')}</span>}
                     <p className="min-w-0 text-base font-semibold leading-snug tracking-[-0.01em]">{g.title}</p>
                   </div>
+                  {g.triage && g.triageReason && (
+                    <p className="truncate text-[12.5px] leading-[1.45] text-muted-foreground" title={g.triageReason}>
+                      {t('triage.label')}: {g.triageReason}
+                    </p>
+                  )}
                   {g.priority?.reason && (
                     <p className="truncate text-[12.5px] leading-[1.45] text-muted-foreground" title={g.priority.reason}>
                       {g.priority.reason}
@@ -450,7 +466,8 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                             variant="outline"
                             size="sm"
                             onClick={() => handleCreatePr(g.id)}
-                            disabled={busyId === g.id || g.followUpPending || g.status !== 'open'}
+                            disabled={busyId === g.id || g.followUpPending || g.status !== 'open' || g.sample}
+                            title={g.sample ? t('samplePrDisabled') : undefined}
                           >
                             {busyId === g.id ? <Loader2 className="animate-spin" /> : <GitPullRequest />}
                             {t('createPr')}

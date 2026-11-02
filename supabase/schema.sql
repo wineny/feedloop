@@ -2,7 +2,7 @@
 -- Stands up a fresh Supabase project in one go. Apply with:
 --   psql "$POSTGRES_URL_NON_POOLING" -v ON_ERROR_STOP=1 -f supabase/schema.sql
 -- Requires Supabase (auth.uid(), roles anon/authenticated/service_role, pgrst).
--- Files in apply order (59):
+-- Files in apply order (60):
 --   init_schema.sql
 --   add_auto_dev.sql
 --   add_kakao_support.sql
@@ -62,6 +62,7 @@
 --   20261021_11_i18n_codes_data.sql
 --   20261021_12_conversation_locale.sql
 --   20261022_01_order_refund_state.sql
+--   20261102_01_group_triage.sql
 
 
 -- ═══════════════════════════ init_schema.sql ═══════════════════════════
@@ -3493,3 +3494,22 @@ NOTIFY pgrst, 'reload schema';
 -- ALTER TABLE paypal_orders DROP COLUMN IF EXISTS refunded_at;
 -- ALTER TABLE paypal_orders DROP COLUMN IF EXISTS refunded_cents;
 -- NOTIFY pgrst, 'reload schema';
+
+
+-- ═══════════════════════════ 20261102_01_group_triage.sql ═══════════════════════════
+
+-- F2 triage (label only): the grouping model proposes one verdict per group.
+-- Nothing is automated from it (no PR, no dismiss, no reply) — the dashboard only shows a badge.
+-- Additive and nullable: code reads these columns in a separate, error-tolerant query,
+-- so shipping code before this migration just hides the badge.
+ALTER TABLE insight_groups
+  ADD COLUMN IF NOT EXISTS triage text CHECK (triage IN ('fix', 'wont_fix', 'needs_decision'));
+ALTER TABLE insight_groups
+  ADD COLUMN IF NOT EXISTS triage_reason text;
+
+NOTIFY pgrst, 'reload schema';
+
+-- Rollback:
+--   ALTER TABLE insight_groups DROP COLUMN IF EXISTS triage_reason;
+--   ALTER TABLE insight_groups DROP COLUMN IF EXISTS triage;
+--   NOTIFY pgrst, 'reload schema';
