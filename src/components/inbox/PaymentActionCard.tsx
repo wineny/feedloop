@@ -79,6 +79,7 @@ export function PaymentActionCard({ action, onDecide, disabled, precedent }: Pay
         <div className="flex items-center gap-2">
           <StatusIcon status={current.status} />
           <span className="font-semibold">{t('title', { amount: current.amount ?? '?' })}</span>
+          {current.sample && <span className="rounded-full bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground">{t('sample')}</span>}
         </div>
         <span className={cn('rounded-full px-2 py-0.5 text-[12.5px] font-semibold', ACTION_STATUS_TONE[current.status])}>
           {t(`status.${current.status}`)}
@@ -122,6 +123,7 @@ export function PaymentActionCard({ action, onDecide, disabled, precedent }: Pay
           <p>
             {t(precedent.basis === 'check' ? 'precedent.check' : 'precedent.amount', { refunded: precedent.refunded, total: precedent.total })}
             {precedent.auto > 0 && ` · ${t('precedent.auto', { auto: precedent.auto })}`}
+            {precedent.sample > 0 && <span className="text-faint"> {t('precedent.sampleCount', { sample: precedent.sample })}</span>}
           </p>
           {precedent.evidence.length > 0 && (
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">

@@ -2,10 +2,10 @@ import { groupPriority, compareGroupPriority } from '@/lib/groups/priority-score
 import { escalationNotice } from '@/lib/bot/holding';
 import type { PickedShotData } from '@/lib/widget/picked-shot';
 import type { DashboardPayments } from '@/app/api/dashboard/route';
-import { ledgerConversationHref, type LedgerActionRow, type LedgerPurchaseRow, type LedgerRow } from '@/lib/paypal/ledger';
+import { type LedgerActionRow, type LedgerPurchaseRow, type LedgerRow } from '@/lib/paypal/ledger';
 import { refundReasons, type RefundInsightSource, type RefundReasons, type RefundSource } from '@/lib/dashboard/refund-reasons';
 import { CHECK_LABELS, type PaymentActionView } from '@/lib/paypal/action-view';
-import type { PaymentPrecedent } from '@/lib/paypal/precedent';
+import { computePrecedent, type PaymentPrecedent, type PrecedentRow } from '@/lib/paypal/precedent';
 import { formatMoney } from '@/lib/paypal/money';
 import { copy as enCopy } from './mock-copy.en';
 import { copy as koCopy, type DemoCopy } from './mock-copy.ko';
@@ -27,6 +27,10 @@ const DEMO_PAYMENT_CONV = 'demo-conv-6';
 
 /** Pro 를 샀다가 기대한 기능(Vercel 환경변수 동기화)이 없어 환불받은 대화. 환불 사유 카드의 「기능 요청」이 여기서 났다. */
 const DEMO_PRO_CONV = 'demo-conv-7';
+
+/** 지난 Agency $79 환불 중 대화가 남은 두 건(사흘·여드레 전). 승인 카드 「지난 결정 보기」 링크가 여기로 온다. */
+const DEMO_AGENCY_CONV_A = 'demo-conv-8';
+const DEMO_AGENCY_CONV_B = 'demo-conv-9';
 
 /** 쿠폰 버그 묶음(demo-group-1)의 수정 PR — 피드백·묶음 카드와 같은 주소. */
 const DEMO_PR_128 = 'https://github.com/example/demo/pull/128';
@@ -97,6 +101,13 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
     // 같은 쿠폰 버그로 24시간 안에 들어온 세 번째 환불 요청 — 승인 대기 중 거절됐다. 환불 사유 카드의 「급증」 표시가 이 건에서 나온다(24시간 3건).
     refund({ n: '6', at: 20, status: 'rejected', origin: 'approval', cents: 900, reason: c.ledgerReasonStarter, failedChecks: ['customer_known'], decidedAt: 14, conv: 'demo-conv-1' }),
     purchase({ n: '5', at: 40, status: 'refunded', product: 'Starter', cents: 900, refunded: 900, refundedAt: 26, conv: 'demo-conv-5' }),
+    // 승인 카드 「지난 결정」의 재료 — 같은 검사(자동 한도 초과)에서 멈췄던 지난 Agency $79 환불 5건(3~40일 전). 주인이 4건 승인, 1건 거절.
+    // 새 두 건만 받은편지함 대화(conv-8·9)가 남아 있어 근거 링크가 열린다. 나머지 셋은 대화가 없다.
+    refund({ n: '7', at: 4_320, status: 'executed', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgencyClient, failedChecks: ['amount_within_max'], decidedAt: 4_230, executedAt: 4_230, conv: DEMO_AGENCY_CONV_A }),
+    refund({ n: '8', at: 11_520, status: 'executed', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgencyWrongPlan, failedChecks: ['amount_within_max'], decidedAt: 11_250, executedAt: 11_250, conv: DEMO_AGENCY_CONV_B }),
+    refund({ n: '9', at: 21_600, status: 'executed', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgencyMerge, failedChecks: ['amount_within_max'], decidedAt: 21_480, executedAt: 21_480 }),
+    refund({ n: '10', at: 34_560, status: 'rejected', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgencyBudget, failedChecks: ['amount_within_max'], decidedAt: 34_300 }),
+    refund({ n: '11', at: 57_600, status: 'executed', origin: 'approval', cents: 7900, reason: c.ledgerReasonAgencyReports, failedChecks: ['amount_within_max'], decidedAt: 57_420, executedAt: 57_420 }),
   ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) satisfies LedgerRow[];
 }
 
@@ -108,7 +119,9 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
  *     새 인사이트가 생기지 않으니 묶음 demo-group-1 의 「인사이트 3 · 대화 3」은 그대로다 → bug → PR #128
  *   - Pro 1건(conv-7, 기대한 기능이 없음) → 새 feature_request 인사이트(묶이지 않음) → 기능 요청
  *   - Agency 1건(conv-6, 팀이 줄었음) → 새 cs 인사이트 → 기타
- *   - Pro 1건(실패, 대화 없음, 실수로 두 번 결제) → 대화가 없으니 분류할 인사이트도 없다 → 미분류
+ *   - 지난 Agency 2건(conv-8·9, 고객사 프로젝트 취소·플랜 잘못 고름) → 각자 새 cs 인사이트 → 기타
+ *   - Pro 1건(실패, 대화 없음, 실수로 두 번 결제) + 지난 Agency 3건(대화 없음) → 분류할 인사이트가 없다 → 미분류
+ *   사유마다 1건이라 쿠폰 버그(3건)가 1위이고, 지난 Agency 건은 오래돼서 상위 3개에 들지 않는다.
  */
 function demoRefundReasons(c: DemoCopy, ledger: LedgerRow[]): RefundReasons {
   const refunds: RefundSource[] = ledger
@@ -142,6 +155,8 @@ function demoRefundReasons(c: DemoCopy, ledger: LedgerRow[]): RefundReasons {
       couponReport('demo-ins-1', 'demo-msg-1', 'demo-conv-1', 52),
       insight({ id: 'demo-ins-refund-env', message_id: turnIn(DEMO_PRO_CONV), category: 'feature_request', summary: c.envSummary, created_at: after(refundAt(DEMO_PRO_CONV), 20) }),
       insight({ id: 'demo-ins-refund-team', message_id: turnIn(DEMO_PAYMENT_CONV), category: 'cs', summary: c.refundReasonTeam, created_at: after(refundAt(DEMO_PAYMENT_CONV), 20) }),
+      insight({ id: 'demo-ins-refund-client', message_id: turnIn(DEMO_AGENCY_CONV_A), category: 'cs', summary: c.refundReasonClient, created_at: after(refundAt(DEMO_AGENCY_CONV_A), 20) }),
+      insight({ id: 'demo-ins-refund-wrong-plan', message_id: turnIn(DEMO_AGENCY_CONV_B), category: 'cs', summary: c.refundReasonWrongPlan, created_at: after(refundAt(DEMO_AGENCY_CONV_B), 20) }),
     ],
     runs: [{ insight_id: null, group_id: 'demo-group-1', status: 'completed', pr_url: DEMO_PR_128, closed_at: null, created_at: minutesAgo(22) }],
     groups: [{ id: 'demo-group-1', title: c.groupTitle }],
@@ -174,24 +189,27 @@ function demoApprovalCard(row: LedgerActionRow): PaymentActionView {
 }
 
 /**
- * 승인 카드의 「같은 검사에서 멈춘 과거 요청」 — 장부의 실제 환불 행으로 만든다(손으로 쓴 숫자가 아니다).
- * 5건 중 4건을 승인했고 1건(실패한 Pro)은 거절됐다. 근거 링크는 데모 받은편지함의 같은 대화들이다.
+ * 승인 카드의 「지난 결정」 — 실제 계산 함수(`computePrecedent`)에 장부의 환불 행을 넣은 결과다(손으로 쓴 숫자가 아니다).
+ * 장부 행을 inbox 라우트가 읽는 payment_actions 모양으로 바꾼다: 실패한 검사만 false, 나머지는 true.
+ * 같은 금액대·같은 검사(자동 한도 초과)에서 멈춘 지난 Agency $79 환불 5건 → 「you approved 4 of 5」, 근거는 대화가 남은 2건.
  */
-function demoPrecedent(ledger: LedgerRow[]): PaymentPrecedent {
-  const evidence = ledger
-    .filter((r): r is LedgerActionRow => r.type === 'refund' && r.status === 'executed' && r.conversationId !== null)
-    .slice(0, 3)
-    .map((r) => ({
-      actionId: r.id,
-      conversationId: r.conversationId!,
-      href: ledgerConversationHref(r.conversationId!),
+function demoPrecedent(pending: LedgerActionRow, ledger: LedgerRow[]): PaymentPrecedent | null {
+  const toRow = (r: LedgerActionRow): PrecedentRow => {
+    const failed = new Set(r.detail.failedChecks);
+    return {
+      id: r.id,
+      conversation_id: r.conversationId,
+      kind: r.type === 'refund' ? 'refund' : 'accept_dispute',
+      origin: r.origin,
       status: r.status,
-      amount: r.amountCents !== null && r.currency ? formatMoney(r.amountCents, r.currency) : null,
-      at: r.at,
-      sample: false,
-    }));
-  // Evidence rows are the demo's auto refunds, so the line uses the amount basis (not "stopped by the same check").
-  return { basis: 'amount', total: 5, refunded: 4, rejected: 1, auto: evidence.length, evidence };
+      amount_cents: r.amountCents,
+      currency: r.currency,
+      guardrail: Object.fromEntries(Object.keys(CHECK_LABELS).map((key) => [key, !failed.has(key)])),
+      target_id: r.detail.targetId,
+      created_at: r.at,
+    };
+  };
+  return computePrecedent(toRow(pending), ledger.filter((r): r is LedgerActionRow => r.type !== 'purchase').map(toRow));
 }
 
 /** 언어마다 문구가 다른 연습용 데이터(`mock-copy.en.ts` · `mock-copy.ko.ts`). 구조·숫자·시각은 같다. */
@@ -200,6 +218,7 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
   const ledger = demoLedger(c);
   const paymentConvRows = ledger.filter((r) => r.conversationId === DEMO_PAYMENT_CONV);
   const pendingRefund = paymentConvRows.find((r): r is LedgerActionRow => r.type === 'refund' && r.status === 'pending');
+  const pendingPrecedent = pendingRefund ? demoPrecedent(pendingRefund, ledger) : null;
   // 「화면에서 선택하기」 예시(I-55) — 데모 사이트 경복궁 페이지에서 「쿠폰 받기」를 짚는 순간 찍은 화면(1280×800).
   // 정적 자산이라 서명 URL 이 아니다. 좌표는 그 화면에서 실측한 값이다. 언어마다 찍은 화면이 달라
   // (영어판 `/en/spots/...` 는 버튼 글자가 길다) 화면 파일·주소·좌표를 같이 바꾼다.
@@ -243,8 +262,8 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
       stats: { collected: 47, classified: 41, prCreated: 6, returned: 4, loopTime: { state: 'ok', sampleSize: 4, averageMs: 207_360_000 }, confirmation: { state: 'ok', fixed: 2, notFixed: 1, delivered: 4 }, githubReadyBotIds: ['demo-bot-1'] },
       // PayPal 줄(`/api/dashboard` 의 `payments` 와 같은 모양). 데모 봇은 공용 키로 연결된 봇이라 connected,
       // 연결할 내 봇이 없으니 connectBotId 는 null.
-      // `refundReasons` 는 장부의 환불 6건을 실제 집계 함수로 나눈 결과다(`demoRefundReasons` 주석) —
-      // 버그 3(→ PR #128, 24시간 3건이라 급증) · 기능 요청 1 · 기타 1 · 미분류 1.
+      // `refundReasons` 는 장부의 환불 11건을 실제 집계 함수로 나눈 결과다(`demoRefundReasons` 주석) —
+      // 버그 3(→ PR #128, 24시간 3건이라 급증) · 기능 요청 1 · 기타 3 · 미분류 4.
       payments: {
         connected: true,
         connectBotId: null,
@@ -254,8 +273,9 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
         refundReasons: demoRefundReasons(c, ledger),
       } satisfies DashboardPayments,
       // 장부 예시 행(`/api/payments/ledger` 의 rows 와 같은 모양). 위 숫자와 맞춘다 — 자동 환불 3건 $9+$9+$29 = $47,
-      // 승인 대기 1건(Agency $79, 자동 한도 초과). 실패 1건, 구매 3건. 실패한 Pro 환불만 대화가 없어 「—」이고,
-      // 나머지는 데모 받은편지함 대화(conv-4·5·6·7)로 이어진다. 버튼은 데모라 꺼진다.
+      // 승인 대기 1건(Agency $79, 자동 한도 초과). 실패 1건, 구매 3건, 그리고 3~40일 전 승인으로 처리된 지난 Agency 환불 5건
+      // (승인 4 · 거절 1, 승인 카드 「지난 결정」의 재료). 실패한 Pro 환불과 지난 Agency 3건은 대화가 없어 「—」이고,
+      // 나머지는 데모 받은편지함 대화(conv-1·4·5·6·7·8·9)로 이어진다. 버튼은 데모라 꺼진다.
       ledger,
       feedbacks: [
         {
@@ -482,6 +502,27 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
           lastMessageBody: c.payRefundDonePro,
           unread: false,
         },
+        // 지난 Agency 환불 두 건의 대화 — 자동 한도를 넘어 승인 대기였다가 주인이 승인해 환불됐다(사흘·여드레 전).
+        {
+          id: DEMO_AGENCY_CONV_A,
+          source: 'web',
+          externalUserId: 'a8c3e715-0000-4000-8000-000000000008',
+          contactName: null,
+          contactEmail: null,
+          lastMessageAt: minutesAgo(4_230),
+          lastMessageBody: c.payRefundDoneAgency,
+          unread: false,
+        },
+        {
+          id: DEMO_AGENCY_CONV_B,
+          source: 'web',
+          externalUserId: 'b9d4f826-0000-4000-8000-000000000009',
+          contactName: null,
+          contactEmail: null,
+          lastMessageAt: minutesAgo(11_250),
+          lastMessageBody: c.payRefundDoneAgency,
+          unread: false,
+        },
       ],
       contexts: { 'demo-conv-4': { 'd4-1': DEMO_PICK_CONTEXT } },
       shots: { 'demo-conv-4': { 'd4-1': DEMO_PICK_SHOT } },
@@ -522,13 +563,23 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
           { id: 'd7-3', kind: 'user', body: c.ledgerReasonEnv, at: minutesAgo(190) },
           { id: 'd7-4', kind: 'payment', body: c.payRefundDonePro, at: minutesAgo(190) },
         ],
+        [DEMO_AGENCY_CONV_A]: [
+          { id: 'd8-1', kind: 'user', body: c.ledgerReasonAgencyClient, at: minutesAgo(4_320) },
+          { id: 'd8-2', kind: 'payment', body: c.payRefundPending, at: minutesAgo(4_320) },
+          { id: 'd8-3', kind: 'payment', body: c.payRefundDoneAgency, at: minutesAgo(4_230) },
+        ],
+        [DEMO_AGENCY_CONV_B]: [
+          { id: 'd9-1', kind: 'user', body: c.ledgerReasonAgencyWrongPlan, at: minutesAgo(11_520) },
+          { id: 'd9-2', kind: 'payment', body: c.payRefundPending, at: minutesAgo(11_520) },
+          { id: 'd9-3', kind: 'payment', body: c.payRefundDoneAgency, at: minutesAgo(11_250) },
+        ],
       },
       // 결제 대화의 승인 카드와 결제 내역 — 대시보드 장부와 같은 행이다. 장부 행이 이어진 대화마다 그 대화의 행만 싣는다.
       payments: Object.fromEntries(
         [...new Set(ledger.map((r) => r.conversationId).filter((id): id is string => id !== null))].map((id) => [
           id,
           id === DEMO_PAYMENT_CONV
-            ? { actions: pendingRefund ? [demoApprovalCard(pendingRefund)] : [], rows: paymentConvRows, precedents: pendingRefund ? { [pendingRefund.id]: demoPrecedent(ledger) } : {} }
+            ? { actions: pendingRefund ? [demoApprovalCard(pendingRefund)] : [], rows: paymentConvRows, precedents: pendingRefund && pendingPrecedent ? { [pendingRefund.id]: pendingPrecedent } : {} }
             : { actions: [], rows: ledger.filter((r) => r.conversationId === id) },
         ]),
       ),

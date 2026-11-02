@@ -82,6 +82,17 @@ export const copy = {
   sayBuyAgency: 'Agency 플랜을 구매하고 싶어요',
   payCheckoutAgency: 'PayPal로 결제 — $79 · Agency',
   payRefundPending: '$79 환불 요청이 상점의 승인을 기다리고 있어요. 결과는 여기에서 알려 드릴게요.',
+  // 승인 카드 「지난 결정」의 근거 — 같은 검사(자동 한도 초과)에서 멈췄던 지난 Agency $79 환불 5건의 사유. 새 것부터
+  ledgerReasonAgencyClient: '맡고 있던 고객사 프로젝트가 취소돼서 이번 달은 Agency 좌석을 쓸 일이 없어요. 환불 부탁드려요',
+  ledgerReasonAgencyWrongPlan: 'Pro 로 올리려다가 실수로 Agency 를 결제했어요. 환불해 주실 수 있나요?',
+  ledgerReasonAgencyMerge: '팀 전체가 다른 도구 하나로 옮기게 돼서 이 플랜은 그만 쓰려고 해요',
+  ledgerReasonAgencyBudget: '한 달 거의 다 쓰긴 했는데 예산이 깎였어요. 돌려받을 수 있을까요?',
+  ledgerReasonAgencyReports: 'Agency 의 고객 보고서 기능까지는 지금 필요 없더라고요',
+  // 위 사유 중 대화가 남은 두 건(demo-conv-8·9)이 분류된 인사이트
+  refundReasonClient: '고객사 프로젝트 취소로 Agency 좌석이 필요 없어짐',
+  refundReasonWrongPlan: 'Pro 대신 Agency 를 실수로 결제함',
+  payRefundDoneAgency: '$79 환불이 끝났어요. 카드 명세서에 보이기까지 며칠 걸릴 수 있어요.',
 };
+
 
 export type DemoCopy = typeof copy;

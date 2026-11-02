@@ -25,6 +25,8 @@ export interface PaymentPrecedent {
   rejected: number;
   /** Refunded ones that ran without a person (origin auto). */
   auto: number;
+  /** Counted rows that are seeded sample history (SAMPLE- capture), not real decisions. */
+  sample: number;
   evidence: {
     actionId: string;
     conversationId: string;
@@ -41,8 +43,9 @@ export function amountBand(cents: number): number {
   return i === -1 ? PRECEDENT_BAND_EDGES.length : i;
 }
 
+/** A check failed only when the RPC recorded `false`; null/missing means it was not evaluated. */
 function failedKeys(row: Pick<PrecedentRow, 'guardrail'>): string[] {
-  return Object.entries(row.guardrail ?? {}).filter(([, v]) => v !== true).map(([k]) => k);
+  return Object.entries(row.guardrail ?? {}).filter(([, v]) => v === false).map(([k]) => k);
 }
 
 export function computePrecedent(current: PrecedentRow, candidates: PrecedentRow[]): PaymentPrecedent | null {
@@ -74,6 +77,7 @@ export function computePrecedent(current: PrecedentRow, candidates: PrecedentRow
     refunded: executed.length,
     rejected: used.length - executed.length,
     auto: executed.filter((c) => c.origin === 'auto').length,
+    sample: used.filter((c) => isSampleRef(c.target_id)).length,
     evidence: used
       .filter((c): c is PrecedentRow & { conversation_id: string } => c.conversation_id !== null)
       .slice(0, PRECEDENT_EVIDENCE_MAX)

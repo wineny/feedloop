@@ -113,7 +113,8 @@
       "amount": "Similar amounts: {refunded} of {total} refunded",
       "auto": "{auto} of them automatically",
       "evidence": "See past decisions",
-      "sample": "Sample"
+      "sample": "Sample",
+      "sampleCount": "· {sample} from sample data"
     },
     "sample": "Sample"
   },

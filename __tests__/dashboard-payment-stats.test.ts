@@ -252,11 +252,12 @@ describe('RefundReasons card — under the PayPal numbers', () => {
   });
 
   for (const locale of ['en', 'ko'] as const) {
-    it(`${locale} sample data: the ledger's 6 refunds → bug → PR #128 (a spike), a feature request, an «other», one unclassified`, () => {
+    it(`${locale} sample data: the ledger's 11 refunds → bug → PR #128 (a spike, still #1), a feature request, three «other», four unclassified`, () => {
       const dashboard = getDemoData(locale).dashboard as { payments: DashboardPayments; ledger: { type: string }[] };
       const reasons = dashboard.payments.refundReasons!;
       expect(reasons.total).toBe(dashboard.ledger.filter((r) => r.type === 'refund').length);
-      expect(reasons.buckets).toEqual({ fix: 3, feature: 1, other: 1, unclassified: 1 });
+      expect(reasons.total).toBe(11);
+      expect(reasons.buckets).toEqual({ fix: 3, feature: 1, other: 3, unclassified: 4 });
       expect(reasons.top.map((i) => [i.key, i.count, i.bucket, i.href, i.external])).toEqual([
         ['group:demo-group-1', 3, 'fix', 'https://github.com/example/demo/pull/128', true],
         ['insight:demo-ins-refund-team', 1, 'other', '/inbox?c=demo-conv-6', false],

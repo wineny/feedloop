@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { computePrecedent, PRECEDENT_MAX, type PrecedentRow } from '@/lib/paypal/precedent';
+import { amountBand, computePrecedent, PRECEDENT_MAX, type PrecedentRow } from '@/lib/paypal/precedent';
+import { getDemoData } from '@/lib/demo/mock-data';
+import type { LedgerActionRow, LedgerRow } from '@/lib/paypal/ledger';
+import type { PaymentPrecedent } from '@/lib/paypal/precedent';
 
 let n = 0;
 const row = (o: Partial<PrecedentRow> = {}): PrecedentRow => {
@@ -70,4 +73,49 @@ describe('computePrecedent', () => {
     expect(ev[0].href).toBe(`/inbox?c=${withNull[2].conversation_id}`);
     expect(ev[0].amount).toBe('$25');
   });
+
+  it('a check counts as failed only when it is false — null (not evaluated) is not a failure', () => {
+    const cur = current({ guardrail: { amount_within_max: false, no_dispute: null as unknown as boolean } });
+    const nullOnly = row({ guardrail: { no_dispute: null as unknown as boolean } });
+    // the candidate's null does not match the current's null, so there is no shared failed check → amount basis
+    expect(computePrecedent(cur, [nullOnly])).toMatchObject({ basis: 'amount', total: 1 });
+    // a current row whose only non-true value is null has no failed check at all → amount basis
+    const shared = row({ guardrail: { amount_within_max: false } });
+    expect(computePrecedent(current({ guardrail: { amount_within_max: null as unknown as boolean } }), [shared])).toMatchObject({ basis: 'amount' });
+    expect(computePrecedent(cur, [shared, nullOnly])).toMatchObject({ basis: 'check', total: 1 });
+  });
+
+  it('counts sample rows among the used candidates (not only the evidence)', () => {
+    const rows = [row(), row({ target_id: 'SAMPLE-CAP-0001' }), row({ target_id: 'SAMPLE-CAP-0002', conversation_id: null }), row({ conversation_id: null })];
+    expect(computePrecedent(current(), rows)).toMatchObject({ total: 4, sample: 2 });
+    expect(computePrecedent(current(), [row()])).toMatchObject({ sample: 0 });
+    // a sample row outside the used set (other band) is not counted
+    expect(computePrecedent(current(), [row(), row({ target_id: 'SAMPLE-CAP-0003', amount_cents: 900 })])).toMatchObject({ total: 1, sample: 0 });
+  });
+});
+
+describe('demo precedent (?demo=1 inbox)', () => {
+  for (const locale of ['en', 'ko'] as const) {
+    it(`${locale}: computed from the ledger — same check, you approved 4 of 5, evidence in the pending row's amount band with real conversations`, () => {
+      const data = getDemoData(locale);
+      const ledger = (data.dashboard as { ledger: LedgerRow[] }).ledger;
+      const inbox = data.inbox as {
+        conversations: { id: string }[];
+        timelines: Record<string, unknown[]>;
+        payments: Record<string, { precedents?: Record<string, PaymentPrecedent> }>;
+      };
+      const pending = ledger.find((r): r is LedgerActionRow => r.type === 'refund' && r.status === 'pending')!;
+      const precedent = inbox.payments[pending.conversationId!].precedents![pending.id];
+      expect(precedent).toMatchObject({ basis: 'check', total: 5, refunded: 4, rejected: 1, auto: 0, sample: 0 });
+      expect(precedent.evidence.length).toBeGreaterThan(0);
+      for (const e of precedent.evidence) {
+        const source = ledger.find((r) => r.id === e.actionId)!;
+        expect(source.amountCents).not.toBeNull();
+        expect(amountBand(source.amountCents!)).toBe(amountBand(pending.amountCents!));
+        expect(Date.parse(source.at)).toBeLessThan(Date.parse(pending.at));
+        expect(inbox.conversations.some((c) => c.id === e.conversationId)).toBe(true);
+        expect(inbox.timelines[e.conversationId]?.length).toBeGreaterThan(0);
+      }
+    });
+  }
 });

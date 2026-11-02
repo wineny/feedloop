@@ -83,4 +83,15 @@ export const copy: DemoCopy = {
   sayBuyAgency: "I'd like to buy the Agency plan.",
   payCheckoutAgency: 'Pay with PayPal — $79 · Agency',
   payRefundPending: "Your refund request for $79 is waiting for the store's approval. You'll see the result here.",
+  // Approval card precedent — reasons of the five earlier $79 Agency refunds stopped by the same check (over the auto limit). Newest first
+  ledgerReasonAgencyClient: "Our client project got cancelled, so we won't use the Agency seats this month. Could I get a refund?",
+  ledgerReasonAgencyWrongPlan: 'I meant to upgrade to Pro but picked Agency by mistake. Can you refund it?',
+  ledgerReasonAgencyMerge: "We're moving the whole team to a single tool, so we're dropping this plan.",
+  ledgerReasonAgencyBudget: 'We used most of the month, but our budget just got cut. Can I get the money back?',
+  ledgerReasonAgencyReports: "Turns out we don't need the Agency client reports right now.",
+  // The insights the two of them that still have a conversation (demo-conv-8, demo-conv-9) became
+  refundReasonClient: 'Client project cancelled — Agency seats not needed',
+  refundReasonWrongPlan: 'Bought Agency by mistake instead of Pro',
+  payRefundDoneAgency: 'Your $79 refund is done. It can take a few days to show on your statement.',
 };
+
