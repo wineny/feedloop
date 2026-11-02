@@ -11,3 +11,11 @@ export function isSampleRef(id: string | null | undefined): boolean {
 export function isSampleVisitor(externalUserId: string | null | undefined): boolean {
   return typeof externalUserId === 'string' && externalUserId.startsWith(SAMPLE_VISITOR_PREFIX);
 }
+
+/**
+ * A seeded sample conversation: the seed only writes web conversations with a `sample-` visitor id. Other
+ * sources (channel, telegram, kakao) carry platform ids we do not control, so the prefix alone is not enough.
+ */
+export function isSampleConversation(c: { source?: string | null; external_user_id?: string | null }): boolean {
+  return c.source === 'web' && isSampleVisitor(c.external_user_id);
+}

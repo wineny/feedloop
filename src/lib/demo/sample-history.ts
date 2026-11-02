@@ -6,7 +6,8 @@
 //   conversations (web, `sample-visitor-NN`) → messages (2 visitor turns each) → 3 insight groups → insights →
 //   payment_actions (refunds) → payment_announcements.
 //   Groups cover every triage verdict: coupon bug → fix, CSV export → needs_decision, price → wont_fix.
-//   The coupon group has 4 requests in the last 24 h and none in the 7 days before → the dashboard Spike badge.
+//   The coupon group has 4 requests 1–4 h before seeding and none in the 7 days before → the dashboard Spike
+//   badge, which stays for ~21 h (until only 2 of them are inside the last 24 h).
 //   Dashboard numbers (refund reasons, auto refunds in 7 days) INCLUDE these rows; the ledger badges them
 //   «Sample»; `--remove` deletes them again.
 //
@@ -215,7 +216,8 @@ interface Story {
 const d = (days: number) => days * 24;
 
 const STORIES: Story[] = [
-  // Coupon bug — 4 before the last week, 4 in the last 24 h (the spike; all rejected, see rule 4).
+  // Coupon bug — 4 before the last week, 4 in the 1–4 h before seeding (the spike; all rejected, see rule 4).
+  // The Spike needs 3 of them inside the last 24 h, so it shows for ~21 h after seeding.
   { ago: d(50), product: 'starter', outcome: 'auto', group: 'coupon', name: 'Maya Chen',
     say: ['Hi, I tried WELCOME10 at checkout and it said "applied", but PayPal still charged me $9.00.', "Can I just get a refund? I'll buy again once the coupon works."],
     reason: 'Coupon WELCOME10 showed as applied but I was charged full price', summary: 'Coupon shows as applied, PayPal charges full price' },
@@ -228,16 +230,16 @@ const STORIES: Story[] = [
   { ago: d(23), product: 'pro', outcome: 'approved', group: 'coupon', name: 'Tom Becker',
     say: ['Checkout ignored my coupon code (SPRING15). The full $29 was charged.', 'Please refund this order so I can pay the right amount.'],
     reason: 'Checkout ignored coupon SPRING15', summary: 'Checkout ignores a valid coupon code' },
-  { ago: 15, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Sofia Rossi',
+  { ago: 4, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Sofia Rossi',
     say: ["Your LAUNCH20 coupon didn't apply on the Agency plan. I paid the full $79.", 'I want a full refund.'],
     reason: "LAUNCH20 didn't apply on Agency, paid full $79", summary: 'Coupon not applied on the Agency plan' },
-  { ago: 9, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Kenji Watanabe',
+  { ago: 3, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Kenji Watanabe',
     say: ['The coupon code is not working at checkout. It says applied, then PayPal shows the full price.', 'Please refund the whole $79.'],
     reason: 'Coupon says applied, PayPal shows full price', summary: 'Coupon shows as applied, PayPal charges full price' },
-  { ago: 5, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Hannah Moore',
+  { ago: 2, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Hannah Moore',
     say: ["Hi, the discount code from your newsletter wasn't applied when I paid.", "I'd like my money back."],
     reason: "Newsletter discount code wasn't applied", summary: 'Newsletter discount code not applied at checkout' },
-  { ago: 2, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Lucas Martin',
+  { ago: 1, product: 'agency', outcome: 'rejected', group: 'coupon', name: 'Lucas Martin',
     say: ['Is checkout broken for coupons? I entered LAUNCH20 and still paid $79.', 'Refund me please. This is the second time it happened.'],
     reason: 'Entered LAUNCH20, still paid $79', summary: 'Coupon code ignored at checkout, second time' },
 

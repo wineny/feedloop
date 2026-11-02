@@ -394,7 +394,7 @@ export function InsightGroups({ groups, demo = false, onChanged, grouping = null
                     <p className="min-w-0 text-base font-semibold leading-snug tracking-[-0.01em]">{g.title}</p>
                   </div>
                   {g.triage && g.triageReason && (
-                    <p className="truncate text-[12.5px] leading-[1.45] text-muted-foreground" title={g.triageReason}>
+                    <p className="line-clamp-2 break-words text-[12.5px] leading-[1.45] text-muted-foreground" title={g.triageReason}>
                       {t('triage.label')}: {g.triageReason}
                     </p>
                   )}

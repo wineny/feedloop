@@ -312,12 +312,30 @@ describe('spike badge', () => {
     // 1 ms inside the window counts
     expect(top([...same('a', 3, MIN), ...same('b', 14, 8 * DAY - 1)]).spike).toBe(false);
   });
-  it('only top items carry a spike', () => {
-    const refunds = ['a', 'b', 'c', 'd'].flatMap((r, i) =>
-      Array.from({ length: 10 - i }, (_, j) => refund({ id: `${r}${j}`, reason: `reason ${r}`, created_at: new Date(now - MIN).toISOString() })),
-    );
+  /** n refunds with reason `r`, `ageMs` before now. */
+  const many = (r: string, n: number, ageMs: number) =>
+    Array.from({ length: n }, (_, j) => refund({ id: `${r}-${ageMs}-${j}`, reason: `reason ${r}`, created_at: new Date(now - ageMs).toISOString() }));
+
+  it('a spiking reason outside the top 3 is appended after them', () => {
+    // a/b/c: many old refunds, none recent. d: only 3, all in the last hour → spike, but 4th by count.
+    const refunds = [...many('a', 10, 30 * DAY), ...many('b', 9, 30 * DAY), ...many('c', 8, 30 * DAY), ...many('d', 3, MIN)];
     const result = aggregate({ refunds }, now);
-    expect(result.top).toHaveLength(3);
+    expect(result.top.map((i) => [i.label, i.count, i.spike])).toEqual([
+      ['reason a', 10, false],
+      ['reason b', 9, false],
+      ['reason c', 8, false],
+      ['reason d', 3, true],
+    ]);
+  });
+  it('a non-spiking reason outside the top 3 stays out', () => {
+    const refunds = [...many('a', 10, 30 * DAY), ...many('b', 9, 30 * DAY), ...many('c', 8, 30 * DAY), ...many('d', 2, MIN)];
+    const result = aggregate({ refunds }, now);
+    expect(result.top.map((i) => i.label)).toEqual(['reason a', 'reason b', 'reason c']);
+  });
+  it('spiking reasons inside the top 3 are not duplicated; the top may exceed 3 only by spiking reasons', () => {
+    const refunds = ['a', 'b', 'c', 'd', 'e'].flatMap((r, i) => many(r, 10 - i, MIN));
+    const result = aggregate({ refunds }, now);
+    expect(result.top.map((i) => i.label)).toEqual(['reason a', 'reason b', 'reason c', 'reason d', 'reason e']);
     expect(result.top.every((i) => i.spike)).toBe(true);
   });
 });

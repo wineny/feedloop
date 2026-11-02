@@ -10,7 +10,7 @@ import { catchUpAutoGrouping, readGroupingStatus } from '@/lib/groups/auto-group
 import { groupPriority, compareGroupPriority, type GroupPriority } from '@/lib/groups/priority';
 import type { GroupingStatus } from '@/lib/groups/grouping-status';
 import { apiText } from '@/lib/http/api-text';
-import { isSampleVisitor } from '@/lib/demo/sample-marker';
+import { isSampleConversation } from '@/lib/demo/sample-marker';
 import { TRIAGE_VALUES, type Triage } from '@/lib/groups/triage';
 
 // 응답은 짧지만 after() 의 밀린 자동 묶기(catch-up)가 최대 100초 돈다.
@@ -128,11 +128,11 @@ export async function GET(req: NextRequest) {
     if (allConvIds.length > 0) {
       const { data: convs } = await db
         .from('conversations')
-        .select('id, channel_person_id, external_user_id')
+        .select('id, channel_person_id, source, external_user_id')
         .in('id', allConvIds);
       for (const c of convs ?? []) {
         personKey.set(c.id as string, (c.channel_person_id as string | null) ?? (c.id as string));
-        if (isSampleVisitor(c.external_user_id as string | null | undefined)) sampleConv.add(c.id as string);
+        if (isSampleConversation(c as { source?: string | null; external_user_id?: string | null })) sampleConv.add(c.id as string);
       }
     }
 

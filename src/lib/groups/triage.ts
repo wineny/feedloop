@@ -21,6 +21,8 @@ export function normalizeTriage(raw: unknown, reason?: unknown): { triage: Triag
 /**
  * Writes the verdicts after a successful commit. `receipt.groups[i]` pairs with `valid[i]`
  * (pipeline_commit_groups appends receipts in input order); if the lengths differ, nothing is written.
+ * Only a group with no verdict yet is written (`triage IS NULL`): a new group gets one, but feedback joining an
+ * existing group never overwrites the verdict that group already has.
  * Best effort: a failed update never throws, grouping already succeeded.
  */
 export async function applyGroupTriage(
@@ -38,7 +40,8 @@ export async function applyGroupTriage(
         .from('insight_groups')
         .update({ triage, triage_reason: triage_reason ?? null })
         .eq('id', receiptGroups[i].id)
-        .eq('bot_id', botId);
+        .eq('bot_id', botId)
+        .is('triage', null);
       if (error) console.warn('[grouping] triage update failed:', error.message);
     } catch (err) {
       console.warn('[grouping] triage update failed:', err instanceof Error ? err.message : err);

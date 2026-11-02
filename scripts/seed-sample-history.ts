@@ -13,7 +13,8 @@
 // verifications / webhook events / auto-dev runs / responses, messages already classified, insights already
 // grouped and groups already scored.
 //
-// Run it within 24 h of recording: the coupon «Spike» is relative to the moment of seeding.
+// Seed it, then record within ~20 h: the coupon «Spike» rows are 1–4 h before the moment of seeding and the
+// badge needs 3 of them inside the last 24 h.
 // Dashboard numbers include these rows (badged «Sample» in the ledger). `--remove --yes` takes them out again;
 // `npm run db:reset-demo -- --yes` also deletes them (they are demo-bot rows like any other).
 //
@@ -117,11 +118,11 @@ async function seed(db: SupabaseClient, bot: DemoBot): Promise<void> {
 
 /**
  * Deletes only sample rows, all scoped to the demo bot: refunds with a SAMPLE- capture (announcements cascade),
- * then sample conversations (messages → insights → insight_message_sources cascade), then the groups those
+ * then sample conversations (web, `sample-` visitor; messages → insights → insight_message_sources cascade), then the groups those
  * insights were in — only if no insight is left in them (real feedback may have joined a sample group).
  */
 async function removeSample(db: SupabaseClient, bot: DemoBot, apply: boolean, knownGroupIds: string[] = []): Promise<void> {
-  const convRes = await db.from('conversations').select('id').eq('bot_id', bot.id).like('external_user_id', SAMPLE_VISITOR_LIKE).limit(1000);
+  const convRes = await db.from('conversations').select('id').eq('bot_id', bot.id).eq('source', 'web').like('external_user_id', SAMPLE_VISITOR_LIKE).limit(1000);
   if (convRes.error) throw new Error(`sample conversations lookup failed: ${convRes.error.message}`);
   const convIds = (convRes.data ?? []).map((r) => r.id as string);
   // knownGroupIds: a failed seed's own groups — its insights may not have been written yet.
@@ -140,7 +141,7 @@ async function removeSample(db: SupabaseClient, bot: DemoBot, apply: boolean, kn
   const actions = await count(db, 'payment_actions', bot.id, 'target_id', SAMPLE_TARGET_LIKE);
   console.log(`${apply ? 'Deleting' : 'Would delete'} (demo bot ${bot.id}):`);
   console.log(`  ${pad('payment_actions')}${String(actions).padStart(4)}  target_id LIKE '${SAMPLE_TARGET_LIKE}' (+ announcements)`);
-  console.log(`  ${pad('conversations')}${String(convIds.length).padStart(4)}  external_user_id LIKE '${SAMPLE_VISITOR_LIKE}' (+ messages, insights)`);
+  console.log(`  ${pad('conversations')}${String(convIds.length).padStart(4)}  source 'web', external_user_id LIKE '${SAMPLE_VISITOR_LIKE}' (+ messages, insights)`);
   console.log(`  ${pad('insight_groups')}${String(groupIds.length).padStart(4)}  the sample insights' groups, if left empty`);
   if (!apply) {
     console.log('Dry run — nothing was deleted. Re-run with --remove --yes to delete.');
@@ -149,7 +150,7 @@ async function removeSample(db: SupabaseClient, bot: DemoBot, apply: boolean, kn
 
   const del1 = await db.from('payment_actions').delete({ count: 'exact' }).eq('bot_id', bot.id).like('target_id', SAMPLE_TARGET_LIKE);
   if (del1.error) throw new Error(`delete payment_actions failed: ${del1.error.message}`);
-  const del2 = await db.from('conversations').delete({ count: 'exact' }).eq('bot_id', bot.id).like('external_user_id', SAMPLE_VISITOR_LIKE);
+  const del2 = await db.from('conversations').delete({ count: 'exact' }).eq('bot_id', bot.id).eq('source', 'web').like('external_user_id', SAMPLE_VISITOR_LIKE);
   if (del2.error) throw new Error(`delete conversations failed: ${del2.error.message}`);
   let groupsDeleted = 0;
   for (const id of groupIds) {

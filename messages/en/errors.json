@@ -30,6 +30,7 @@
     "groupClosed": "This group is closed",
     "feedbackGroupNotFound": "Feedback group not found",
     "notGroupedYet": "This feedback is not grouped yet. Once it is grouped automatically, create the fix PR from “Feedback groups” on the dashboard.",
+    "sampleGroupNoPr": "This group holds only sample history (demo data), so no fix PR is made for it.",
     "repoUrlMissing": "github_repo_url is not set. Enter the GitHub repository URL in the bot settings.",
     "runCreateFailed": "Couldn't create the run",
     "evidenceReadFailed": "Couldn't read follow-up checks and evidence",

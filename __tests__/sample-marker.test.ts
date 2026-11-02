@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSampleRef, isSampleVisitor } from '../src/lib/demo/sample-marker';
+import { isSampleConversation, isSampleRef, isSampleVisitor } from '../src/lib/demo/sample-marker';
 
 describe('sample-marker', () => {
   it('isSampleRef matches only the SAMPLE- prefix', () => {
@@ -17,5 +17,14 @@ describe('sample-marker', () => {
     expect(isSampleVisitor('SAMPLE-visitor')).toBe(false);
     expect(isSampleVisitor(null)).toBe(false);
     expect(isSampleVisitor(undefined)).toBe(false);
+  });
+
+  it('isSampleConversation needs both the web source and the sample- visitor', () => {
+    expect(isSampleConversation({ source: 'web', external_user_id: 'sample-visitor-01' })).toBe(true);
+    expect(isSampleConversation({ source: 'telegram', external_user_id: 'sample-visitor-01' })).toBe(false);
+    expect(isSampleConversation({ source: 'channel', external_user_id: 'sample-x' })).toBe(false);
+    expect(isSampleConversation({ source: 'web', external_user_id: 'visitor-abc' })).toBe(false);
+    expect(isSampleConversation({ source: null, external_user_id: 'sample-visitor-01' })).toBe(false);
+    expect(isSampleConversation({})).toBe(false);
   });
 });

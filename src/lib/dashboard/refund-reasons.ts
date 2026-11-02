@@ -27,7 +27,7 @@ export interface RefundReasonItem {
   external: boolean;
   /** Refund requests of this reason in the last 24 h (`t > now − 24 h`). */
   recent24h: number;
-  /** Spike: see `SPIKE_MIN_24H` / `SPIKE_RATIO`. Only ever true on `top` items. */
+  /** Spike: see `SPIKE_MIN_24H` / `SPIKE_RATIO`. Checked on every reason, not only the most frequent ones. */
   spike: boolean;
 }
 
@@ -35,7 +35,11 @@ export interface RefundReasons {
   /** Every refund request: every status, with or without a conversation or a reason (`refundReasons` comment). */
   total: number;
   buckets: Record<RefundBucket, number>;
-  /** Up to 3, most frequent first; ties → newer first. */
+  /**
+   * The 3 most frequent (ties → newer first), then every spiking reason outside them, in the same order — a new
+   * reason that suddenly jumps shows even when its all-time count is small. So `top` may exceed the limit by the
+   * number of spiking reasons outside it.
+   */
   top: RefundReasonItem[];
 }
 
@@ -268,15 +272,15 @@ export function refundReasons(
     });
   }
 
-  const top = [...items.values()]
+  const ranked = [...items.values()]
     .sort((a, b) => b.item.count - a.item.count || b.newestAt - a.newestAt || a.item.key.localeCompare(b.item.key))
-    .slice(0, topLimit)
     .map((a) => {
       const recent24h = a.times.filter((t) => t > now - DAY_MS).length;
       const baseline = a.times.filter((t) => t > now - 8 * DAY_MS && t <= now - DAY_MS).length;
       const spike = recent24h >= SPIKE_MIN_24H && recent24h >= SPIKE_RATIO * (baseline / 7);
       return { ...a.item, recent24h, spike };
     });
+  const top = ranked.filter((item, i) => i < topLimit || item.spike);
 
   return { total: counted.length, buckets, top };
 }

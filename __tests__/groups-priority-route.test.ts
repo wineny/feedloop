@@ -25,7 +25,7 @@ vi.mock('@/lib/supabase', () => ({ getServiceRoleClient: () => ({ from(table: st
       { group_id: 'old', messages: { conversation_id: 'c3' } },
       { group_id: 'old', messages: { conversation_id: 'c4' } },
     ],
-    conversations: [{ id: 'c1', channel_person_id: 'person' }, { id: 'c2', channel_person_id: 'person' }, { id: 'c3', channel_person_id: null, external_user_id: 'sample-visitor-01' }, { id: 'c4', channel_person_id: null, external_user_id: 'sample-visitor-02' }],
+    conversations: [{ id: 'c1', channel_person_id: 'person' }, { id: 'c2', channel_person_id: 'person' }, { id: 'c3', channel_person_id: null, source: 'web', external_user_id: 'sample-visitor-01' }, { id: 'c4', channel_person_id: null, source: 'web', external_user_id: 'sample-visitor-02' }],
     auto_dev_runs: [],
   };
   for (const row of rows.insight_groups as { id: string; status?: string }[]) {
