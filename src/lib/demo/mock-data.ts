@@ -2,9 +2,10 @@ import { groupPriority, compareGroupPriority } from '@/lib/groups/priority-score
 import { escalationNotice } from '@/lib/bot/holding';
 import type { PickedShotData } from '@/lib/widget/picked-shot';
 import type { DashboardPayments } from '@/app/api/dashboard/route';
-import type { LedgerActionRow, LedgerPurchaseRow, LedgerRow } from '@/lib/paypal/ledger';
+import { ledgerConversationHref, type LedgerActionRow, type LedgerPurchaseRow, type LedgerRow } from '@/lib/paypal/ledger';
 import { refundReasons, type RefundInsightSource, type RefundReasons, type RefundSource } from '@/lib/dashboard/refund-reasons';
 import { CHECK_LABELS, type PaymentActionView } from '@/lib/paypal/action-view';
+import type { PaymentPrecedent } from '@/lib/paypal/precedent';
 import { formatMoney } from '@/lib/paypal/money';
 import { copy as enCopy } from './mock-copy.en';
 import { copy as koCopy, type DemoCopy } from './mock-copy.ko';
@@ -93,6 +94,8 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
     // 쿠폰 버그(demo-group-1)를 제보한 두 사람이 정가로 산 Starter 를 환불받았다 — 제보(47·44분 전)와 묶음 생성(35분 전) 뒤다.
     refund({ n: '4', at: 30, status: 'executed', origin: 'auto', cents: 900, reason: c.ledgerReasonStarter, executedAt: 30, conv: 'demo-conv-4' }),
     refund({ n: '5', at: 26, status: 'executed', origin: 'auto', cents: 900, reason: c.ledgerReasonStarter, executedAt: 26, conv: 'demo-conv-5' }),
+    // 같은 쿠폰 버그로 24시간 안에 들어온 세 번째 환불 요청 — 승인 대기 중 거절됐다. 환불 사유 카드의 「급증」 표시가 이 건에서 나온다(24시간 3건).
+    refund({ n: '6', at: 20, status: 'rejected', origin: 'approval', cents: 900, reason: c.ledgerReasonStarter, failedChecks: ['customer_known'], decidedAt: 14, conv: 'demo-conv-1' }),
     purchase({ n: '5', at: 40, status: 'refunded', product: 'Starter', cents: 900, refunded: 900, refundedAt: 26, conv: 'demo-conv-5' }),
   ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) satisfies LedgerRow[];
 }
@@ -100,7 +103,8 @@ function demoLedger(c: DemoCopy): LedgerRow[] {
 /**
  * 대시보드 환불 사유 카드 예시 — 손으로 쓴 숫자가 아니라 **실제 집계 함수**(`refundReasons`)에 데모 재료를 넣은 결과다.
  * 재료는 장부의 환불 행 + 각 환불 턴(환불 직전의 방문자 메시지) + 그 턴이 분류된 인사이트 + PR #128 실행.
- *   - Starter 2건(conv-4·conv-5, 쿠폰이 안 나와 정가 결제) → 같은 대화의 쿠폰 버그 제보(demo-ins-6·7)에 `extend` 로 붙는다.
+ *   - Starter 3건(conv-4·conv-5·conv-1, 쿠폰이 안 나와 정가 결제) → 같은 대화의 쿠폰 버그 제보(demo-ins-6·7·1)에 `extend` 로 붙는다.
+ *     conv-1 의 환불은 거절(rejected)됐지만 환불 요청이라 센다 — 24시간 3건이라 이 항목에 「급증」이 붙는다.
  *     새 인사이트가 생기지 않으니 묶음 demo-group-1 의 「인사이트 3 · 대화 3」은 그대로다 → bug → PR #128
  *   - Pro 1건(conv-7, 기대한 기능이 없음) → 새 feature_request 인사이트(묶이지 않음) → 기능 요청
  *   - Agency 1건(conv-6, 팀이 줄었음) → 새 cs 인사이트 → 기타
@@ -130,10 +134,12 @@ function demoRefundReasons(c: DemoCopy, ledger: LedgerRow[]): RefundReasons {
       // 쿠폰 버그 제보 — 대시보드 피드백 목록의 demo-msg-6·7 과 같은 메시지
       { id: 'demo-msg-6', conversation_id: 'demo-conv-4', created_at: minutesAgo(47) },
       { id: 'demo-msg-7', conversation_id: 'demo-conv-5', created_at: minutesAgo(44) },
+      { id: 'demo-msg-1', conversation_id: 'demo-conv-1', created_at: minutesAgo(52) },
     ],
     insights: [
       couponReport('demo-ins-6', 'demo-msg-6', 'demo-conv-4', 47),
       couponReport('demo-ins-7', 'demo-msg-7', 'demo-conv-5', 44),
+      couponReport('demo-ins-1', 'demo-msg-1', 'demo-conv-1', 52),
       insight({ id: 'demo-ins-refund-env', message_id: turnIn(DEMO_PRO_CONV), category: 'feature_request', summary: c.envSummary, created_at: after(refundAt(DEMO_PRO_CONV), 20) }),
       insight({ id: 'demo-ins-refund-team', message_id: turnIn(DEMO_PAYMENT_CONV), category: 'cs', summary: c.refundReasonTeam, created_at: after(refundAt(DEMO_PAYMENT_CONV), 20) }),
     ],
@@ -165,6 +171,27 @@ function demoApprovalCard(row: LedgerActionRow): PaymentActionView {
     decidedAt: row.detail.decidedAt,
     decidable: row.decidable,
   };
+}
+
+/**
+ * 승인 카드의 「같은 검사에서 멈춘 과거 요청」 — 장부의 실제 환불 행으로 만든다(손으로 쓴 숫자가 아니다).
+ * 5건 중 4건을 승인했고 1건(실패한 Pro)은 거절됐다. 근거 링크는 데모 받은편지함의 같은 대화들이다.
+ */
+function demoPrecedent(ledger: LedgerRow[]): PaymentPrecedent {
+  const evidence = ledger
+    .filter((r): r is LedgerActionRow => r.type === 'refund' && r.status === 'executed' && r.conversationId !== null)
+    .slice(0, 3)
+    .map((r) => ({
+      actionId: r.id,
+      conversationId: r.conversationId!,
+      href: ledgerConversationHref(r.conversationId!),
+      status: r.status,
+      amount: r.amountCents !== null && r.currency ? formatMoney(r.amountCents, r.currency) : null,
+      at: r.at,
+      sample: false,
+    }));
+  // Evidence rows are the demo's auto refunds, so the line uses the amount basis (not "stopped by the same check").
+  return { basis: 'amount', total: 5, refunded: 4, rejected: 1, auto: evidence.length, evidence };
 }
 
 /** 언어마다 문구가 다른 연습용 데이터(`mock-copy.en.ts` · `mock-copy.ko.ts`). 구조·숫자·시각은 같다. */
@@ -216,8 +243,8 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
       stats: { collected: 47, classified: 41, prCreated: 6, returned: 4, loopTime: { state: 'ok', sampleSize: 4, averageMs: 207_360_000 }, confirmation: { state: 'ok', fixed: 2, notFixed: 1, delivered: 4 }, githubReadyBotIds: ['demo-bot-1'] },
       // PayPal 줄(`/api/dashboard` 의 `payments` 와 같은 모양). 데모 봇은 공용 키로 연결된 봇이라 connected,
       // 연결할 내 봇이 없으니 connectBotId 는 null.
-      // `refundReasons` 는 장부의 환불 5건을 실제 집계 함수로 나눈 결과다(`demoRefundReasons` 주석) —
-      // 버그 2(→ PR #128) · 기능 요청 1 · 기타 1 · 미분류 1.
+      // `refundReasons` 는 장부의 환불 6건을 실제 집계 함수로 나눈 결과다(`demoRefundReasons` 주석) —
+      // 버그 3(→ PR #128, 24시간 3건이라 급증) · 기능 요청 1 · 기타 1 · 미분류 1.
       payments: {
         connected: true,
         connectBotId: null,
@@ -326,6 +353,8 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
           conversationCount: 3,
           priority: groupPriority(3, 3, true, c.groupReason1),
           specDraft: null,
+          triage: 'fix',
+          triageReason: c.triageFixReason,
           pr: { url: 'https://github.com/example/demo/pull/128', number: 128, mergedAt: minutesAgo(10) },
         },
         {
@@ -339,6 +368,24 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
           conversationCount: 2,
           priority: groupPriority(2, 2, false, c.groupReason2),
           specDraft: null,
+          triage: 'needs_decision',
+          triageReason: c.triageDecisionReason,
+          pr: null,
+          returnedAt: null,
+        },
+        {
+          id: 'demo-group-3',
+          title: c.group3Title,
+          summary: c.group3Summary,
+          category: 'cs',
+          status: 'open',
+          createdAt: minutesAgo(18),
+          insightCount: 1,
+          conversationCount: 1,
+          priority: groupPriority(1, 1),
+          specDraft: null,
+          triage: 'wont_fix',
+          triageReason: c.triageWontFixReason,
           pr: null,
           returnedAt: null,
         },
@@ -481,7 +528,7 @@ function buildDemoData(c: DemoCopy, l: 'en' | 'ko'): Record<DemoPageKey, unknown
         [...new Set(ledger.map((r) => r.conversationId).filter((id): id is string => id !== null))].map((id) => [
           id,
           id === DEMO_PAYMENT_CONV
-            ? { actions: pendingRefund ? [demoApprovalCard(pendingRefund)] : [], rows: paymentConvRows }
+            ? { actions: pendingRefund ? [demoApprovalCard(pendingRefund)] : [], rows: paymentConvRows, precedents: pendingRefund ? { [pendingRefund.id]: demoPrecedent(ledger) } : {} }
             : { actions: [], rows: ledger.filter((r) => r.conversationId === id) },
         ]),
       ),

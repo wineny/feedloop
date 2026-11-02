@@ -40,8 +40,8 @@ describe('group priority', () => {
   });
   it('데모 목록도 열린 묶음 다음에 반영된 높은 점수 묶음을 보여준다', () => {
     const { groups } = getDemoData('en').dashboard as { groups: { id: string; status: string }[] };
-    expect(groups.map((g) => g.id)).toEqual(['demo-group-2', 'demo-group-1']);
-    expect(groups[1].status).toBe('merged');
+    expect(groups.map((g) => g.id)).toEqual(['demo-group-2', 'demo-group-3', 'demo-group-1']);
+    expect(groups[2].status).toBe('merged');
   });
   it('같은 config로 배치 판정하고 제한된 대표 근거를 전달한다', async () => {
     const result = await judgeGroupImpact(config, groups);

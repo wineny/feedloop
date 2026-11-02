@@ -252,16 +252,17 @@ describe('RefundReasons card — under the PayPal numbers', () => {
   });
 
   for (const locale of ['en', 'ko'] as const) {
-    it(`${locale} sample data: the ledger's 5 refunds → bug → PR #128, a feature request, an «other», one unclassified`, () => {
+    it(`${locale} sample data: the ledger's 6 refunds → bug → PR #128 (a spike), a feature request, an «other», one unclassified`, () => {
       const dashboard = getDemoData(locale).dashboard as { payments: DashboardPayments; ledger: { type: string }[] };
       const reasons = dashboard.payments.refundReasons!;
       expect(reasons.total).toBe(dashboard.ledger.filter((r) => r.type === 'refund').length);
-      expect(reasons.buckets).toEqual({ fix: 2, feature: 1, other: 1, unclassified: 1 });
+      expect(reasons.buckets).toEqual({ fix: 3, feature: 1, other: 1, unclassified: 1 });
       expect(reasons.top.map((i) => [i.key, i.count, i.bucket, i.href, i.external])).toEqual([
-        ['group:demo-group-1', 2, 'fix', 'https://github.com/example/demo/pull/128', true],
+        ['group:demo-group-1', 3, 'fix', 'https://github.com/example/demo/pull/128', true],
         ['insight:demo-ins-refund-team', 1, 'other', '/inbox?c=demo-conv-6', false],
         ['insight:demo-ins-refund-env', 1, 'feature', '/inbox?c=demo-conv-7', false],
       ]);
+      expect(reasons.top.filter((i) => i.spike).map((i) => i.key)).toEqual(['group:demo-group-1']);
       const html = renderAt('numbers', dashboard.payments, locale);
       // The sample PR does not exist on GitHub, so it renders as inert text, never as a link (ExternalLink).
       expect(html).not.toContain('href="https://github.com/example/demo/pull/128"');
