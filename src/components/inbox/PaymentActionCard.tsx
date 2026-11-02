@@ -25,6 +25,11 @@ export interface PaymentActionCardProps {
   disabled?: boolean;
   /** What happened to similar past requests (display only). Nothing is shown without it. */
   precedent?: PaymentPrecedent | null;
+  /**
+   * Inside the inbox: open a past conversation in place. The inbox reads `?c=` only once on load, so a
+   * link to `/inbox?c=…` from inside the inbox would change the address and nothing else. Without it, links.
+   */
+  onOpenConversation?: (conversationId: string) => void;
 }
 
 /**
@@ -59,7 +64,7 @@ function StatusIcon({ status }: { status: PaymentActionView['status'] }) {
   return <XCircle className="h-4 w-4 text-muted-foreground" aria-hidden />;
 }
 
-export function PaymentActionCard({ action, onDecide, disabled, precedent }: PaymentActionCardProps) {
+export function PaymentActionCard({ action, onDecide, disabled, precedent, onOpenConversation }: PaymentActionCardProps) {
   const t = useTranslations('inbox.payment');
   const format = useFormatter();
   const { busy, error, decide } = usePaymentDecision(action.id, onDecide);
@@ -130,9 +135,20 @@ export function PaymentActionCard({ action, onDecide, disabled, precedent }: Pay
               <span>{t('precedent.evidence')}:</span>
               {precedent.evidence.map((e) => (
                 <span key={e.actionId} className="inline-flex items-center gap-1">
-                  <Link href={e.href} className="font-semibold text-brand-strong hover:underline">
-                    {e.amount ?? '?'} · {t(`status.${e.status}`)}
-                  </Link>
+                  {onOpenConversation ? (
+                    <button
+                      type="button"
+                      data-conversation-id={e.conversationId}
+                      onClick={() => onOpenConversation(e.conversationId)}
+                      className="font-semibold text-brand-strong hover:underline"
+                    >
+                      {e.amount ?? '?'} · {t(`status.${e.status}`)}
+                    </button>
+                  ) : (
+                    <Link href={e.href} className="font-semibold text-brand-strong hover:underline">
+                      {e.amount ?? '?'} · {t(`status.${e.status}`)}
+                    </Link>
+                  )}
                   {e.sample && <span className="rounded-full bg-muted px-1.5 text-[11px] font-semibold">{t('precedent.sample')}</span>}
                 </span>
               ))}

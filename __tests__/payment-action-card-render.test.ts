@@ -85,6 +85,20 @@ describe('PaymentActionCard (approval card)', () => {
     expect(html).not.toMatch(/[가-힣]/);
   });
 
+  // Regression: ISSUE-001 — inside the inbox, a «See past decisions» link only changed ?c= and never opened that conversation
+  // Found by /qa on 2026-11-02
+  // Report: /private/tmp/feedloop-qa/run-20261102T130956Z/qa-report-feedloop-demo.vercel.app-2026-11-02.md
+  it('with onOpenConversation (the inbox), evidence opens in place: buttons, no ?c= links', () => {
+    const html = renderWithIntl(
+      React.createElement(PaymentActionCard, { action, onDecide: async () => action, precedent, onOpenConversation: () => {} }),
+      'en',
+    );
+    expect(html).toContain('See past decisions');
+    expect(html).not.toContain('href="/inbox?c=c1"');
+    expect(html).not.toContain('href="/inbox?c=c2"');
+    expect(html.match(/<button[^>]*data-conversation-id="c[12]"/g)?.length).toBe(2);
+  });
+
   it('renders nothing about precedent without one', () => {
     expect(render(action)).not.toContain('See past decisions');
     expect(render(action, 'en', null)).not.toContain('See past decisions');

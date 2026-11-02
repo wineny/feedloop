@@ -735,7 +735,7 @@ export default function InboxPage() {
               {paymentActions.length > 0 && (
                 <div className="flex flex-col gap-3 border-b border-border bg-muted/30 px-5 py-4 sm:px-6">
                   {paymentActions.map((a) => (
-                    <PaymentActionCard key={a.id} action={a} precedent={precedents[a.id] ?? null} onDecide={handleDecidePayment} disabled={demo.isDemo} />
+                    <PaymentActionCard key={a.id} action={a} precedent={precedents[a.id] ?? null} onDecide={handleDecidePayment} disabled={demo.isDemo} onOpenConversation={(id) => void handleOpenConversation(id)} />
                   ))}
                 </div>
               )}
