@@ -193,7 +193,15 @@
     "draftSpec": "스펙 초안",
     "dismiss": "닫기",
     "dismissLabel": "이 묶음 닫기",
-    "specNote": "스펙 초안 · 만들지 말지는 사람이 정합니다"
+    "specNote": "스펙 초안 · 만들지 말지는 사람이 정합니다",
+    "triage": {
+      "fix": "고치기",
+      "wont_fix": "안 고침",
+      "needs_decision": "직접 결정",
+      "label": "분류"
+    },
+    "sample": "샘플",
+    "samplePrDisabled": "샘플 데이터라 PR 을 만들 수 없어요."
   },
   "payments": {
     "title": "PayPal",
@@ -225,7 +233,9 @@
       "count": "{count}건",
       "noReason": "이유 없음",
       "openPr": "수정 PR 보기",
-      "openConversation": "대화 열기"
+      "openConversation": "대화 열기",
+      "spike": "급증",
+      "spikeHint": "최근 24시간 {count}건"
     },
     "connect": {
       "title": "PayPal 이 연결되지 않았어요",
@@ -326,7 +336,8 @@
         "paid": "결제 완료",
         "refundedAmount": "환불된 금액",
         "refundRecorded": "환불 기록"
-      }
+      },
+      "sample": "샘플"
     }
   }
 }
