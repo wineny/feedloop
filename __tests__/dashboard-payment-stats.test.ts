@@ -200,8 +200,8 @@ describe('RefundReasons card — under the PayPal numbers', () => {
     total: 3,
     buckets: { fix: 1, feature: 0, other: 0, unclassified: 2 },
     top: [
-      { key: 'reason:wrong plan', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false },
-      { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/acme/shop/pull/42', external: true },
+      { key: 'reason:wrong plan', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false, recent24h: 3, spike: true },
+      { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/acme/shop/pull/42', external: true, recent24h: 0, spike: false },
     ],
   };
 
@@ -219,6 +219,9 @@ describe('RefundReasons card — under the PayPal numbers', () => {
     expect(html).toContain('Open conversation');
     expect(html).toMatch(/href="https:\/\/github.com\/acme\/shop\/pull\/42" target="_blank" rel="noopener noreferrer"/);
     expect(html).toContain('View fix PR');
+    // spike chip only on the item flagged as a spike
+    expect(html.match(/>Spike</g)?.length).toBe(1);
+    expect(html).toContain('title="3 in the last 24 h"');
     expect(html.indexOf('Auto refunds')).toBeLessThan(html.indexOf('Refund reasons'));
     expect(html.indexOf('Refund reasons')).toBeLessThan(html.indexOf('LEDGER'));
   });
