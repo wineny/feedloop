@@ -2,6 +2,7 @@ import React from 'react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PaymentActionCard } from '@/components/inbox/PaymentActionCard';
 import type { PaymentActionView } from '@/lib/paypal/action-view';
+import type { PaymentPrecedent } from '@/lib/paypal/precedent';
 import { renderWithIntl } from './helpers/intl';
 
 beforeAll(() => vi.stubGlobal('React', React));
@@ -29,8 +30,20 @@ const action: PaymentActionView = {
   decidable: true,
 };
 
-const render = (a: PaymentActionView, locale: 'en' | 'ko' = 'en') =>
-  renderWithIntl(React.createElement(PaymentActionCard, { action: a, onDecide: async () => a }), locale);
+const render = (a: PaymentActionView, locale: 'en' | 'ko' = 'en', precedent?: PaymentPrecedent | null) =>
+  renderWithIntl(React.createElement(PaymentActionCard, { action: a, onDecide: async () => a, precedent }), locale);
+
+const precedent: PaymentPrecedent = {
+  basis: 'check',
+  total: 5,
+  refunded: 4,
+  rejected: 1,
+  auto: 2,
+  evidence: [
+    { actionId: 'p1', conversationId: 'c1', href: '/inbox?c=c1', status: 'executed', amount: '$29.50', at: '2026-10-01T00:00:00Z', sample: true },
+    { actionId: 'p2', conversationId: 'c2', href: '/inbox?c=c2', status: 'rejected', amount: '$31', at: '2026-09-30T00:00:00Z', sample: false },
+  ],
+};
 
 describe('PaymentActionCard (approval card)', () => {
   it('en: shows the pending request with Approve / Reject and the failed checks', () => {
@@ -58,5 +71,32 @@ describe('PaymentActionCard (approval card)', () => {
     expect(html).toContain('환불 요청 · $29.50');
     expect(html).toContain('승인 대기');
     expect(html).toContain('거절');
+  });
+
+  it('en: precedent line and evidence links', () => {
+    const html = render(action, 'en', precedent);
+    expect(html).toContain('you approved 4 of 5');
+    expect(html).toContain('2 of them automatically');
+    expect(html).toContain('href="/inbox?c=c1"');
+    expect(html).toContain('href="/inbox?c=c2"');
+    expect(html).toContain('Sample');
+    expect(html).not.toMatch(/[가-힣]/);
+  });
+
+  it('renders nothing about precedent without one', () => {
+    expect(render(action)).not.toContain('See past decisions');
+    expect(render(action, 'en', null)).not.toContain('See past decisions');
+  });
+
+  it('amount basis, no auto part', () => {
+    const html = render(action, 'en', { ...precedent, basis: 'amount', auto: 0 });
+    expect(html).toContain('Similar amounts: 4 of 5 refunded');
+    expect(html).not.toContain('automatically');
+  });
+
+  it('ko: precedent renders in Korean', () => {
+    const html = render(action, 'ko', precedent);
+    expect(html).toContain('5건 중 4건을 승인했어요');
+    expect(html).toContain('지난 결정 보기');
   });
 });

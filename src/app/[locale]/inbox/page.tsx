@@ -27,6 +27,7 @@ import { scopedUrl } from '@/lib/scope/scope';
 import { ScopeNote } from '@/components/layout/BotScopeSelect';
 import { PaymentActionCard, type PaymentDecision } from '@/components/inbox/PaymentActionCard';
 import { interpretDecisionResponse, type PaymentActionView } from '@/lib/paypal/action-view';
+import type { PaymentPrecedent } from '@/lib/paypal/precedent';
 import { PaymentActivityPanel } from '@/components/inbox/PaymentActivityPanel';
 import type { LedgerResponse, LedgerRow } from '@/lib/paypal/ledger';
 import Link from 'next/link';
@@ -65,7 +66,7 @@ interface DemoInbox {
   /** 대화 id → 메시지 id → 예시 화면(정적 자산) */
   shots?: Record<string, Record<string, PickedShotView>>;
   /** 대화 id → 승인 카드(버튼은 꺼짐)와 결제 내역 줄. 대시보드 예시 장부와 같은 행이다. */
-  payments?: Record<string, { actions: PaymentActionView[]; rows: LedgerRow[] }>;
+  payments?: Record<string, { actions: PaymentActionView[]; rows: LedgerRow[]; precedents?: Record<string, PaymentPrecedent> }>;
 }
 
 type Filter = 'all' | 'unread';
@@ -252,6 +253,7 @@ export default function InboxPage() {
   const [convStatus, setConvStatus] = useState<string>('open');
   // 결제 행(환불 요청 → 승인 카드, 3단계). 운영자 라우트만 준다; 연습용 화면엔 없다.
   const [paymentActions, setPaymentActions] = useState<PaymentActionView[]>([]);
+  const [precedents, setPrecedents] = useState<Record<string, PaymentPrecedent>>({});
   // 이 대화의 결제 내역(5단계 6번) — 장부 라우트를 대화로 거른 것. 읽기 전용. 못 읽으면 칸을 숨긴다.
   const [paymentRows, setPaymentRows] = useState<LedgerRow[]>([]);
   // 늦게 온 응답이 다른 대화의 칸을 덮지 않게, 지금 열린 대화 id 를 들고 있는다.
@@ -378,6 +380,7 @@ export default function InboxPage() {
       setOrigin(null);
       setDeskUrl(null);
       setPaymentActions(demo.data.payments?.[id]?.actions ?? []);
+      setPrecedents(demo.data.payments?.[id]?.precedents ?? {});
       setPaymentRows(demo.data.payments?.[id]?.rows ?? []);
       setRole('owner');
       // 닫아 둔 대화는 닫힌 채로 다시 연다 — 늘 'open' 으로 되돌리면 [대화 닫기]가 안 먹은 것처럼 보인다.
@@ -401,6 +404,7 @@ export default function InboxPage() {
       setDeskUrl(json.conversation?.deskUrl ?? null);
       setConvStatus(json.conversation?.status ?? 'open');
       setPaymentActions(Array.isArray(json.paymentActions) ? json.paymentActions : []);
+      setPrecedents(json.precedents && typeof json.precedents === 'object' ? json.precedents : {});
       setRole(json.role === 'approver' ? 'approver' : 'owner');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errors.open'));
@@ -731,7 +735,7 @@ export default function InboxPage() {
               {paymentActions.length > 0 && (
                 <div className="flex flex-col gap-3 border-b border-border bg-muted/30 px-5 py-4 sm:px-6">
                   {paymentActions.map((a) => (
-                    <PaymentActionCard key={a.id} action={a} onDecide={handleDecidePayment} disabled={demo.isDemo} />
+                    <PaymentActionCard key={a.id} action={a} precedent={precedents[a.id] ?? null} onDecide={handleDecidePayment} disabled={demo.isDemo} />
                   ))}
                 </div>
               )}

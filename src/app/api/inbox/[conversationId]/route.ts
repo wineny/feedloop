@@ -13,7 +13,8 @@ import {
 } from '@/lib/bot/conversations';
 import { signShotsForMessages } from '@/lib/widget/shots';
 import { toPaymentActionView } from '@/lib/paypal/action-view';
-import { supabasePaymentsStore } from '@/lib/paypal/store';
+import { supabasePaymentsStore, type PaymentActionRow } from '@/lib/paypal/store';
+import { computePrecedent, type PaymentPrecedent } from '@/lib/paypal/precedent';
 import { apiText } from '@/lib/http/api-text';
 
 export async function GET(
@@ -68,6 +69,29 @@ export async function GET(
     .eq('id', conversationId)
     .maybeSingle();
 
+  // 비슷한 지난 결정(표시 전용). 결정 가능한 환불 카드가 있을 때만 읽고, 못 읽으면 빈 값.
+  const precedents: Record<string, PaymentPrecedent> = {};
+  const decidable = paymentActions.filter((a) => a.status === 'pending' && a.kind === 'refund');
+  if (decidable.length > 0) {
+    const { data, error } = await getServiceRoleClient()
+      .from('payment_actions')
+      .select('id,conversation_id,kind,origin,status,amount_cents,currency,guardrail,target_id,created_at')
+      .eq('bot_id', conversation.bot_id)
+      .eq('kind', 'refund')
+      .in('status', ['executed', 'rejected'])
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) {
+      console.error('[inbox] precedent lookup failed:', error.message);
+    } else {
+      const history = (data ?? []) as unknown as PaymentActionRow[];
+      for (const a of decidable) {
+        const p = computePrecedent(a, history);
+        if (p) precedents[a.id] = p;
+      }
+    }
+  }
+
   return NextResponse.json({
     conversation: {
       id: conversation.id,
@@ -83,5 +107,6 @@ export async function GET(
     contexts,
     shots,
     paymentActions: paymentActions.map(toPaymentActionView),
+    precedents,
   });
 }
