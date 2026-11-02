@@ -25,13 +25,21 @@ export interface RefundReasonItem {
    */
   href: string | null;
   external: boolean;
+  /** Refund requests of this reason in the last 24 h (`t > now − 24 h`). */
+  recent24h: number;
+  /** Spike: see `SPIKE_MIN_24H` / `SPIKE_RATIO`. Checked on every reason, not only the most frequent ones. */
+  spike: boolean;
 }
 
 export interface RefundReasons {
   /** Every refund request: every status, with or without a conversation or a reason (`refundReasons` comment). */
   total: number;
   buckets: Record<RefundBucket, number>;
-  /** Up to 3, most frequent first; ties → newer first. */
+  /**
+   * The 3 most frequent (ties → newer first), then every spiking reason outside them, in the same order — a new
+   * reason that suddenly jumps shows even when its all-time count is small. So `top` may exceed the limit by the
+   * number of spiking reasons outside it.
+   */
   top: RefundReasonItem[];
 }
 
@@ -42,6 +50,12 @@ export const EMPTY_REFUND_REASONS: RefundReasons = {
 };
 
 export const REFUND_REASONS_TOP = 3;
+
+/** A reason is a spike when it has at least this many refunds in the last 24 h … */
+export const SPIKE_MIN_24H = 3;
+/** … and at least this many times its daily average over the 7 days before that (`(now−8d, now−24h] / 7`). */
+export const SPIKE_RATIO = 2;
+const DAY_MS = 24 * 60 * 60_000;
 
 /** One `payment_actions` row (kind = 'refund'). */
 export interface RefundSource {
@@ -149,6 +163,7 @@ export function matchRefundInsight<T extends Pick<RefundInsightSource, 'message_
 interface Accumulator {
   item: RefundReasonItem;
   newestAt: number;
+  times: number[];
 }
 
 export function refundReasons(
@@ -166,6 +181,7 @@ export function refundReasons(
     groups: readonly RefundGroupSource[];
   },
   topLimit = REFUND_REASONS_TOP,
+  now: number = Date.now(),
 ): RefundReasons {
   const conversationByMessage = new Map<string, string>();
   const messagesByConversation = new Map<string, RefundMessageSource[]>();
@@ -233,6 +249,7 @@ export function refundReasons(
     if (existing) {
       // Refunds arrive newest first: the first one set label/bucket/conversation. A PR found later still wins.
       existing.item.count += 1;
+      existing.times.push(Date.parse(refund.created_at));
       if (!existing.item.external && prUrl) existing.item = { ...existing.item, href: prUrl, external: true };
       else if (existing.item.href === null && conversationHref) existing.item.href = conversationHref;
       continue;
@@ -241,6 +258,7 @@ export function refundReasons(
     const rawReason = refund.reason?.trim() || null;
     items.set(key, {
       newestAt: Date.parse(refund.created_at),
+      times: [Date.parse(refund.created_at)],
       item: {
         key,
         label: groupTitle || insight?.summary || rawReason,
@@ -248,14 +266,21 @@ export function refundReasons(
         bucket,
         href: prUrl ?? conversationHref,
         external: prUrl !== null,
+        recent24h: 0,
+        spike: false,
       },
     });
   }
 
-  const top = [...items.values()]
+  const ranked = [...items.values()]
     .sort((a, b) => b.item.count - a.item.count || b.newestAt - a.newestAt || a.item.key.localeCompare(b.item.key))
-    .slice(0, topLimit)
-    .map((a) => a.item);
+    .map((a) => {
+      const recent24h = a.times.filter((t) => t > now - DAY_MS).length;
+      const baseline = a.times.filter((t) => t > now - 8 * DAY_MS && t <= now - DAY_MS).length;
+      const spike = recent24h >= SPIKE_MIN_24H && recent24h >= SPIKE_RATIO * (baseline / 7);
+      return { ...a.item, recent24h, spike };
+    });
+  const top = ranked.filter((item, i) => i < topLimit || item.spike);
 
   return { total: counted.length, buckets, top };
 }

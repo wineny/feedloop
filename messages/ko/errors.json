@@ -30,6 +30,7 @@
     "groupClosed": "닫힌 묶음입니다",
     "feedbackGroupNotFound": "피드백 묶음을 찾을 수 없습니다",
     "notGroupedYet": "아직 묶이지 않은 피드백이에요. 잠시 뒤 자동으로 묶이면 대시보드의 「피드백 묶음」에서 수정안을 만들어 주세요.",
+    "sampleGroupNoPr": "샘플 기록(시연용 데이터)만 든 묶음이라 수정 PR 을 만들지 않습니다.",
     "repoUrlMissing": "github_repo_url이 설정되지 않았습니다. 봇 설정에서 GitHub 저장소 URL을 입력해주세요.",
     "runCreateFailed": "실행 기록 생성 실패",
     "evidenceReadFailed": "후속 확인과 근거를 읽지 못했습니다",

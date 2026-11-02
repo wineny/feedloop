@@ -43,6 +43,11 @@ export const copy: DemoCopy = {
   groupDarkTitle: 'Code block theme breaks in dark mode',
   groupDarkSummary: 'Reports that after switching to dark mode, the code block background and text color overlap and can’t be read.',
   groupReason2: 'A theme display issue that doesn\'t block the core flow',
+  group3Title: 'Two coupons can\'t be used on one order',
+  group3Summary: 'A question about why a second coupon is rejected when one is already applied at checkout.',
+  triageFixReason: 'Broken for every buyer who tries to use a coupon, and it is costing sales now.',
+  triageDecisionReason: 'Two fixes are possible (follow the system theme or add a manual toggle). The owner has to choose one.',
+  triageWontFixReason: 'Works as intended: the shop allows one coupon per order.',
   darkSummary: 'Dark mode code block theme conflict',
   loopSummary: '401 auth loop — endless redirect after the session expires',
   envSummary: 'Request: automatic Vercel environment variable sync',
@@ -78,4 +83,15 @@ export const copy: DemoCopy = {
   sayBuyAgency: "I'd like to buy the Agency plan.",
   payCheckoutAgency: 'Pay with PayPal — $79 · Agency',
   payRefundPending: "Your refund request for $79 is waiting for the store's approval. You'll see the result here.",
+  // Approval card precedent — reasons of the five earlier $79 Agency refunds stopped by the same check (over the auto limit). Newest first
+  ledgerReasonAgencyClient: "Our client project got cancelled, so we won't use the Agency seats this month. Could I get a refund?",
+  ledgerReasonAgencyWrongPlan: 'I meant to upgrade to Pro but picked Agency by mistake. Can you refund it?',
+  ledgerReasonAgencyMerge: "We're moving the whole team to a single tool, so we're dropping this plan.",
+  ledgerReasonAgencyBudget: 'We used most of the month, but our budget just got cut. Can I get the money back?',
+  ledgerReasonAgencyReports: "Turns out we don't need the Agency client reports right now.",
+  // The insights the two of them that still have a conversation (demo-conv-8, demo-conv-9) became
+  refundReasonClient: 'Client project cancelled — Agency seats not needed',
+  refundReasonWrongPlan: 'Bought Agency by mistake instead of Pro',
+  payRefundDoneAgency: 'Your $79 refund is done. It can take a few days to show on your statement.',
 };
+

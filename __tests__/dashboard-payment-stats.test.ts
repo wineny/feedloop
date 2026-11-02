@@ -200,8 +200,8 @@ describe('RefundReasons card — under the PayPal numbers', () => {
     total: 3,
     buckets: { fix: 1, feature: 0, other: 0, unclassified: 2 },
     top: [
-      { key: 'reason:wrong plan', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false },
-      { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/acme/shop/pull/42', external: true },
+      { key: 'reason:wrong plan', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false, recent24h: 3, spike: true },
+      { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/acme/shop/pull/42', external: true, recent24h: 0, spike: false },
     ],
   };
 
@@ -219,6 +219,9 @@ describe('RefundReasons card — under the PayPal numbers', () => {
     expect(html).toContain('Open conversation');
     expect(html).toMatch(/href="https:\/\/github.com\/acme\/shop\/pull\/42" target="_blank" rel="noopener noreferrer"/);
     expect(html).toContain('View fix PR');
+    // spike chip only on the item flagged as a spike
+    expect(html.match(/>Spike</g)?.length).toBe(1);
+    expect(html).toContain('title="3 in the last 24 h"');
     expect(html.indexOf('Auto refunds')).toBeLessThan(html.indexOf('Refund reasons'));
     expect(html.indexOf('Refund reasons')).toBeLessThan(html.indexOf('LEDGER'));
   });
@@ -249,16 +252,18 @@ describe('RefundReasons card — under the PayPal numbers', () => {
   });
 
   for (const locale of ['en', 'ko'] as const) {
-    it(`${locale} sample data: the ledger's 5 refunds → bug → PR #128, a feature request, an «other», one unclassified`, () => {
+    it(`${locale} sample data: the ledger's 11 refunds → bug → PR #128 (a spike, still #1), a feature request, three «other», four unclassified`, () => {
       const dashboard = getDemoData(locale).dashboard as { payments: DashboardPayments; ledger: { type: string }[] };
       const reasons = dashboard.payments.refundReasons!;
       expect(reasons.total).toBe(dashboard.ledger.filter((r) => r.type === 'refund').length);
-      expect(reasons.buckets).toEqual({ fix: 2, feature: 1, other: 1, unclassified: 1 });
+      expect(reasons.total).toBe(11);
+      expect(reasons.buckets).toEqual({ fix: 3, feature: 1, other: 3, unclassified: 4 });
       expect(reasons.top.map((i) => [i.key, i.count, i.bucket, i.href, i.external])).toEqual([
-        ['group:demo-group-1', 2, 'fix', 'https://github.com/example/demo/pull/128', true],
+        ['group:demo-group-1', 3, 'fix', 'https://github.com/example/demo/pull/128', true],
         ['insight:demo-ins-refund-team', 1, 'other', '/inbox?c=demo-conv-6', false],
         ['insight:demo-ins-refund-env', 1, 'feature', '/inbox?c=demo-conv-7', false],
       ]);
+      expect(reasons.top.filter((i) => i.spike).map((i) => i.key)).toEqual(['group:demo-group-1']);
       const html = renderAt('numbers', dashboard.payments, locale);
       // The sample PR does not exist on GitHub, so it renders as inert text, never as a link (ExternalLink).
       expect(html).not.toContain('href="https://github.com/example/demo/pull/128"');

@@ -107,7 +107,16 @@
       "no_dispute": "This payment has an open dispute",
       "not_propose_only": "“Ask me before every refund” is on",
       "not_paused": "Automatic refunds are paused"
-    }
+    },
+    "precedent": {
+      "check": "Similar requests stopped by the same check: you approved {refunded} of {total}",
+      "amount": "Similar amounts: {refunded} of {total} refunded",
+      "auto": "{auto} of them automatically",
+      "evidence": "See past decisions",
+      "sample": "Sample",
+      "sampleCount": "· {sample} from sample data"
+    },
+    "sample": "Sample"
   },
   "activity": {
     "title": "Payment activity",

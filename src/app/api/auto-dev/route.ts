@@ -4,6 +4,35 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getServiceRoleClient } from '@/lib/supabase';
 import { codeFixBlockedReasonKey, isCodeFixable } from '@/lib/groups/policy';
 import { apiText } from '@/lib/http/api-text';
+import { isSampleConversation } from '@/lib/demo/sample-marker';
+
+/**
+ * true when every conversation behind the group's insights is a seeded sample visitor; false when any is real or
+ * none is found; null when a lookup failed (the caller refuses — never guess «not sample»).
+ */
+async function isSampleOnlyGroup(db: ReturnType<typeof getServiceRoleClient>, groupId: string): Promise<boolean | null> {
+  const ins = await db.from('insights').select('message_id').eq('group_id', groupId).limit(2000);
+  if (ins.error) return null;
+  const messageIds = [...new Set((ins.data ?? []).map((r) => r.message_id as string | null).filter((id): id is string => Boolean(id)))];
+  if (messageIds.length === 0) return false;
+  // `in()` puts the ids in the URL, so 200 at a time (same reason as auto-pr.ts ID_CHUNK).
+  const convIds = new Set<string>();
+  for (let i = 0; i < messageIds.length; i += 200) {
+    const msgs = await db.from('messages').select('conversation_id').in('id', messageIds.slice(i, i + 200)).limit(200);
+    if (msgs.error) return null;
+    for (const r of msgs.data ?? []) if (r.conversation_id) convIds.add(r.conversation_id as string);
+  }
+  if (convIds.size === 0) return false;
+  const ids = [...convIds];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const convs = await db.from('conversations').select('id, source, external_user_id').in('id', chunk).limit(200);
+    if (convs.error) return null;
+    const rows = (convs.data ?? []) as { source?: string | null; external_user_id?: string | null }[];
+    if (rows.length !== chunk.length || !rows.every(isSampleConversation)) return false;
+  }
+  return true;
+}
 
 export async function POST(req: NextRequest) {
   // 1. 인증 확인
@@ -89,6 +118,12 @@ export async function POST(req: NextRequest) {
   if (!bot || bot.user_id !== session.user.id) {
     return NextResponse.json({ error: apiText(req, 'forbidden') }, { status: 403 });
   }
+
+  // Seeded sample history (scripts/seed-sample-history.ts) is demo data, not a real report: never a PR for a group
+  // whose conversations are all sample visitors. The screen hides the button; this refuses direct calls.
+  const sample = await isSampleOnlyGroup(db, groupId as string);
+  if (sample === null) return NextResponse.json({ error: apiText(req, 'groupsReadFailed') }, { status: 500 });
+  if (sample) return NextResponse.json({ error: apiText(req, 'sampleGroupNoPr') }, { status: 400 });
 
   if (!bot.github_repo_url) {
     return NextResponse.json(
