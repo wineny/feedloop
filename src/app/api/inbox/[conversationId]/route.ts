@@ -73,22 +73,27 @@ export async function GET(
   const precedents: Record<string, PaymentPrecedent> = {};
   const decidable = paymentActions.filter((a) => a.status === 'pending' && a.kind === 'refund');
   if (decidable.length > 0) {
-    const { data, error } = await getServiceRoleClient()
-      .from('payment_actions')
-      .select('id,conversation_id,kind,origin,status,amount_cents,currency,guardrail,target_id,created_at')
-      .eq('bot_id', conversation.bot_id)
-      .eq('kind', 'refund')
-      .in('status', ['executed', 'rejected'])
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (error) {
-      console.error('[inbox] precedent lookup failed:', error.message);
-    } else {
-      const history = (data ?? []) as unknown as PaymentActionRow[];
-      for (const a of decidable) {
-        const p = computePrecedent(a, history);
-        if (p) precedents[a.id] = p;
+    try {
+      const { data, error } = await getServiceRoleClient()
+        .from('payment_actions')
+        .select('id,conversation_id,kind,origin,status,amount_cents,currency,guardrail,target_id,created_at')
+        .eq('bot_id', conversation.bot_id)
+        .eq('kind', 'refund')
+        .in('status', ['executed', 'rejected'])
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) {
+        console.error('[inbox] precedent lookup failed:', error.message);
+      } else {
+        const history = (data ?? []) as unknown as PaymentActionRow[];
+        for (const a of decidable) {
+          const p = computePrecedent(a, history);
+          if (p) precedents[a.id] = p;
+        }
       }
+    } catch (e) {
+      // Display only — a failed lookup must never fail the inbox.
+      console.error('[inbox] precedent lookup threw:', e instanceof Error ? e.message : e);
     }
   }
 
