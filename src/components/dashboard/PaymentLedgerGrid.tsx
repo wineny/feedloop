@@ -33,6 +33,7 @@ import {
   LedgerRecord,
   LedgerTime,
   RecordToggle,
+  SampleChip,
   StatusBadge,
   TypeLabel,
   ledgerAmount,
@@ -105,6 +106,7 @@ function ActionsCell({ data }: ICellRendererParams<GridRow>) {
       <div className="min-w-0 flex-1">
         <DecisionControls row={data.row} inline />
       </div>
+      <SampleChip row={data.row} />
       {!confirmingHere && <RecordToggle row={data.row} />}
     </div>
   );
@@ -134,7 +136,7 @@ export default function PaymentLedgerGrid({ rows }: { rows: LedgerRow[] }) {
   const columnDefs = useMemo<ColDef<GridRow>[]>(
     () => [
       { colId: 'time', headerName: t('columns.time'), flex: 1.4, minWidth: 190, cellRenderer: (p: ICellRendererParams<GridRow>) => (p.data ? <LedgerTime at={p.data.row.at} /> : null) },
-      { colId: 'type', headerName: t('columns.type'), flex: 0.8, minWidth: 90, cellRenderer: (p: ICellRendererParams<GridRow>) => (p.data ? <TypeLabel row={p.data.row} /> : null) },
+      { colId: 'type', headerName: t('columns.type'), flex: 0.8, minWidth: 90, cellRenderer: (p: ICellRendererParams<GridRow>) => (p.data ? <TypeLabel row={p.data.row} withSample={false} /> : null) },
       {
         colId: 'amount',
         headerName: t('columns.amount'),
