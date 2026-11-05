@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
@@ -14,6 +14,19 @@ const RefundStudio = dynamic(() => import('./RefundStudio'), {
   ssr: false,
   loading: () => <StudioLoading />,
 });
+
+const LARGE_SCREEN = '(min-width: 64rem)'; // Tailwind `lg`
+
+function subscribeLarge(onChange: () => void) {
+  const mq = window.matchMedia(LARGE_SCREEN);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+}
+
+/** false on the server and in the hydration render, so small screens never download Studio's bundle. */
+function useLargeScreen(): boolean {
+  return useSyncExternalStore(subscribeLarge, () => window.matchMedia(LARGE_SCREEN).matches, () => false);
+}
 
 function StudioLoading() {
   const t = useTranslations('dashboard.studio');
@@ -34,6 +47,10 @@ export function RefundStudioPage({ licenseKey, aiEnabled }: RefundStudioPageProp
   const t = useTranslations('dashboard.studio');
   const [mode, setMode] = useState<AgStudioMode>('view');
   const apiRef = useRef<AgStudioApi | null>(null);
+  const large = useLargeScreen();
+  // Stays mounted once loaded: a brief narrow window must not throw away the chat and any edits.
+  const [loaded, setLoaded] = useState(false);
+  if (large && !loaded) setLoaded(true);
 
   const handleReset = async () => {
     const api = apiRef.current;
@@ -76,7 +93,7 @@ export function RefundStudioPage({ licenseKey, aiEnabled }: RefundStudioPageProp
       {/* Studio is a desktop tool; below lg the page says so instead of squeezing a 24-column canvas. */}
       <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground lg:hidden">{t('smallScreen')}</p>
       <div className="hidden h-[calc(100dvh-14rem)] min-h-[720px] overflow-hidden rounded-xl border border-border lg:block">
-        <RefundStudio licenseKey={licenseKey} aiEnabled={aiEnabled} mode={mode} onApi={(api) => (apiRef.current = api)} />
+        {loaded && <RefundStudio licenseKey={licenseKey} aiEnabled={aiEnabled} mode={mode} onApi={(api) => (apiRef.current = api)} />}
       </div>
     </div>
   );

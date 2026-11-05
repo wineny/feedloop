@@ -101,7 +101,8 @@ export function buildStudioAi(store: SampleStore): AgAiHarnessSetup {
         execute: (args: { reasonKey: string }, ctx) => {
           const r = SAMPLE_REASONS.find((x) => x.key === args.reasonKey);
           if (!r) return ctx.error(`Unknown reasonKey "${args.reasonKey}".`);
-          const pr = r.fixUrl ? { number: Number(r.fixUrl.split('/').pop()), url: r.fixUrl, sampleAddress: true } : null;
+          // Number only: the sample PR address leads nowhere, and a URL here ends up as a link in the chat.
+          const pr = r.fixUrl ? { number: Number(r.fixUrl.split('/').pop()) } : null;
           return ctx.success(JSON.stringify({ reasonKey: r.key, reason: r.label, type: r.bucket, fixStatus: r.fixStatus, pr }));
         },
       });

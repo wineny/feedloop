@@ -4,40 +4,37 @@
 // instructions, tool schemas). This route translates it for the AI SDK, calls Claude once (no tool execution here —
 // Studio runs every tool in the page), and streams back NDJSON events the adapter turns into AG Studio events.
 //
-// Public on purpose (Refund Studio works logged out), so it is bounded: model allow-list, output cap, per-IP limits,
-// and in production a dedicated key (STUDIO_ANTHROPIC_API_KEY) whose spend limit is set in the Anthropic Console.
-// It reads and writes nothing in the database.
+// Public on purpose (Refund Studio works logged out), so it is bounded: see `lib/studio/llm-guard.ts`, plus a model
+// allow-list and an output cap. Production reads only STUDIO_ANTHROPIC_API_KEY. It reads and writes nothing in the database.
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { jsonSchema, streamText, tool, type ModelMessage, type ToolSet } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { readBoundedJson } from '@/lib/http/body';
 import { clientIp } from '@/lib/widget/http';
 import { studioLlmKey, STUDIO_MODELS, STUDIO_DEFAULT_MODEL } from '@/lib/studio/llm-config';
+import {
+  createStudioLimiter,
+  hashIp,
+  isSameOriginRequest,
+  MAX_BODY_BYTES,
+  parseStudioRequest,
+  STUDIO_SYSTEM_GUARD,
+  STUDIO_TOOLS,
+} from '@/lib/studio/llm-guard';
 import type { StudioStreamEvent } from '@/lib/studio/llm-protocol';
 
 export const maxDuration = 120;
 
 const MAX_OUTPUT_TOKENS = 4096;
-const MAX_BODY_BYTES = 400_000;
-const PER_MINUTE = 30;
-const PER_DAY = 400;
-
-const minuteHits = new Map<string, number[]>();
-const dayHits = new Map<string, { day: string; n: number }>();
-
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const recent = (minuteHits.get(ip) ?? []).filter((t) => t > now - 60_000);
-  recent.push(now);
-  minuteHits.set(ip, recent);
-  const day = new Date(now).toISOString().slice(0, 10);
-  const d = dayHits.get(ip);
-  const n = d && d.day === day ? d.n + 1 : 1;
-  dayHits.set(ip, { day, n });
-  if (minuteHits.size > 5000) minuteHits.clear();
-  if (dayHits.size > 5000) dayHits.clear();
-  return recent.length > PER_MINUTE || n > PER_DAY;
-}
+const limit = createStudioLimiter();
+const TURN_FAILED = 'The Refund Studio agent could not finish this turn. Try again.';
+const NOT_ACCEPTED = 'Request not accepted. If this chat is long, start a new chat.';
+const LIMIT_MESSAGE = {
+  minute: 'Too many agent requests. Try again in a minute.',
+  day: 'You have reached the agent limit for today.',
+  global: 'The agent has reached its limit for today.',
+};
 
 // --- AG Studio request (subset this route reads) ------------------------------------------------
 
@@ -58,7 +55,7 @@ interface AgRequest {
 }
 
 const textOf = (parts: { type: string; text?: string; refusal?: string }[]) =>
-  parts.map((p) => p.text ?? p.refusal ?? '').filter(Boolean).join('\n');
+  (Array.isArray(parts) ? parts : []).map((p) => p.text ?? p.refusal ?? '').filter(Boolean).join('\n');
 
 /** AG Studio conversation → AI SDK messages. Assistant text + tool calls of one turn share a message; results group too. */
 function toMessages(items: AgItem[]): ModelMessage[] {
@@ -122,21 +119,23 @@ function objectSchema(schema: Record<string, unknown> | undefined): Record<strin
 }
 
 export async function POST(req: NextRequest) {
+  if (!isSameOriginRequest(req.headers)) return NextResponse.json({ error: { message: 'Not allowed.' } }, { status: 403 });
   const key = studioLlmKey();
   if (!key) return NextResponse.json({ error: { message: 'The Refund Studio agent is not configured.' } }, { status: 503 });
-  if (rateLimited(clientIp(req))) {
-    return NextResponse.json({ error: { message: 'Too many agent requests. Try again in a minute.' } }, { status: 429 });
-  }
 
-  const raw = await req.text();
-  if (raw.length > MAX_BODY_BYTES) return NextResponse.json({ error: { message: 'Request too large.' } }, { status: 413 });
-  let body: AgRequest;
-  try {
-    body = JSON.parse(raw) as AgRequest;
-  } catch {
-    return NextResponse.json({ error: { message: 'Request body must be JSON.' } }, { status: 400 });
+  const read = await readBoundedJson<unknown>(req, MAX_BODY_BYTES);
+  if (!read.ok) return NextResponse.json({ error: { message: NOT_ACCEPTED } }, { status: read.status });
+  const parsed = parseStudioRequest(read.value);
+  if (!parsed) return NextResponse.json({ error: { message: NOT_ACCEPTED } }, { status: 400 });
+
+  // After validation, so malformed requests cannot use up the day's limit for everyone.
+  const ip = clientIp(req);
+  const verdict = limit(ip);
+  if (verdict !== 'ok') {
+    console.warn(JSON.stringify({ event: 'studio_llm_limited', limit: verdict, ip: hashIp(ip) }));
+    return NextResponse.json({ error: { message: LIMIT_MESSAGE[verdict] } }, { status: 429 });
   }
-  if (!Array.isArray(body.input)) return NextResponse.json({ error: { message: 'Missing input.' } }, { status: 400 });
+  const body = parsed as unknown as AgRequest;
 
   const modelId = body.model?.id && STUDIO_MODELS.includes(body.model.id) ? body.model.id : STUDIO_DEFAULT_MODEL;
 
@@ -144,13 +143,13 @@ export async function POST(req: NextRequest) {
   // `wrapped` remembers which tools got an object wrapper, so their input is unwrapped on the way back.
   const wrapped = new Set<string>();
   for (const t of body.tools ?? []) {
-    if (t.kind === 'provided' || !t.name) continue; // provider-hosted tools are OpenAI-specific; not offered to Claude
+    if (t.kind === 'provided' || !STUDIO_TOOLS.has(t.name)) continue; // provider-hosted tools are OpenAI-specific
     const params = t.parameters as Record<string, unknown> | undefined;
     if (!params || params.type !== 'object') wrapped.add(t.name);
     tools[t.name] = tool({ description: t.description ?? '', inputSchema: jsonSchema(objectSchema(params)) });
   }
 
-  let system = body.instructions ?? '';
+  let system = `${STUDIO_SYSTEM_GUARD}\n\n${body.instructions ?? ''}`;
   if (body.responseFormat?.type === 'json') {
     system +=
       `\n\nRespond with only a JSON value (no prose, no code fence) matching this JSON Schema` +
@@ -164,7 +163,7 @@ export async function POST(req: NextRequest) {
   let toolChoice: 'auto' | 'none' | undefined = hasTools ? 'auto' : undefined;
   if (hasTools && tc === 'none') toolChoice = 'none';
   else if (hasTools && tc === 'required') system += '\n\nThis turn you must call one of the available tools.';
-  else if (hasTools && typeof tc === 'object' && tools[tc.name]) system += `\n\nThis turn you must call the tool "${tc.name}".`;
+  else if (hasTools && typeof tc === 'object' && tc && STUDIO_TOOLS.has(tc.name) && tools[tc.name]) system += `\n\nThis turn you must call the tool "${tc.name}".`;
 
   const result = streamText({
     model: createAnthropic({ apiKey: key })(modelId),
@@ -186,16 +185,21 @@ export async function POST(req: NextRequest) {
           if (part.type === 'text-delta' && part.text) send({ t: 'text', delta: part.text });
           else if (part.type === 'tool-call') {
             const input = wrapped.has(part.toolName) ? (part.input as { value?: unknown })?.value : part.input;
-            send({ t: 'tool', id: part.toolCallId, name: part.toolName, args: JSON.stringify(input ?? {}) });
+            // Input cut off at the output cap arrives as raw text; left as it is so AG Studio can repair the JSON.
+            send({ t: 'tool', id: part.toolCallId, name: part.toolName, args: typeof input === 'string' ? input : JSON.stringify(input ?? {}) });
           } else if (part.type === 'error') {
-            send({ t: 'error', message: part.error instanceof Error ? part.error.message : String(part.error) });
+            console.error('studio_llm_error', part.error instanceof Error ? part.error.message : String(part.error));
+            send({ t: 'error', message: TURN_FAILED });
           } else if (part.type === 'finish') {
             const u = part.totalUsage;
-            send({ t: 'done', model: modelId, finishReason: part.finishReason, usage: { input: u?.inputTokens ?? 0, output: u?.outputTokens ?? 0 } });
+            const usage = { input: u?.inputTokens ?? 0, output: u?.outputTokens ?? 0 };
+            console.log(JSON.stringify({ event: 'studio_llm', ip: hashIp(ip), model: modelId, finishReason: part.finishReason, ...usage }));
+            send({ t: 'done', model: modelId, finishReason: part.finishReason, usage });
           }
         }
       } catch (err) {
-        send({ t: 'error', message: err instanceof Error ? err.message : 'LLM call failed' });
+        console.error('studio_llm_error', err instanceof Error ? err.message : String(err));
+        send({ t: 'error', message: TURN_FAILED });
       } finally {
         controller.close();
       }
