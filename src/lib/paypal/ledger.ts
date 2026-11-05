@@ -6,6 +6,7 @@
 // no buyer email (`customer_key`, `payer_email`), no approve URL, no raw PayPal response — the request
 // body and the result are reduced to the amount sent and PayPal's status word.
 
+import { isSampleRef } from '@/lib/demo/sample-marker';
 import { interpretDecisionResponse, type DecisionResponseEffect, type PaymentActionView } from './action-view';
 import type { OrderStatus, PaymentActionStatus } from './store';
 
@@ -113,6 +114,8 @@ export interface LedgerActionRow extends LedgerRowBase {
   origin: 'auto' | 'approval';
   /** Approve / Reject can be offered: a pending refund in a conversation (the route's path needs one). */
   decidable: boolean;
+  /** Seeded sample history (`SAMPLE-` capture / refund id, scripts/seed-sample-history.ts): badged, never sent to PayPal. */
+  sample?: boolean;
   detail: LedgerActionDetail;
 }
 
@@ -163,6 +166,7 @@ export function actionToLedgerRow(
     conversationId: row.conversation_id,
     // Same rule as the approval route: only refunds, only pending, and the route is addressed by conversation.
     decidable: type === 'refund' && row.status === 'pending' && row.conversation_id !== null,
+    sample: isSampleRef(row.target_id) || isSampleRef(row.paypal_ref),
     detail: {
       kind: row.kind,
       targetId: row.target_id,

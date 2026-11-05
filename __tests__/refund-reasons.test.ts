@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_REFUND_REASONS,
   REFUND_INSIGHT_WINDOW_MS,
+  SPIKE_MIN_24H,
+  SPIKE_RATIO,
   isGithubPrUrl,
   matchRefundInsight,
   normalizeRefundReason,
@@ -57,8 +59,8 @@ function aggregate({
   insights?: RefundInsightSource[];
   runs?: RefundRunSource[];
   groups?: RefundGroupSource[];
-}) {
-  return refundReasons({ refunds, messages, insights, runs, groups });
+}, now?: number) {
+  return refundReasons({ refunds, messages, insights, runs, groups }, undefined, now);
 }
 
 describe('refund reasons — helpers', () => {
@@ -144,6 +146,8 @@ describe('refundReasons', () => {
         // the newest refund's conversation
         href: '/inbox?c=conv-b',
         external: false,
+        recent24h: 0,
+        spike: false,
       },
     ]);
   });
@@ -169,6 +173,8 @@ describe('refundReasons', () => {
         bucket: 'fix',
         href: 'https://github.com/example/demo/pull/128',
         external: true,
+        recent24h: 0,
+        spike: false,
       },
     ]);
   });
@@ -207,6 +213,8 @@ describe('refundReasons', () => {
       bucket: 'feature',
       href: '/inbox?c=conv-1',
       external: false,
+      recent24h: 0,
+      spike: false,
     });
   });
 
@@ -263,6 +271,71 @@ describe('refundReasons', () => {
 
   it('no reason and no insight → label null (the screen says «No reason given»)', () => {
     const result = aggregate({ refunds: [refund({ id: 'blank' })] });
-    expect(result.top).toEqual([{ key: 'reason:', label: null, count: 1, bucket: 'unclassified', href: null, external: false }]);
+    expect(result.top).toEqual([{ key: 'reason:', label: null, count: 1, bucket: 'unclassified', href: null, external: false, recent24h: 0, spike: false }]);
+  });
+});
+
+describe('spike badge', () => {
+  const DAY = 24 * 60 * MIN;
+  const now = base;
+  /** n refunds with the same reason, `ageMs` before now. */
+  const same = (prefix: string, n: number, ageMs: number) =>
+    Array.from({ length: n }, (_, i) => refund({ id: `${prefix}${i}`, reason: 'too expensive', created_at: new Date(now - ageMs).toISOString() }));
+  const top = (refunds: RefundSource[]) => aggregate({ refunds }, now).top[0];
+
+  it('constants', () => {
+    expect([SPIKE_MIN_24H, SPIKE_RATIO]).toEqual([3, 2]);
+  });
+  it('2 in 24 h → no', () => {
+    expect(top(same('a', 2, MIN))).toMatchObject({ recent24h: 2, spike: false });
+  });
+  it('3 in 24 h with an empty baseline → yes', () => {
+    expect(top(same('a', 3, MIN))).toMatchObject({ recent24h: 3, spike: true });
+  });
+  it('3 vs a baseline of 14 in 7 days → no (needs 4)', () => {
+    expect(top([...same('a', 3, MIN), ...same('b', 14, 3 * DAY)]).spike).toBe(false);
+  });
+  it('exactly 2x the daily average → yes', () => {
+    // baseline 7 → avg 1/day → 3 >= 2 · 1
+    expect(top([...same('a', 3, MIN), ...same('b', 7, 3 * DAY)]).spike).toBe(true);
+    // baseline 10 → avg 1.43 → 3 >= 2.86
+    expect(top([...same('a', 3, MIN), ...same('b', 10, 3 * DAY)]).spike).toBe(true);
+    // baseline 11 → avg 1.57 → 3 < 3.14
+    expect(top([...same('a', 3, MIN), ...same('b', 11, 3 * DAY)]).spike).toBe(false);
+  });
+  it('24 h boundary: exactly 24 h old is baseline, not recent', () => {
+    expect(top(same('a', 3, DAY)).recent24h).toBe(0);
+  });
+  it('8 d boundary: exactly 8 d old is outside the baseline', () => {
+    // 3 recent + 14 at exactly 8 d → baseline 0 → spike
+    expect(top([...same('a', 3, MIN), ...same('b', 14, 8 * DAY)]).spike).toBe(true);
+    // 1 ms inside the window counts
+    expect(top([...same('a', 3, MIN), ...same('b', 14, 8 * DAY - 1)]).spike).toBe(false);
+  });
+  /** n refunds with reason `r`, `ageMs` before now. */
+  const many = (r: string, n: number, ageMs: number) =>
+    Array.from({ length: n }, (_, j) => refund({ id: `${r}-${ageMs}-${j}`, reason: `reason ${r}`, created_at: new Date(now - ageMs).toISOString() }));
+
+  it('a spiking reason outside the top 3 is appended after them', () => {
+    // a/b/c: many old refunds, none recent. d: only 3, all in the last hour → spike, but 4th by count.
+    const refunds = [...many('a', 10, 30 * DAY), ...many('b', 9, 30 * DAY), ...many('c', 8, 30 * DAY), ...many('d', 3, MIN)];
+    const result = aggregate({ refunds }, now);
+    expect(result.top.map((i) => [i.label, i.count, i.spike])).toEqual([
+      ['reason a', 10, false],
+      ['reason b', 9, false],
+      ['reason c', 8, false],
+      ['reason d', 3, true],
+    ]);
+  });
+  it('a non-spiking reason outside the top 3 stays out', () => {
+    const refunds = [...many('a', 10, 30 * DAY), ...many('b', 9, 30 * DAY), ...many('c', 8, 30 * DAY), ...many('d', 2, MIN)];
+    const result = aggregate({ refunds }, now);
+    expect(result.top.map((i) => i.label)).toEqual(['reason a', 'reason b', 'reason c']);
+  });
+  it('spiking reasons inside the top 3 are not duplicated; the top may exceed 3 only by spiking reasons', () => {
+    const refunds = ['a', 'b', 'c', 'd', 'e'].flatMap((r, i) => many(r, 10 - i, MIN));
+    const result = aggregate({ refunds }, now);
+    expect(result.top.map((i) => i.label)).toEqual(['reason a', 'reason b', 'reason c', 'reason d', 'reason e']);
+    expect(result.top.every((i) => i.spike)).toBe(true);
   });
 });

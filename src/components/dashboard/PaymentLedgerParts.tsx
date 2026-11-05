@@ -115,9 +115,26 @@ export function StatusBadge({ row }: { row: LedgerRow }) {
   );
 }
 
-export function TypeLabel({ row }: { row: LedgerRow }) {
+/** Seeded sample history (`LedgerActionRow.sample`). Its PayPal ids are plain text like every other id here. */
+export function SampleChip({ row }: { row: LedgerRow }) {
+  const t = useTranslations('dashboard.payments.ledger');
+  if (row.type === 'purchase' || !row.sample) return null;
+  return (
+    <span className="ml-1.5 inline-block rounded-full bg-muted px-1.5 align-middle text-[11px] font-semibold leading-[18px] text-muted-foreground">
+      {t('sample')}
+    </span>
+  );
+}
+
+/** `withSample=false`: the grid's narrow Type column — the grid shows the chip in its Actions cell instead. */
+export function TypeLabel({ row, withSample = true }: { row: LedgerRow; withSample?: boolean }) {
   const t = useTranslations('dashboard.payments.ledger.types');
-  return <>{t(row.type)}</>;
+  return (
+    <>
+      {t(row.type)}
+      {withSample && <SampleChip row={row} />}
+    </>
+  );
 }
 
 export function LedgerTime({ at }: { at: string }) {

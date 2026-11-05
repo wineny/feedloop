@@ -238,8 +238,8 @@ describe('환불 사유', () => {
       total: 3,
       buckets: { fix: 1, feature: 0, other: 0, unclassified: 2 },
       top: [
-        { key: 'reason:i bought the wrong plan by mistake.', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false },
-        { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/example/demo/pull/128', external: true },
+        { key: 'reason:i bought the wrong plan by mistake.', label: 'I bought the wrong plan by mistake.', count: 2, bucket: 'unclassified', href: '/inbox?c=conv-b', external: false, recent24h: 0, spike: false },
+        { key: 'group:g-1', label: 'Receipt shows the wrong currency', count: 1, bucket: 'fix', href: 'https://github.com/example/demo/pull/128', external: true, recent24h: 0, spike: false },
       ],
     });
     // 메시지·묶음 조회도 소유 봇으로 좁힌다

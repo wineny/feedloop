@@ -10,6 +10,7 @@ import { callLlm, type BotConfig } from '@/lib/bot/handler';
 import { GROUPABLE_CATEGORIES, isGroupable, normalizeCategory } from '@/lib/classify/taxonomy';
 import { groupAction } from '@/lib/groups/policy';
 import { scoreGroupImpact } from '@/lib/groups/priority';
+import { applyGroupTriage, normalizeTriage, type Triage } from '@/lib/groups/triage';
 import {
   closeLoopForRejoins,
   matchOutcome,
@@ -162,6 +163,9 @@ export interface ProposedGroup {
   summary: string;
   category: string;
   insight_ids: string[];
+  /** F2 label only — present only when the model gave a valid verdict (see `normalizeTriage`). */
+  triage?: Triage;
+  triage_reason?: string;
 }
 
 export function buildGroupingPrompt(insights: UngroupedInsight[], existing: ExistingGroup[] = []): string {
@@ -198,6 +202,8 @@ Respond only in the JSON format below. Output only the JSON, with no other text.
       "title": "Coupon apply button does not respond",
       "summary": "Reports that tapping the coupon apply button on the checkout screen does nothing. Reported on both mobile and PC.",
       "category": "bug",
+      "triage": "fix",
+      "triage_reason": "The button is broken for everyone who reported it, so it is worth fixing now.",
       "insight_ids": ["${insights[0]?.id ?? ''}"]
     }
   ]
@@ -217,7 +223,12 @@ Respond only in the JSON format below. Output only the JSON, with no other text.
 - Write title and summary in ${OWNER_CONTENT_LANGUAGE}, even when the feedback is in another language.
 - category is the one value that represents the group (bug | ux | feature_request).
   **bug if something is broken, ux if nothing is broken but it is bad to use, feature_request if it asks for a capability that does not exist.**
-  For a mixed group, follow the majority.`;
+  For a mixed group, follow the majority.
+- triage is your verdict on the group, one of fix | wont_fix | needs_decision. It is a label only; nothing is done automatically.
+  **fix** = something is broken or bad to use, and it is worth fixing now.
+  **wont_fix** = it works as intended, is out of scope, or there is nothing actionable.
+  **needs_decision** = a product, pricing or policy trade-off that the owner must decide.
+- triage_reason is one line explaining the verdict, in ${OWNER_CONTENT_LANGUAGE}.`;
 }
 
 /**
@@ -313,6 +324,8 @@ export function validateGroups(
       summary: typeof g.summary === 'string' && g.summary.trim() ? g.summary.trim() : g.title.trim(),
       category,
       insight_ids: ids,
+      // Added only when valid, so groups without a usable verdict keep their old shape.
+      ...(normalizeTriage(g.triage, g.triage_reason) ?? {}),
     });
   }
 
@@ -436,6 +449,12 @@ export async function runGrouping(botIds: string[], deadlineMs = Date.now() + 24
         if (closed.skippedDeadline > 0) {
           result.loopFailures!.push(`loop_closed_deferred: ${closed.skippedDeadline} (the cron picks them up)`);
         }
+      }
+      // F2 — label only, best effort. A failed update never fails grouping.
+      try {
+        await applyGroupTriage(botId, valid, receipt.groups);
+      } catch {
+        console.warn('[grouping] triage apply failed');
       }
       // 사업 임팩트 실패는 이미 완료된 묶기를 실패로 바꾸지 않는다.
       try {

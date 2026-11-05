@@ -5,12 +5,14 @@
 // screen (§10), so the English text is the one that gets the care; ko mirrors it (messages/*/inbox.json). The decision is taken once; the server answers 409 on a second attempt.
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Loader2, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { PaymentActionView } from '@/lib/paypal/action-view';
 import { dynamicT } from '@/i18n/dynamic';
+import type { PaymentPrecedent } from '@/lib/paypal/precedent';
 import { ACTION_STATUS_TONE } from '@/lib/paypal/action-status-tone';
 
 export type PaymentDecision = 'approve' | 'reject';
@@ -21,6 +23,13 @@ export interface PaymentActionCardProps {
   onDecide: (actionId: string, decision: PaymentDecision) => Promise<PaymentActionView>;
   /** The practice (logged-out) screen never calls the server. */
   disabled?: boolean;
+  /** What happened to similar past requests (display only). Nothing is shown without it. */
+  precedent?: PaymentPrecedent | null;
+  /**
+   * Inside the inbox: open a past conversation in place. The inbox reads `?c=` only once on load, so a
+   * link to `/inbox?c=…` from inside the inbox would change the address and nothing else. Without it, links.
+   */
+  onOpenConversation?: (conversationId: string) => void;
 }
 
 /**
@@ -55,7 +64,7 @@ function StatusIcon({ status }: { status: PaymentActionView['status'] }) {
   return <XCircle className="h-4 w-4 text-muted-foreground" aria-hidden />;
 }
 
-export function PaymentActionCard({ action, onDecide, disabled }: PaymentActionCardProps) {
+export function PaymentActionCard({ action, onDecide, disabled, precedent, onOpenConversation }: PaymentActionCardProps) {
   const t = useTranslations('inbox.payment');
   const format = useFormatter();
   const { busy, error, decide } = usePaymentDecision(action.id, onDecide);
@@ -75,6 +84,7 @@ export function PaymentActionCard({ action, onDecide, disabled }: PaymentActionC
         <div className="flex items-center gap-2">
           <StatusIcon status={current.status} />
           <span className="font-semibold">{t('title', { amount: current.amount ?? '?' })}</span>
+          {current.sample && <span className="rounded-full bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground">{t('sample')}</span>}
         </div>
         <span className={cn('rounded-full px-2 py-0.5 text-[12.5px] font-semibold', ACTION_STATUS_TONE[current.status])}>
           {t(`status.${current.status}`)}
@@ -110,6 +120,40 @@ export function PaymentActionCard({ action, onDecide, disabled }: PaymentActionC
               <li key={label}>{label}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {precedent && (
+        <div className="text-[12.5px] text-muted-foreground">
+          <p>
+            {t(precedent.basis === 'check' ? 'precedent.check' : 'precedent.amount', { refunded: precedent.refunded, total: precedent.total })}
+            {precedent.auto > 0 && ` · ${t('precedent.auto', { auto: precedent.auto })}`}
+            {precedent.sample > 0 && <span className="text-faint"> {t('precedent.sampleCount', { sample: precedent.sample })}</span>}
+          </p>
+          {precedent.evidence.length > 0 && (
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>{t('precedent.evidence')}:</span>
+              {precedent.evidence.map((e) => (
+                <span key={e.actionId} className="inline-flex items-center gap-1">
+                  {onOpenConversation ? (
+                    <button
+                      type="button"
+                      data-conversation-id={e.conversationId}
+                      onClick={() => onOpenConversation(e.conversationId)}
+                      className="font-semibold text-brand-strong hover:underline"
+                    >
+                      {e.amount ?? '?'} · {t(`status.${e.status}`)}
+                    </button>
+                  ) : (
+                    <Link href={e.href} className="font-semibold text-brand-strong hover:underline">
+                      {e.amount ?? '?'} · {t(`status.${e.status}`)}
+                    </Link>
+                  )}
+                  {e.sample && <span className="rounded-full bg-muted px-1.5 text-[11px] font-semibold">{t('precedent.sample')}</span>}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
       )}
 

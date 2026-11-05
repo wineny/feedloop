@@ -11,6 +11,7 @@ import { runGrouping } from '@/lib/groups/grouping';
 import { claimRun, executeClaimedRun, loadRun } from '@/lib/auto-dev/execute-run';
 import { isCodeFixable } from '@/lib/groups/policy';
 import { groupPriority } from '@/lib/groups/priority';
+import { isSampleConversation } from '@/lib/demo/sample-marker';
 
 /**
  * 자동 모드가 익명 한 사람의 말만 듣고 PR 을 열지 않게 하는 최소 인원 (I-34 ③ · 심사 §7 T11).
@@ -59,6 +60,11 @@ export interface AutoPrCandidate {
    * 따로 있어 정의가 다르다. 같은 이름을 두면 읽는 쪽이 둘을 같은 것으로 읽는다.
    */
   hasReachableContact: boolean;
+  /**
+   * Every conversation of this group is seeded sample history (web + `sample-` visitor,
+   * scripts/seed-sample-history.ts). Never a PR: nobody real reported it.
+   */
+  sampleOnly?: boolean;
 }
 
 /**
@@ -83,12 +89,13 @@ function isIdentified(c: AutoPrCandidate): boolean {
  * - **익명 1인 묶음은 제외** (I-34 ③). 연락처가 있거나 서로 다른 대화 N명 이상이어야 한다.
  *   사람이 누르는 [PR 만들기](approve 경로)는 이 함수를 지나지 않으므로 영향이 없다 —
  *   거기엔 화면 앞에 사람이 있고, 이 게이트는 «사람이 없는» 크론만 조인다.
+ * - **샘플 기록만 든 묶음은 제외** (`sampleOnly`). 시연용으로 심은 대화라 진짜 제보가 아니다.
  * - 남은 것 중 우선순위 점수가 가장 높은 묶음. 같으면 앞선 것(호출처가 최신순으로 준다).
  */
 export function pickGroupForAutoPr(candidates: AutoPrCandidate[]): AutoPrCandidate | null {
   let best: AutoPrCandidate | null = null;
   for (const c of candidates) {
-    if (c.status !== 'open' || c.hasRun || c.followUpPending) continue;
+    if (c.status !== 'open' || c.hasRun || c.followUpPending || c.sampleOnly) continue;
     if (!isCodeFixable(c.category)) continue;
     if (!isIdentified(c)) continue;
     const score = (g: AutoPrCandidate) => groupPriority(g.personCount ?? g.distinctConversations, g.insightCount, g.impactCore ?? null).score;
@@ -113,6 +120,7 @@ export function autoPrSkipReason(candidates: AutoPrCandidate[]): AutoPrSkipReaso
       c.status === 'open' &&
       !c.hasRun &&
       !c.followUpPending &&
+      !c.sampleOnly &&
       isCodeFixable(c.category) &&
       !isIdentified(c),
   );
@@ -244,11 +252,12 @@ async function loadAutoPrCandidatePage(botId: string, offset: number): Promise<A
   ]);
   const conversationIds = [...new Set(conversationByMessage.values())];
   const reachableConversations = new Set<string>();
+  const sampleConversations = new Set<string>();
   const personKey = new Map<string, string>();
   for (const chunk of chunked(conversationIds, ID_CHUNK)) {
     const { data, error } = await db()
       .from('conversations')
-      .select('id, source, contact_email, contact_phone, channel_person_id')
+      .select('id, source, external_user_id, contact_email, contact_phone, channel_person_id')
       .in('id', chunk)
       .limit(ID_CHUNK);
     if (error) throw new Error(error.message);
@@ -259,6 +268,7 @@ async function loadAutoPrCandidatePage(botId: string, offset: number): Promise<A
         Boolean(c.contact_email) ||
         Boolean(c.contact_phone);
       if (reachable) reachableConversations.add(c.id as string);
+      if (isSampleConversation(c as { source?: string | null; external_user_id?: string | null })) sampleConversations.add(c.id as string);
     }
   }
 
@@ -287,6 +297,7 @@ async function loadAutoPrCandidatePage(botId: string, offset: number): Promise<A
       personCount: new Set([...convs].map((id) => personKey.get(id) ?? id)).size,
       impactCore: g.impact_core ?? null,
       hasReachableContact: [...convs].some((c) => reachableConversations.has(c)),
+      sampleOnly: convs.size > 0 && [...convs].every((c) => sampleConversations.has(c)),
     };
   });
 }

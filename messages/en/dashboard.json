@@ -193,7 +193,15 @@
     "draftSpec": "Draft spec",
     "dismiss": "Close",
     "dismissLabel": "Close this group",
-    "specNote": "Spec draft · a person decides whether to build it"
+    "specNote": "Spec draft · a person decides whether to build it",
+    "triage": {
+      "fix": "Fix",
+      "wont_fix": "Won't fix",
+      "needs_decision": "Owner decides",
+      "label": "Triage"
+    },
+    "sample": "Sample",
+    "samplePrDisabled": "Sample data: PRs are off."
   },
   "payments": {
     "title": "PayPal",
@@ -225,7 +233,9 @@
       "count": "{count, plural, one {# request} other {# requests}}",
       "noReason": "No reason given",
       "openPr": "View fix PR",
-      "openConversation": "Open conversation"
+      "openConversation": "Open conversation",
+      "spike": "Spike",
+      "spikeHint": "{count} in the last 24 h"
     },
     "connect": {
       "title": "PayPal isn't connected",
@@ -326,7 +336,8 @@
         "paid": "Paid",
         "refundedAmount": "Refunded",
         "refundRecorded": "Refund recorded"
-      }
+      },
+      "sample": "Sample"
     }
   },
   "studio": {

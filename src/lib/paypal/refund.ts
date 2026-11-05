@@ -37,6 +37,7 @@
 // from the webhook (PAYMENT.CAPTURE.REFUNDED), from the daily cron, and lazily from the visitor
 // tools when they meet a stuck row.
 
+import { isSampleRef } from '@/lib/demo/sample-marker';
 import { syncOrderRefund } from './capture';
 import { isUncertainPayPalError, type PayPalClient } from './client';
 import { describeError } from './checkout';
@@ -368,6 +369,8 @@ async function precheckCapture(deps: RefundDeps, action: PaymentActionRow, signa
  * sends. Ownership was the caller's check.
  */
 export async function executeApprovedAction(deps: RefundDeps, action: PaymentActionRow): Promise<ApprovedExecutionOutcome> {
+  // Seeded sample history (scripts/seed-sample-history.ts) has a fake capture id: never sent to PayPal.
+  if (isSampleRef(action.target_id)) return { status: 'not_executable', action };
   if (action.status !== 'executing' || action.kind !== 'refund') return { status: 'not_executable', action };
   if (action.amount_cents === null || !action.currency) return { status: 'not_executable', action };
 
@@ -415,6 +418,9 @@ export async function reconcileAction(
   action: PaymentActionRow,
   opts: { signal?: AbortSignal } = {},
 ): Promise<ReconcileOutcome> {
+  // Seeded sample history: no PayPal read, no re-send, no sentence into its conversation. Covers every
+  // caller (sweep, webhook, visitor tools).
+  if (isSampleRef(action.target_id)) return { status: 'noop', action };
   if (action.kind !== 'refund') return { status: 'noop', action };
   if (!isStuckAction(action)) {
     // A finished row met again (webhook, sweep, a visitor asking): the one thing left to check is that

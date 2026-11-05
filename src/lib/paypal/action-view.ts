@@ -3,6 +3,7 @@
 // No Node imports — the client page imports this too.
 
 import { formatMoney } from './money';
+import { isSampleRef } from '@/lib/demo/sample-marker';
 import type { PaymentActionRow, PaymentActionStatus } from './store';
 
 export interface PaymentActionView {
@@ -24,6 +25,8 @@ export interface PaymentActionView {
   decidedAt: string | null;
   /** The operator can still approve or reject this row. */
   decidable: boolean;
+  /** Seeded sample history (display badge only). */
+  sample?: boolean;
 }
 
 /** Operator-facing names for the guardrail checks the RPC records (20261019_01, 20261021_01). Phrased as the problem: only FAILED checks are ever listed to a person. */
@@ -62,6 +65,7 @@ export function toPaymentActionView(row: PaymentActionRow): PaymentActionView {
     createdAt: row.created_at,
     decidedAt: row.decided_at,
     decidable: row.status === 'pending',
+    sample: isSampleRef(row.target_id),
   };
 }
 

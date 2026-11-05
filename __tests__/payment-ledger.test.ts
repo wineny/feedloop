@@ -90,6 +90,13 @@ describe('row mapping', () => {
     expect(actionToLedgerRow(actionSource({ guardrail: null })).detail.failedChecks).toEqual([]);
   });
 
+  it('sample: a SAMPLE- capture or refund id (seeded sample history); real ids are not', () => {
+    expect(actionToLedgerRow(actionSource()).sample).toBe(false);
+    expect(actionToLedgerRow(actionSource({ target_id: 'SAMPLE-CAP-0001', status: 'executed', paypal_ref: 'SAMPLE-REF-0001' })).sample).toBe(true);
+    expect(actionToLedgerRow(actionSource({ paypal_ref: 'SAMPLE-REF-0002' })).sample).toBe(true);
+    expect(actionToLedgerRow(actionSource({ target_id: '5O190127TN364715T', paypal_ref: '7XK01234AB567890C' })).sample).toBe(false);
+  });
+
   it('purchase row', () => {
     expect(orderToLedgerRow(orderSource({ refunded_cents: null }))).toMatchObject({
       key: 'order:ORDER1',
@@ -230,6 +237,22 @@ describe('sample-data ledger', () => {
     const ko = renderWithIntl(React.createElement(PaymentLedger, { botId: null, demoRows: sample }), 'ko');
     expect(ko).toContain('결제 장부');
     expect(ko).toContain('승인 대기');
+  });
+});
+
+describe('seeded sample rows', () => {
+  const chip = />Sample<\/span>/g;
+  it('card list: a Sample chip on the sample refund only; its PayPal ids stay plain text (en + ko)', () => {
+    const rows: LedgerRow[] = [
+      actionToLedgerRow(actionSource({ id: 's1', target_id: 'SAMPLE-CAP-0001', status: 'executed', paypal_ref: 'SAMPLE-REF-0001' })),
+      actionToLedgerRow(actionSource({ id: 'r1', status: 'executed', paypal_ref: 'REF1' })),
+      orderToLedgerRow(orderSource()),
+    ];
+    const en = renderWithIntl(React.createElement(PaymentLedger, { botId: null, demoRows: rows }), 'en');
+    expect(en.match(chip)).toHaveLength(1);
+    expect(en).not.toMatch(/href="[^"]*SAMPLE-/);
+    const ko = renderWithIntl(React.createElement(PaymentLedger, { botId: null, demoRows: rows }), 'ko');
+    expect(ko.match(/>샘플<\/span>/g)).toHaveLength(1);
   });
 });
 

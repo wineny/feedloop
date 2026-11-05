@@ -107,7 +107,16 @@
       "no_dispute": "진행 중인 분쟁이 있음",
       "not_propose_only": "「제안만」이 켜져 있음",
       "not_paused": "자동 환불이 멈춰 있음"
-    }
+    },
+    "precedent": {
+      "check": "같은 검사에서 멈춘 비슷한 요청: {total}건 중 {refunded}건을 승인했어요",
+      "amount": "비슷한 금액: {total}건 중 {refunded}건 환불",
+      "auto": "그중 {auto}건은 자동",
+      "evidence": "지난 결정 보기",
+      "sample": "샘플",
+      "sampleCount": "· 샘플 데이터 {sample}건 포함"
+    },
+    "sample": "샘플"
   },
   "activity": {
     "title": "결제 내역",

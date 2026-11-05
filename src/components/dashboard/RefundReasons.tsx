@@ -30,6 +30,14 @@ function TopReason({ item }: TopReasonProps) {
         <span className="text-[12.5px] text-muted-foreground tabular-nums">
           {t('count', { count: item.count })} · {t(`buckets.${item.bucket}`)}
         </span>
+        {item.spike && (
+          <span
+            className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11.5px] font-semibold text-amber-800"
+            title={t('spikeHint', { count: item.recent24h })}
+          >
+            {t('spike')}
+          </span>
+        )}
         {item.href &&
           (item.external ? (
             // 견본 PR(`github.com/example/...`)은 없는 주소라 누를 수 없는 글자로만 보인다(ExternalLink).
