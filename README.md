@@ -42,6 +42,7 @@ From before the hackathon:
 - **Webhooks.** `POST /api/paypal/webhook/[botId]` checks PayPal's signature, captures orders whose buyer closed the tab, and keeps orders in sync with refunds and reversals made outside Feedloop. Dispute events (`CUSTOMER.DISPUTE.*`) are only stored; Feedloop does not act on disputes yet.
 - **Payment problems → one fix PR.** The refund reason goes through the existing classifier, so repeated payment problems are grouped and can become one root-cause pull request.
 - **Owner dashboard for money.** PayPal numbers, a payment ledger (AG Grid Community table on screens 1280px and wider, cards below), and the inbox **Payment activity** panel.
+- **Refund Studio (`/dashboard/refunds`).** An AG Studio dashboard over a fixed 90-day sample store, marked as sample data, for screens 1024px and wider. No sign-in. The Refund Watch agent, on Claude, finds the rising refund reason, says where its fix is, and places an alert widget on the dashboard. Needs `AG_STUDIO_LICENSE_KEY` and `STUDIO_ANTHROPIC_API_KEY` at build time.
 - **Per-bot PayPal settings tab.** Paste your own sandbox keys (Feedloop verifies them), the webhook registers itself, and you set the limits and two switches: **Pause automatic refunds** and **Ask me before every refund**.
 - **English first, with an EN / KO toggle** (next-intl). No language prefix in URLs. The widget follows the visitor's browser language, or a fixed `data-locale="en|ko"` on the script tag.
 - **"Try the demo bot"** button that makes a signed-in user an approver of the demo bot (`/api/demo/join`).
@@ -85,7 +86,7 @@ Webhook events subscribed: `CHECKOUT.ORDER.APPROVED`, `PAYMENT.CAPTURE.COMPLETED
 
 ## Stack
 
-Next.js 16 (App Router) · Vercel AI SDK 7 · Claude (Anthropic) by default, Gemini or OpenAI selectable · Supabase (Postgres) · NextAuth (Google sign-in) · PayPal REST API (sandbox) · PayPal Agent Toolkit (read-only, sandbox) · AG Grid Community · next-intl
+Next.js 16 (App Router) · Vercel AI SDK 7 · Claude (Anthropic) by default, Gemini or OpenAI selectable · Supabase (Postgres) · NextAuth (Google sign-in) · PayPal REST API (sandbox) · PayPal Agent Toolkit (read-only, sandbox) · AG Grid Community · AG Studio · next-intl
 
 ## Run it locally
 
