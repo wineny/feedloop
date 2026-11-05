@@ -339,5 +339,19 @@
       },
       "sample": "샘플"
     }
+  },
+  "studio": {
+    "title": "Refund Studio",
+    "description": "환불에는 다 이유가 있어요. 어떤 이유가 돈을 잃게 하는지, 그 수정이 나갔는지 봐요.",
+    "sampleBadge": "견본 상점 데이터",
+    "sampleNote": "고정된 90일 견본 상점이에요. 측정한 데이터가 아니에요.",
+    "smallScreen": "Refund Studio 는 큰 화면에서 보세요.",
+    "edit": "배치 편집",
+    "ask": "Refund Watch 에게 묻기",
+    "done": "완료",
+    "reset": "처음대로",
+    "loading": "Refund Studio 불러오는 중…",
+    "open": "Refund Studio 에서 보기",
+    "back": "대시보드"
   }
 }

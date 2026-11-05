@@ -339,5 +339,19 @@
       },
       "sample": "Sample"
     }
+  },
+  "studio": {
+    "title": "Refund Studio",
+    "description": "Every refund has a reason. See which reason is costing money, and whether its fix shipped.",
+    "sampleBadge": "Sample store data",
+    "sampleNote": "A fixed 90-day sample store, not measured data.",
+    "smallScreen": "Refund Studio works best on a larger screen. Open it on a laptop to explore the dashboard.",
+    "edit": "Edit layout",
+    "ask": "Ask Refund Watch",
+    "done": "Done",
+    "reset": "Reset",
+    "loading": "Loading Refund Studio…",
+    "open": "Open in Refund Studio",
+    "back": "Dashboard"
   }
 }

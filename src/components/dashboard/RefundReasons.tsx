@@ -59,6 +59,7 @@ function TopReason({ item }: TopReasonProps) {
 export function RefundReasons({ data }: RefundReasonsProps) {
   const t = useTranslations('dashboard.payments.refundReasons');
   const tPayments = useTranslations('dashboard.payments');
+  const tStudio = useTranslations('dashboard.studio');
 
   return (
     <section aria-labelledby="refund-reasons-title" className="card-surface flex min-w-0 flex-col gap-4 p-5 sm:p-6">
@@ -117,6 +118,16 @@ export function RefundReasons({ data }: RefundReasonsProps) {
           )}
         </>
       )}
+
+      {/* Refund Studio (AG Studio) works on its own sample store, so the link is there whatever this card shows.
+          Plain next/link like the conversation links above (the card's tests can't load next-intl navigation). */}
+      <Link
+        href="/dashboard/refunds"
+        className="inline-flex w-fit items-center gap-0.5 text-[12.5px] font-semibold text-brand-strong hover:underline"
+      >
+        {tStudio('open')}
+        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+      </Link>
     </section>
   );
 }
